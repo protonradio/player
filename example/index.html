@@ -7,14 +7,6 @@
     <script src="../dist/proton-player.umd.js"></script>
   </head>
   <body>
-    <!--    <label for="url-input">-->
-    <!--      URL:-->
-    <!--      <input-->
-    <!--        type="text"-->
-    <!--        id="url-input"-->
-    <!--        value="http://localhost:3003/stream?fn=1069804_Visceral_%282019-05-24%29_Part_2_-_James_Warren.mp3"-->
-    <!--      />-->
-    <!--    </label>-->
     <button
       id="play-track-btn"
       class="play-btn"
@@ -33,7 +25,6 @@
     </button>
     <button id="dispose-btn">Dispose</button>
     <script>
-      // const $urlInput = document.getElementById("url-input");
       const player = new ProtonPlayer();
       const $playBtns = document.getElementsByClassName("play-btn");
       for (let $btn of $playBtns) {
@@ -42,11 +33,11 @@
           switch (this.id) {
             case "play-track-btn":
               url =
-                "http://local.protonradio.com:3003/single?fn=mp3-128%2F930947_298153_Acid_in_Your_Head_Original_Mix_128k.mp3&md5=Cp%2Fqv9jO%2F0kzLyKUainusw%3D%3D&player_id=1559592935314&token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjozMDMyMjIsInBocGJiX3VzZXIiOnsidXNlcm5hbWUiOiJjaGFybGVzbmF2aSIsInVzZXJfYWN0aXZlIjp0cnVlLCJhdXRoZW50aWNhdGlvbl90b2tlbiI6IkJ6WWZpUU53SzdVY0g5TDNGaHBFIiwicHJvdG9uX3N1YnNjcmliZSI6dHJ1ZX0sInVzZXIiOnsiaWQiOjI4NjY4LCJhY2Nlc3NsZXZlbCI6M30sImV4cCI6MTU1OTY3Mzk1MiwiaWF0IjoxNTU5NTg3NTUyfQ.EKEOGaoHY2WA9GdJ1fc9IVIqs_fKUg7gWcKb9ibDAoI";
+                "http://local.protonradio.com:3003/single?fn=mp3-128%2F913016_294227_Rise_Original_Mix_128k.mp3&md5=d%2BfQvssKwladDO8mgKS%2Fog%3D%3D&player_id=1559684909660&position=0&token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjo4LCJwaHBiYl91c2VyIjp7InVzZXJuYW1lIjoiamF5ZXBvY2giLCJ1c2VyX2FjdGl2ZSI6dHJ1ZSwiYXV0aGVudGljYXRpb25fdG9rZW4iOiJ3ZGZYZXNGR1UwY3hSOFl5MWlTTSIsInByb3Rvbl9zdWJzY3JpYmUiOnRydWV9LCJ1c2VyIjp7ImlkIjoyLCJhY2Nlc3NsZXZlbCI6MH0sInByaXZhdGVfYWxnb2xpYV9rZXkiOiJiZDRlNDQ0MDNmYzNkMjdhMzI4MDE0NmM2Y2JkNjQyNCIsImV4cCI6MTU1OTc3MTI5MywiaWF0IjoxNTU5Njg0ODkzfQ.0JtZUrMSBGhtUvQsA1Nmw5GoBKcXdLmsCnI03IJFReQ";
               break;
             case "play-mix-btn":
               url =
-                "http://local.protonradio.com:3003/stream?fn=834792_Drumcode_Live_%282018-09-02%29_Part_1_-_ANNA.mp3&md5=wmfuZF7DT540xl4ag%2BHo9g%3D%3D&player_id=1559662467703&token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjozMDMyMjIsInBocGJiX3VzZXIiOnsidXNlcl9hY3RpdmUiOnRydWUsInVzZXJuYW1lIjoiY2hhcmxlc25hdmkiLCJhdXRoZW50aWNhdGlvbl90b2tlbiI6IkJ6WWZpUU53SzdVY0g5TDNGaHBFIiwicHJvdG9uX3N1YnNjcmliZSI6dHJ1ZX0sInVzZXIiOnsiaWQiOjI4NjY4LCJhY2Nlc3NsZXZlbCI6M30sImV4cCI6MTU1OTc0ODgzNywiaWF0IjoxNTU5NjYyNDM3fQ.O0PxjDssN5EXYJsLXqyXvvpwKsMVhkMk83USqOOebAU";
+                "http://local.protonradio.com:3003/stream?fn=1074805_Drumcode_Live_%282019-06-02%29_Part_1_-_Shall_Ocin_-_Drumcode_Live_461_Shall_Ocin.mp3&md5=DbcpNvIrTUNFFRk3YLJ5gg%3D%3D&player_id=1559684817746&token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjozMDMyMjIsInBocGJiX3VzZXIiOnsidXNlcl9hY3RpdmUiOnRydWUsInVzZXJuYW1lIjoiY2hhcmxlc25hdmkiLCJhdXRoZW50aWNhdGlvbl90b2tlbiI6IkJ6WWZpUU53SzdVY0g5TDNGaHBFIiwicHJvdG9uX3N1YnNjcmliZSI6dHJ1ZX0sInVzZXIiOnsiaWQiOjI4NjY4LCJhY2Nlc3NsZXZlbCI6M30sImV4cCI6MTU1OTc0ODgzNywiaWF0IjoxNTU5NjYyNDM3fQ.O0PxjDssN5EXYJsLXqyXvvpwKsMVhkMk83USqOOebAU";
               break;
           }
           player.play(url);

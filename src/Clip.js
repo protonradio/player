@@ -6,7 +6,6 @@ import { slice } from "./utils/buffer";
 import isFrameHeader from "./utils/isFrameHeader";
 import parseMetadata from "./utils/parseMetadata";
 import warn from "./utils/warn";
-// const CHUNK_SIZE = 159660;
 const CHUNK_SIZE = 64 * 1024;
 const OVERLAP = 0.2;
 class PhonographError extends Error {
@@ -17,7 +16,7 @@ class PhonographError extends Error {
   }
 }
 export default class Clip {
-  constructor({ url, fileSize, loop, volume }) {
+  constructor({ url, loop, volume }) {
     this.callbacks = {};
     this.context = getContext();
     this.buffered = 0;
@@ -27,20 +26,21 @@ export default class Clip {
     this.playing = false;
     this.ended = false;
     this._currentTime = 0;
-    this._chunks = [];
     this.url = url;
     this.loop = loop || false;
-    this.loader = new Loader(CHUNK_SIZE, url, fileSize);
+    this.loader = new Loader(64 * 64, url, 64 * 64, 1);
     this._volume = volume || 1;
     this._gain = this.context.createGain();
     this._gain.gain.value = this._volume;
     this._gain.connect(this.context.destination);
     this._chunks = [];
+    this._noiseChunks = [];
   }
 
-  buffer(bufferToCompletion = false) {
+  buffer(noise = false, bufferToCompletion = false) {
     if (!this._loadStarted) {
-      this._loadStarted = true;
+      // this._loadStarted = true;
+      this._loadStarted = !noise; // TODO: <-
       let tempBuffer = new Uint8Array(CHUNK_SIZE * 2);
       let p = 0;
       // let loadStartTime = Date.now();
@@ -73,7 +73,9 @@ export default class Clip {
         }
       };
       const drainBuffer = () => {
-        const isFirstChunk = this._chunks.length === 0;
+        const isFirstChunk = noise
+          ? this._noiseChunks.length === 0
+          : this._chunks.length === 0;
         const firstByte = isFirstChunk ? 32 : 0;
         const chunk = new Chunk({
           clip: this,
@@ -85,9 +87,15 @@ export default class Clip {
             this._fire("loaderror", error);
           }
         });
-        const lastChunk = this._chunks[this._chunks.length - 1];
-        if (lastChunk) lastChunk.attach(chunk);
-        this._chunks.push(chunk);
+        if (noise) {
+          const lastChunk = this._noiseChunks[this._noiseChunks.length - 1];
+          if (lastChunk) lastChunk.attach(chunk);
+          this._noiseChunks.push(chunk);
+        } else {
+          const lastChunk = this._chunks[this._chunks.length - 1];
+          if (lastChunk) lastChunk.attach(chunk);
+          this._chunks.push(chunk);
+        }
         p = 0;
         return chunk;
       };
@@ -137,7 +145,8 @@ export default class Clip {
             lastChunk.attach(null);
             totalLoadedBytes += p;
           }
-          this._chunks[0].onready(() => {
+          const firstChunk = noise ? this._noiseChunks[0] : this._chunks[0];
+          firstChunk.onready(() => {
             if (!this.canplaythrough) {
               this.canplaythrough = true;
               this._fire("canplaythrough");
@@ -212,7 +221,7 @@ export default class Clip {
     return this.on(eventName, _cb);
   }
   play(url) {
-    // this.url = url; // TODO: <-
+    this.url = url; // TODO: <-
     const promise = new Promise((fulfil, reject) => {
       this.once("ended", fulfil);
       this.once("loaderror", reject);
@@ -226,24 +235,41 @@ export default class Clip {
         reject(err);
       });
     });
-    if (this.playing) {
-      warn(
-        `clip.play() was called on a clip that was already playing (${
-          this.url
-        })`
-      );
-    } else if (!this.canplaythrough) {
-      warn(
-        `clip.play() was called before clip.canplaythrough === true (${
-          this.url
-        })`
-      );
-      this.buffer().then(() => this._play());
-    } else {
+    // if (this.playing) {
+    //   warn(
+    //     `clip.play() was called on a clip that was already playing (${
+    //       this.url
+    //     })`
+    //   );
+    // } else if (!this.canplaythrough) {
+    //   warn(
+    //     `clip.play() was called before clip.canplaythrough === true (${
+    //       this.url
+    //     })`
+    //   );
+    //   this.buffer().then(() => this._play());
+    // } else {
+    //   this._play();
+    // }
+
+    // ------------------------------> Part of the `dispose` method
+    // if (this.playing) this.pause();
+    if (this._loadStarted) {
+      this.loader.cancel();
+      this._loadStarted = false;
+    }
+    this._currentTime = 0;
+    this.loaded = false;
+    // this.canplaythrough = false;
+    this._chunks = [];
+    // this._fire("dispose");
+    // <------------------------------ Part of the `dispose` method
+    if (!this.playing) {
       this._play();
     }
-    // this._play(); // TODO: <-
-    // this.buffer(); // TODO: <-
+    this.loader = new Loader(CHUNK_SIZE, url, 65535 * 32); // TODO: set actual file size
+    this.buffer();
+
     this.playing = true;
     this.ended = false;
     return promise;
@@ -331,8 +357,10 @@ export default class Clip {
       if (currentSource) currentSource.stop();
       pauseListener.cancel();
     });
-    const i = chunkIndex++ % this._chunks.length;
-    let chunk = this._chunks[i];
+    const _chunks =
+      this._chunks.length !== 0 ? this._chunks : this._noiseChunks;
+    const i = chunkIndex++ % _chunks.length;
+    let chunk = _chunks[i];
     let previousSource;
     let currentSource;
     chunk.createSource(
@@ -359,9 +387,27 @@ export default class Clip {
         };
         const advance = () => {
           if (!playing) return;
+
+          let _playingNoise = false;
+
+          let _chunks;
+          if (this._chunks.length > 0 && this._chunks[0].ready) {
+            _chunks = this._chunks;
+            if (!this._chunksWasReady) chunkIndex = 0;
+            this._chunksWasReady = true;
+          } else {
+            _chunks = this._noiseChunks;
+            _playingNoise = true;
+          }
+
+          console.log("(this.url !== this._oldURL)", this.url !== this._oldURL);
+          if (this.url !== this._oldURL) chunkIndex = 0;
+          this._oldURL = this.url;
+
           let i = chunkIndex++;
-          if (this.loop) i %= this._chunks.length;
-          chunk = this._chunks[i];
+
+          if (this.loop || _playingNoise) i %= _chunks.length;
+          chunk = _chunks[i];
           if (chunk) {
             chunk.createSource(
               0,

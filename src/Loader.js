@@ -1,8 +1,8 @@
 export default class Loader {
-  constructor(chunkSize, url, fileSize) {
+  constructor(chunkSize, url, fileSize, preloadChunks = 5) {
     this.CHUNK_SIZE = chunkSize;
     this.url = url;
-    this.PRELOAD_CHUNKS = 1; // TODO: 5
+    this.PRELOAD_CHUNKS = preloadChunks;
     this.FILE_SIZE = fileSize;
     this._totalLoaded = 0;
     this._nextChunkStart = 0;
