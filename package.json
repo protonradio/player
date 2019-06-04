@@ -1,0 +1,22 @@
+{
+  "name": "rollup-starter-lib",
+  "version": "1.0.0",
+  "main": "dist/proton-player.cjs.js",
+  "module": "dist/proton-player.esm.js",
+  "browser": "dist/proton-player.umd.js",
+  "dependencies": {},
+  "devDependencies": {
+    "rollup": "^1.0.0",
+    "rollup-plugin-commonjs": "^10.0.0",
+    "rollup-plugin-node-resolve": "^5.0.0"
+  },
+  "scripts": {
+    "build": "rollup -c",
+    "dev": "rollup -c -w",
+    "test": "node test/test.js",
+    "pretest": "npm run build"
+  },
+  "files": [
+    "dist"
+  ]
+}

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Proton Player</title>
+    <script src="../dist/proton-player.umd.js"></script>
+  </head>
+  <body>
+    <!--    <label for="url-input">-->
+    <!--      URL:-->
+    <!--      <input-->
+    <!--        type="text"-->
+    <!--        id="url-input"-->
+    <!--        value="http://localhost:3003/stream?fn=1069804_Visceral_%282019-05-24%29_Part_2_-_James_Warren.mp3"-->
+    <!--      />-->
+    <!--    </label>-->
+    <button
+      id="play-track-btn"
+      class="play-btn"
+      style="width:200px; height:50px"
+      disabled
+    >
+      Play Track
+    </button>
+    <button
+      id="play-mix-btn"
+      class="play-btn"
+      style="width:200px; height:50px"
+      disabled
+    >
+      Play Mix
+    </button>
+    <button id="dispose-btn">Dispose</button>
+    <script>
+      // const $urlInput = document.getElementById("url-input");
+      const player = new ProtonPlayer();
+      const $playBtns = document.getElementsByClassName("play-btn");
+      for (let $btn of $playBtns) {
+        $btn.onclick = function() {
+          let url = "";
+          switch (this.id) {
+            case "play-track-btn":
+              url =
+                "http://local.protonradio.com:3003/single?fn=mp3-128%2F930947_298153_Acid_in_Your_Head_Original_Mix_128k.mp3&md5=Cp%2Fqv9jO%2F0kzLyKUainusw%3D%3D&player_id=1559592935314&token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjozMDMyMjIsInBocGJiX3VzZXIiOnsidXNlcm5hbWUiOiJjaGFybGVzbmF2aSIsInVzZXJfYWN0aXZlIjp0cnVlLCJhdXRoZW50aWNhdGlvbl90b2tlbiI6IkJ6WWZpUU53SzdVY0g5TDNGaHBFIiwicHJvdG9uX3N1YnNjcmliZSI6dHJ1ZX0sInVzZXIiOnsiaWQiOjI4NjY4LCJhY2Nlc3NsZXZlbCI6M30sImV4cCI6MTU1OTY3Mzk1MiwiaWF0IjoxNTU5NTg3NTUyfQ.EKEOGaoHY2WA9GdJ1fc9IVIqs_fKUg7gWcKb9ibDAoI";
+              break;
+            case "play-mix-btn":
+              url =
+                "http://local.protonradio.com:3003/stream?fn=834792_Drumcode_Live_%282018-09-02%29_Part_1_-_ANNA.mp3&md5=wmfuZF7DT540xl4ag%2BHo9g%3D%3D&player_id=1559662467703&token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjozMDMyMjIsInBocGJiX3VzZXIiOnsidXNlcl9hY3RpdmUiOnRydWUsInVzZXJuYW1lIjoiY2hhcmxlc25hdmkiLCJhdXRoZW50aWNhdGlvbl90b2tlbiI6IkJ6WWZpUU53SzdVY0g5TDNGaHBFIiwicHJvdG9uX3N1YnNjcmliZSI6dHJ1ZX0sInVzZXIiOnsiaWQiOjI4NjY4LCJhY2Nlc3NsZXZlbCI6M30sImV4cCI6MTU1OTc0ODgzNywiaWF0IjoxNTU5NjYyNDM3fQ.O0PxjDssN5EXYJsLXqyXvvpwKsMVhkMk83USqOOebAU";
+              break;
+          }
+          player.play(url);
+        };
+      }
+      const $disposeBtn = document.getElementById("dispose-btn");
+      $disposeBtn.onclick = function() {
+        player.dispose();
+      };
+    </script>
+  </body>
+</html>
