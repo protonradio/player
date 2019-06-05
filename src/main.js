@@ -1,11 +1,53 @@
-import { Clip } from "./index";
+import _noop from "lodash.noop";
+import { Loader, Buffer, Clip } from "./index";
 
 export default class ProtonPlayer {
-  constructor() {
-    this.ready = false;
+  constructor(onReady) {
+    this._onReady = onReady || _noop;
+    this._ready = false;
+    this._silenceChunks = [];
 
-    const url = "http://local.protonradio.com:3003/noise";
-    this.clip = new Clip({ url });
+    const silenceURL = "http://local.protonradio.com:3003/silence";
+    const silenceChunkSize = 64 * 64;
+    const silenceFileSize = silenceChunkSize;
+    const silencePreloadChunks = 1;
+    const silenceLoader = new Loader(
+      silenceChunkSize,
+      silenceURL,
+      silenceFileSize,
+      silencePreloadChunks
+    );
+    const silenceBuffer = new Buffer(
+      silenceChunkSize,
+      this._silenceChunks,
+      silenceLoader
+    );
+    silenceBuffer.on("canplaythrough", () => console.log("canplaythrough"));
+    silenceBuffer.on("loadprogress", () => console.log("loadprogress"));
+    silenceBuffer.on("loaderror", () => console.log("loaderror"));
+    silenceBuffer.on("load", () => {
+      console.log("load");
+      this._ready = true;
+      this._onReady();
+    });
+    silenceBuffer.buffer(true);
+  }
+
+  play(url, fileSize) {
+    if (!this._ready) {
+      console.log("cannot play yet");
+      return;
+    }
+
+    if (this.clip) {
+      this.clip.dispose();
+    }
+
+    this.clip = new Clip({
+      url,
+      fileSize,
+      silenceChunks: this._silenceChunks
+    });
 
     this.clip.on("loaderror", err => {
       console.error("Clip failed to load", err);
@@ -15,21 +57,11 @@ export default class ProtonPlayer {
       console.error("Something went wrong during playback", err);
     });
 
-    this.clip.buffer(true).then(() => {
+    this.clip.buffer().then(() => {
       console.log("buffer promise resolved");
-      this.ready = true;
-      for (let $btn of $playBtns) {
-        $btn.removeAttribute("disabled");
-      }
     });
-  }
 
-  play(url) {
-    if (!this.ready) {
-      console.log("cannot play yet");
-      return;
-    }
-    this.clip.play(url);
+    this.clip.play();
   }
 
   dispose() {

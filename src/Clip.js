@@ -1,22 +1,15 @@
 import Loader from "./Loader";
-import Chunk from "./Chunk";
+import Buffer from "./Buffer";
+import EventEmitter from "./EventEmitter";
 import Clone from "./Clone";
 import getContext from "./getContext";
-import { slice } from "./utils/buffer";
-import isFrameHeader from "./utils/isFrameHeader";
-import parseMetadata from "./utils/parseMetadata";
 import warn from "./utils/warn";
 const CHUNK_SIZE = 64 * 1024;
 const OVERLAP = 0.2;
-class PhonographError extends Error {
-  constructor(message, opts) {
-    super(message);
-    this.phonographCode = opts.phonographCode;
-    this.url = opts.url;
-  }
-}
-export default class Clip {
-  constructor({ url, loop, volume }) {
+
+export default class Clip extends EventEmitter {
+  constructor({ url, fileSize, silenceChunks = [], loop = false, volume = 1 }) {
+    super();
     this.callbacks = {};
     this.context = getContext();
     this.buffered = 0;
@@ -27,155 +20,29 @@ export default class Clip {
     this.ended = false;
     this._currentTime = 0;
     this.url = url;
-    this.loop = loop || false;
-    this.loader = new Loader(64 * 64, url, 64 * 64, 1);
-    this._volume = volume || 1;
+    this.loop = loop;
+    this.loader = new Loader(CHUNK_SIZE, url, fileSize);
+    this._volume = volume;
     this._gain = this.context.createGain();
     this._gain.gain.value = this._volume;
     this._gain.connect(this.context.destination);
     this._chunks = [];
-    this._noiseChunks = [];
+    this._silenceChunks = silenceChunks;
   }
 
-  buffer(noise = false, bufferToCompletion = false) {
-    if (!this._loadStarted) {
-      // this._loadStarted = true;
-      this._loadStarted = !noise; // TODO: <-
-      let tempBuffer = new Uint8Array(CHUNK_SIZE * 2);
-      let p = 0;
-      // let loadStartTime = Date.now();
-      let totalLoadedBytes = 0;
-      const checkCanplaythrough = () => {
-        if (this.canplaythrough || !this.length) return;
-        let duration = 0;
-        let bytes = 0;
-        for (let chunk of this._chunks) {
-          if (!chunk.duration) break;
-          duration += chunk.duration;
-          bytes += chunk.raw.length;
-        }
-        if (!duration) return;
-        const scale = this.length / bytes;
-        const estimatedDuration = duration * scale;
-        // const timeNow = Date.now();
-        // const elapsed = timeNow - loadStartTime;
-        // const bitrate = totalLoadedBytes / elapsed;
-        // const estimatedTimeToDownload =
-        //   (1.5 * (this.length - totalLoadedBytes)) / bitrate / 1e3;
-        const estimatedTimeToDownload = 4; // TODO: <-
-        // if we have enough audio that we can start playing now
-        // and finish downloading before we run out, we've
-        // reached canplaythrough
-        const availableAudio = (bytes / this.length) * estimatedDuration;
-        if (availableAudio > estimatedTimeToDownload) {
-          this.canplaythrough = true;
-          this._fire("canplaythrough");
-        }
-      };
-      const drainBuffer = () => {
-        const isFirstChunk = noise
-          ? this._noiseChunks.length === 0
-          : this._chunks.length === 0;
-        const firstByte = isFirstChunk ? 32 : 0;
-        const chunk = new Chunk({
-          clip: this,
-          raw: slice(tempBuffer, firstByte, p),
-          onready: this.canplaythrough ? null : checkCanplaythrough,
-          onerror: error => {
-            error.url = this.url;
-            error.phonographCode = "COULD_NOT_DECODE";
-            this._fire("loaderror", error);
-          }
-        });
-        if (noise) {
-          const lastChunk = this._noiseChunks[this._noiseChunks.length - 1];
-          if (lastChunk) lastChunk.attach(chunk);
-          this._noiseChunks.push(chunk);
-        } else {
-          const lastChunk = this._chunks[this._chunks.length - 1];
-          if (lastChunk) lastChunk.attach(chunk);
-          this._chunks.push(chunk);
-        }
-        p = 0;
-        return chunk;
-      };
-      this.loader.load({
-        onProgress: (progress, length, total) => {
-          this.buffered = length;
-          this.length = total;
-          this._fire("loadprogress", { progress, length, total });
-        },
-        onData: uint8Array => {
-          if (!this.metadata) {
-            for (let i = 0; i < uint8Array.length; i += 1) {
-              // determine some facts about this mp3 file from the initial header
-              if (
-                uint8Array[i] === 0b11111111 &&
-                (uint8Array[i + 1] & 0b11110000) === 0b11110000
-              ) {
-                // http://www.datavoyage.com/mpgscript/mpeghdr.htm
-                this._referenceHeader = {
-                  mpegVersion: uint8Array[i + 1] & 0b00001000,
-                  mpegLayer: uint8Array[i + 1] & 0b00000110,
-                  sampleRate: uint8Array[i + 2] & 0b00001100,
-                  channelMode: uint8Array[i + 3] & 0b11000000
-                };
-                this.metadata = parseMetadata(this._referenceHeader);
-                break;
-              }
-            }
-          }
-          for (let i = 0; i < uint8Array.length; i += 1) {
-            // once the buffer is large enough, wait for
-            // the next frame header then drain it
-            if (
-              p > CHUNK_SIZE + 4 &&
-              isFrameHeader(uint8Array, i, this._referenceHeader)
-            ) {
-              drainBuffer();
-            }
-            // write new data to buffer
-            tempBuffer[p++] = uint8Array[i];
-          }
-          totalLoadedBytes += uint8Array.length;
-        },
-        onLoad: () => {
-          if (p) {
-            const lastChunk = drainBuffer();
-            lastChunk.attach(null);
-            totalLoadedBytes += p;
-          }
-          const firstChunk = noise ? this._noiseChunks[0] : this._chunks[0];
-          firstChunk.onready(() => {
-            if (!this.canplaythrough) {
-              this.canplaythrough = true;
-              this._fire("canplaythrough");
-            }
-            this.loaded = true;
-            this._fire("load");
-          });
-        },
-        onError: error => {
-          error.url = this.url;
-          error.phonographCode = "COULD_NOT_LOAD";
-          this._fire("loaderror", error);
-          this._loadStarted = false;
-        }
-      });
-    }
-    return new Promise((fulfil, reject) => {
-      const ready = bufferToCompletion ? this.loaded : this.canplaythrough;
-      if (ready) {
-        fulfil();
-      } else {
-        this.once(bufferToCompletion ? "load" : "canplaythrough", fulfil);
-        this.once("loaderror", reject);
-      }
-    });
+  buffer(bufferToCompletion = false) {
+    const buffer = new Buffer(CHUNK_SIZE, this._chunks, this.loader);
+    buffer.on("canplaythrough", () => this._fire("canplaythrough"));
+    buffer.on("loadprogress", data => this._fire("loadprogress", data));
+    buffer.on("loaderror", error => this._fire("loaderror", error));
+    buffer.on("load", () => this._fire("load"));
+    return buffer.buffer(bufferToCompletion);
   }
+
   clone() {
     return new Clone(this);
   }
+
   connect(destination, output, input) {
     if (!this._connected) {
       this._gain.disconnect();
@@ -184,57 +51,32 @@ export default class Clip {
     this._gain.connect(destination, output, input);
     return this;
   }
+
   disconnect(destination, output, input) {
     this._gain.disconnect(destination, output, input);
   }
+
   dispose() {
     if (this.playing) this.pause();
-    if (this._loadStarted) {
-      this.loader.cancel();
-      this._loadStarted = false;
-    }
+    this.loader.cancel();
     this._currentTime = 0;
     this.loaded = false;
     this.canplaythrough = false;
     this._chunks = [];
     this._fire("dispose");
   }
-  off(eventName, cb) {
-    const callbacks = this.callbacks[eventName];
-    if (!callbacks) return;
-    const index = callbacks.indexOf(cb);
-    if (~index) callbacks.splice(index, 1);
-  }
-  on(eventName, cb) {
-    const callbacks =
-      this.callbacks[eventName] || (this.callbacks[eventName] = []);
-    callbacks.push(cb);
-    return {
-      cancel: () => this.off(eventName, cb)
-    };
-  }
-  once(eventName, cb) {
-    const _cb = data => {
-      cb(data);
-      this.off(eventName, _cb);
-    };
-    return this.on(eventName, _cb);
-  }
-  play(url) {
-    this.url = url; // TODO: <-
+
+  play() {
     const promise = new Promise((fulfil, reject) => {
       this.once("ended", fulfil);
       this.once("loaderror", reject);
       this.once("playbackerror", reject);
       this.once("dispose", () => {
         if (this.ended) return;
-        const err = new PhonographError("Clip was disposed", {
-          phonographCode: "CLIP_WAS_DISPOSED",
-          url: this.url
-        });
-        reject(err);
+        fulfil();
       });
     });
+
     // if (this.playing) {
     //   warn(
     //     `clip.play() was called on a clip that was already playing (${
@@ -252,26 +94,21 @@ export default class Clip {
     //   this._play();
     // }
 
-    // ------------------------------> Part of the `dispose` method
-    // if (this.playing) this.pause();
-    if (this._loadStarted) {
-      this.loader.cancel();
-      this._loadStarted = false;
+    if (this.playing) {
+      warn(
+        `clip.play() was called on a clip that was already playing (${
+          this.url
+        })`
+      );
+      return promise;
     }
-    this._currentTime = 0;
-    this.loaded = false;
-    // this.canplaythrough = false;
-    this._chunks = [];
-    // this._fire("dispose");
-    // <------------------------------ Part of the `dispose` method
-    if (!this.playing) {
-      this._play();
-    }
-    this.loader = new Loader(CHUNK_SIZE, url, 65535 * 32); // TODO: set actual file size
-    this.buffer();
+
+    this.context.resume();
+    this._play();
 
     this.playing = true;
     this.ended = false;
+
     return promise;
   }
 
@@ -290,6 +127,7 @@ export default class Clip {
     this._fire("pause");
     return this;
   }
+
   get currentTime() {
     if (this.playing) {
       return (
@@ -299,6 +137,7 @@ export default class Clip {
       return this._currentTime;
     }
   }
+
   set currentTime(currentTime) {
     if (this.playing) {
       this.pause();
@@ -308,6 +147,7 @@ export default class Clip {
       this._currentTime = currentTime;
     }
   }
+
   get duration() {
     let total = 0;
     for (let chunk of this._chunks) {
@@ -316,37 +156,36 @@ export default class Clip {
     }
     return total;
   }
+
   get paused() {
     return !this.playing;
   }
+
   get volume() {
     return this._volume;
   }
+
   set volume(volume) {
     this._gain.gain.value = this._volume = volume;
   }
-  _fire(eventName, data) {
-    const callbacks = this.callbacks[eventName];
-    if (!callbacks) return;
-    callbacks.slice().forEach(cb => cb(data));
-  }
+
   _play() {
-    this.context.resume(); // TODO: <-
-    let chunkIndex;
+    let chunkIndex = 0;
+    let silenceChunkIndex = 0;
     let time = 0;
-    for (chunkIndex = 0; chunkIndex < this._chunks.length; chunkIndex += 1) {
-      const chunk = this._chunks[chunkIndex];
-      if (!chunk.duration) {
-        warn(`attempted to play content that has not yet buffered ${this.url}`);
-        setTimeout(() => {
-          this._play();
-        }, 100);
-        return;
-      }
-      const chunkEnd = time + chunk.duration;
-      if (chunkEnd > this._currentTime) break;
-      time = chunkEnd;
-    }
+    // for (chunkIndex = 0; chunkIndex < this._chunks.length; chunkIndex += 1) {
+    //   const chunk = this._chunks[chunkIndex];
+    //   if (!chunk.duration) {
+    //     warn(`attempted to play content that has not yet buffered ${this.url}`);
+    //     setTimeout(() => {
+    //       this._play();
+    //     }, 100);
+    //     return;
+    //   }
+    //   const chunkEnd = time + chunk.duration;
+    //   if (chunkEnd > this._currentTime) break;
+    //   time = chunkEnd;
+    // }
     this._startTime = this._currentTime;
     const timeOffset = this._currentTime - time;
     this._fire("play");
@@ -357,9 +196,12 @@ export default class Clip {
       if (currentSource) currentSource.stop();
       pauseListener.cancel();
     });
-    const _chunks =
-      this._chunks.length !== 0 ? this._chunks : this._noiseChunks;
-    const i = chunkIndex++ % _chunks.length;
+    const _playingSilence =
+      this._chunks.length === 0 || this._chunks[0].ready !== true;
+    const _chunks = _playingSilence ? this._silenceChunks : this._chunks;
+    const i = _playingSilence
+      ? silenceChunkIndex++ % _chunks.length
+      : chunkIndex++ % _chunks.length;
     let chunk = _chunks[i];
     let previousSource;
     let currentSource;
@@ -387,26 +229,13 @@ export default class Clip {
         };
         const advance = () => {
           if (!playing) return;
-
-          let _playingNoise = false;
-
-          let _chunks;
-          if (this._chunks.length > 0 && this._chunks[0].ready) {
-            _chunks = this._chunks;
-            if (!this._chunksWasReady) chunkIndex = 0;
-            this._chunksWasReady = true;
-          } else {
-            _chunks = this._noiseChunks;
-            _playingNoise = true;
-          }
-
-          console.log("(this.url !== this._oldURL)", this.url !== this._oldURL);
-          if (this.url !== this._oldURL) chunkIndex = 0;
-          this._oldURL = this.url;
-
-          let i = chunkIndex++;
-
-          if (this.loop || _playingNoise) i %= _chunks.length;
+          const _playingSilence =
+            this._chunks.length === 0 || this._chunks[0].ready !== true;
+          const _chunks = _playingSilence ? this._silenceChunks : this._chunks;
+          let i = _playingSilence
+            ? silenceChunkIndex++ % _chunks.length
+            : chunkIndex++ % _chunks.length;
+          if (this.loop || _playingSilence) i %= _chunks.length;
           chunk = _chunks[i];
           if (chunk) {
             chunk.createSource(

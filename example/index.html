@@ -9,7 +9,7 @@
   <body>
     <button
       id="play-track-btn"
-      class="play-btn"
+      class="btn play-btn"
       style="width:200px; height:50px"
       disabled
     >
@@ -17,33 +17,47 @@
     </button>
     <button
       id="play-mix-btn"
-      class="play-btn"
+      class="btn play-btn"
       style="width:200px; height:50px"
       disabled
     >
       Play Mix
     </button>
-    <button id="dispose-btn">Dispose</button>
+    <button id="stop-btn" class="btn" style="width:100px; height:50px" disabled>
+      Stop
+    </button>
     <script>
-      const player = new ProtonPlayer();
+      const $btns = document.getElementsByClassName("btn");
+      const onReady = () => {
+        for (let $btn of $btns) {
+          $btn.removeAttribute("disabled");
+        }
+      };
+
+      const player = new ProtonPlayer(onReady);
+
       const $playBtns = document.getElementsByClassName("play-btn");
       for (let $btn of $playBtns) {
         $btn.onclick = function() {
-          let url = "";
+          let url = "",
+            fileSize = 0;
           switch (this.id) {
             case "play-track-btn":
               url =
-                "http://local.protonradio.com:3003/single?fn=mp3-128%2F913016_294227_Rise_Original_Mix_128k.mp3&md5=d%2BfQvssKwladDO8mgKS%2Fog%3D%3D&player_id=1559684909660&position=0&token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjo4LCJwaHBiYl91c2VyIjp7InVzZXJuYW1lIjoiamF5ZXBvY2giLCJ1c2VyX2FjdGl2ZSI6dHJ1ZSwiYXV0aGVudGljYXRpb25fdG9rZW4iOiJ3ZGZYZXNGR1UwY3hSOFl5MWlTTSIsInByb3Rvbl9zdWJzY3JpYmUiOnRydWV9LCJ1c2VyIjp7ImlkIjoyLCJhY2Nlc3NsZXZlbCI6MH0sInByaXZhdGVfYWxnb2xpYV9rZXkiOiJiZDRlNDQ0MDNmYzNkMjdhMzI4MDE0NmM2Y2JkNjQyNCIsImV4cCI6MTU1OTc3MTI5MywiaWF0IjoxNTU5Njg0ODkzfQ.0JtZUrMSBGhtUvQsA1Nmw5GoBKcXdLmsCnI03IJFReQ";
+                "http://local.protonradio.com:3003/single?fn=mp3-128%2F654292_224065_Smiley_Faces_Original_Mix_128k.mp3&md5=xNYnQEJefltj3CJO0JZ%2BQg%3D%3D&player_id=1559749150239&token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjozMDMyMjIsInBocGJiX3VzZXIiOnsidXNlcm5hbWUiOiJjaGFybGVzbmF2aSIsInVzZXJfYWN0aXZlIjp0cnVlLCJhdXRoZW50aWNhdGlvbl90b2tlbiI6IkJ6WWZpUU53SzdVY0g5TDNGaHBFIiwicHJvdG9uX3N1YnNjcmliZSI6dHJ1ZX0sInVzZXIiOnsiaWQiOjI4NjY4LCJhY2Nlc3NsZXZlbCI6M30sImV4cCI6MTU1OTgzNTUyNSwiaWF0IjoxNTU5NzQ5MTI1fQ.TXZOcJwgHvBdy0OQb7bSsK9nTnpMswomlafzQuARvOY";
+              fileSize = 6588289;
               break;
             case "play-mix-btn":
               url =
-                "http://local.protonradio.com:3003/stream?fn=1074805_Drumcode_Live_%282019-06-02%29_Part_1_-_Shall_Ocin_-_Drumcode_Live_461_Shall_Ocin.mp3&md5=DbcpNvIrTUNFFRk3YLJ5gg%3D%3D&player_id=1559684817746&token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjozMDMyMjIsInBocGJiX3VzZXIiOnsidXNlcl9hY3RpdmUiOnRydWUsInVzZXJuYW1lIjoiY2hhcmxlc25hdmkiLCJhdXRoZW50aWNhdGlvbl90b2tlbiI6IkJ6WWZpUU53SzdVY0g5TDNGaHBFIiwicHJvdG9uX3N1YnNjcmliZSI6dHJ1ZX0sInVzZXIiOnsiaWQiOjI4NjY4LCJhY2Nlc3NsZXZlbCI6M30sImV4cCI6MTU1OTc0ODgzNywiaWF0IjoxNTU5NjYyNDM3fQ.O0PxjDssN5EXYJsLXqyXvvpwKsMVhkMk83USqOOebAU";
+                "http://local.protonradio.com:3003/stream?fn=1054824_Drumcode_Live_%282019-04-28%29_Part_1_-_Monika_Kruse.mp3&md5=ImL5uhIhItO6iiwjpdVnIw%3D%3D&player_id=1559749217450&token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjozMDMyMjIsInBocGJiX3VzZXIiOnsidXNlcm5hbWUiOiJjaGFybGVzbmF2aSIsInVzZXJfYWN0aXZlIjp0cnVlLCJhdXRoZW50aWNhdGlvbl90b2tlbiI6IkJ6WWZpUU53SzdVY0g5TDNGaHBFIiwicHJvdG9uX3N1YnNjcmliZSI6dHJ1ZX0sInVzZXIiOnsiaWQiOjI4NjY4LCJhY2Nlc3NsZXZlbCI6M30sImV4cCI6MTU1OTgzNTUyNSwiaWF0IjoxNTU5NzQ5MTI1fQ.TXZOcJwgHvBdy0OQb7bSsK9nTnpMswomlafzQuARvOY";
+              fileSize = 83630497;
               break;
           }
-          player.play(url);
+          player.play(url, fileSize);
         };
       }
-      const $disposeBtn = document.getElementById("dispose-btn");
+
+      const $disposeBtn = document.getElementById("stop-btn");
       $disposeBtn.onclick = function() {
         player.dispose();
       };

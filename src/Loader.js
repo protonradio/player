@@ -1,3 +1,5 @@
+import _noop from "lodash.noop";
+
 export default class Loader {
   constructor(chunkSize, url, fileSize, preloadChunks = 5) {
     this.CHUNK_SIZE = chunkSize;
@@ -15,10 +17,10 @@ export default class Loader {
   }
 
   load({ onProgress, onData, onLoad, onError }) {
-    this._onProgress = onProgress;
-    this._onData = onData;
-    this._onLoad = onLoad;
-    this._onError = onError;
+    this._onProgress = onProgress || _noop;
+    this._onData = onData || _noop;
+    this._onLoad = onLoad || _noop;
+    this._onError = onError || _noop;
     this._cancelled = false;
     this._preLoad()
       .then(values => {

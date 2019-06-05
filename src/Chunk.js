@@ -1,6 +1,7 @@
 import { slice } from "./utils/buffer.js";
 import isFrameHeader from "./utils/isFrameHeader.js";
 import getFrameLength from "./utils/getFrameLength.js";
+
 export default class Chunk {
   constructor({ clip, raw, onready, onerror }) {
     this.context = clip.context;
@@ -46,14 +47,11 @@ export default class Chunk {
   }
   createSource(timeOffset, callback, errback) {
     if (!this.ready) {
-      // throw new Error(
-      //   "Something went wrong! Chunk was not ready in time for playback"
-      // );
-      console.error(
+      throw new Error(
         "Something went wrong! Chunk was not ready in time for playback"
-      ); // TODO: <-
-      return;
+      );
     }
+
     this.context.decodeAudioData(
       slice(this.extended, 0, this.extended.length).buffer,
       decoded => {
