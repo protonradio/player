@@ -51,9 +51,10 @@ export default class Clip extends EventEmitter {
         this._preBuffering = false;
         this._preBuffered = true;
       })
-      .catch(() => {
+      .catch(err => {
         this._preBuffering = false;
         this._preBuffered = false;
+        throw err;
       });
   }
 
@@ -71,9 +72,10 @@ export default class Clip extends EventEmitter {
         this._buffering = false;
         this._buffered = true;
       })
-      .catch(() => {
+      .catch(err => {
         this._buffering = false;
         this._buffered = false;
+        throw err;
       });
   }
 

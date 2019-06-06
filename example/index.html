@@ -7,60 +7,121 @@
     <script src="../dist/proton-player.umd.js"></script>
   </head>
   <body>
-    <button
-      id="play-track-btn"
-      class="btn play-btn"
-      style="width:200px; height:50px"
-      disabled
-    >
-      Play Track
-    </button>
-    <button
-      id="play-mix-btn"
-      class="btn play-btn"
-      style="width:200px; height:50px"
-      disabled
-    >
-      Play Mix
-    </button>
-    <button id="stop-btn" class="btn" style="width:100px; height:50px" disabled>
-      Stop
-    </button>
+    <div id="container" style="display: flex; flex-direction: column;">
+      <input
+        id="stop-btn"
+        class="btn"
+        type="button"
+        value="Stop"
+        style="background-color: #ff4e33; border: none; color: #000; padding: 16px 32px; text-decoration: none; margin: 4px 2px; cursor: pointer;"
+        disabled
+      />
+    </div>
     <script>
-      const $btns = document.getElementsByClassName("btn");
       const onReady = () => {
+        const $btns = document.getElementsByClassName("btn");
         for (let $btn of $btns) {
           $btn.removeAttribute("disabled");
         }
       };
+      const onError = err => {
+        console.error(err);
+      };
 
-      const player = new ProtonPlayer(onReady);
+      const player = new ProtonPlayer(onReady, onError);
 
-      const $playBtns = document.getElementsByClassName("play-btn");
-      for (let $btn of $playBtns) {
-        $btn.onclick = function() {
-          let url = "",
-            fileSize = 0;
-          switch (this.id) {
-            case "play-track-btn":
-              url =
-                "http://local.protonradio.com:3003/single?fn=mp3-128%2F654292_224065_Smiley_Faces_Original_Mix_128k.mp3&md5=xNYnQEJefltj3CJO0JZ%2BQg%3D%3D&player_id=1559749150239&token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjozMDMyMjIsInBocGJiX3VzZXIiOnsidXNlcm5hbWUiOiJjaGFybGVzbmF2aSIsInVzZXJfYWN0aXZlIjp0cnVlLCJhdXRoZW50aWNhdGlvbl90b2tlbiI6IkJ6WWZpUU53SzdVY0g5TDNGaHBFIiwicHJvdG9uX3N1YnNjcmliZSI6dHJ1ZX0sInVzZXIiOnsiaWQiOjI4NjY4LCJhY2Nlc3NsZXZlbCI6M30sImV4cCI6MTU1OTgzNTUyNSwiaWF0IjoxNTU5NzQ5MTI1fQ.TXZOcJwgHvBdy0OQb7bSsK9nTnpMswomlafzQuARvOY";
-              fileSize = 6588289;
-              break;
-            case "play-mix-btn":
-              url =
-                "http://local.protonradio.com:3003/stream?fn=1054824_Drumcode_Live_%282019-04-28%29_Part_1_-_Monika_Kruse.mp3&md5=ImL5uhIhItO6iiwjpdVnIw%3D%3D&player_id=1559749217450&token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjozMDMyMjIsInBocGJiX3VzZXIiOnsidXNlcm5hbWUiOiJjaGFybGVzbmF2aSIsInVzZXJfYWN0aXZlIjp0cnVlLCJhdXRoZW50aWNhdGlvbl90b2tlbiI6IkJ6WWZpUU53SzdVY0g5TDNGaHBFIiwicHJvdG9uX3N1YnNjcmliZSI6dHJ1ZX0sInVzZXIiOnsiaWQiOjI4NjY4LCJhY2Nlc3NsZXZlbCI6M30sImV4cCI6MTU1OTgzNTUyNSwiaWF0IjoxNTU5NzQ5MTI1fQ.TXZOcJwgHvBdy0OQb7bSsK9nTnpMswomlafzQuARvOY";
-              fileSize = 83630497;
-              break;
-          }
-          player.play(url, fileSize);
-        };
-      }
-
+      const $container = document.getElementById("container");
       const $disposeBtn = document.getElementById("stop-btn");
       $disposeBtn.onclick = function() {
-        player.dispose();
+        player.disposeAll();
       };
+
+      function init() {
+        const baseURL = "http://local.protonradio.com:3003";
+        [
+          {
+            name: "Track 1",
+            url:
+              "/single?fn=mp3-128%2F943054_282276_Domuyo_Original_Mix_128k.mp3&md5=D2DqeRKTYGBJfcvPbLTGAQ%3D%3D&player_id=1559854170445&token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjo4LCJwaHBiYl91c2VyIjp7InVzZXJfYWN0aXZlIjp0cnVlLCJ1c2VybmFtZSI6ImpheWVwb2NoIiwiYXV0aGVudGljYXRpb25fdG9rZW4iOiJ3ZGZYZXNGR1UwY3hSOFl5MWlTTSIsInByb3Rvbl9zdWJzY3JpYmUiOnRydWV9LCJ1c2VyIjp7ImlkIjoyLCJhY2Nlc3NsZXZlbCI6MH0sInByaXZhdGVfYWxnb2xpYV9rZXkiOiJiZDRlNDQ0MDNmYzNkMjdhMzI4MDE0NmM2Y2JkNjQyNCIsImV4cCI6MTU1OTk0MDQ2MCwiaWF0IjoxNTU5ODU0MDYwfQ.5V8O9CFc_4g8XuKmzgNP7RDknljxLThvYu9F1nabT4U",
+            size: 7743110,
+            preLoad: true
+          },
+          {
+            name: "Track 2",
+            url:
+              "/single?fn=mp3-128%2F936950_299413_Catharsis_Original_Mix_128k.mp3&md5=ArYcPsajrGKmnQm%2FD6WCuQ%3D%3D&player_id=1559854235788&token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjo4LCJwaHBiYl91c2VyIjp7InVzZXJfYWN0aXZlIjp0cnVlLCJ1c2VybmFtZSI6ImpheWVwb2NoIiwiYXV0aGVudGljYXRpb25fdG9rZW4iOiJ3ZGZYZXNGR1UwY3hSOFl5MWlTTSIsInByb3Rvbl9zdWJzY3JpYmUiOnRydWV9LCJ1c2VyIjp7ImlkIjoyLCJhY2Nlc3NsZXZlbCI6MH0sInByaXZhdGVfYWxnb2xpYV9rZXkiOiJiZDRlNDQ0MDNmYzNkMjdhMzI4MDE0NmM2Y2JkNjQyNCIsImV4cCI6MTU1OTk0MDQ2MCwiaWF0IjoxNTU5ODU0MDYwfQ.5V8O9CFc_4g8XuKmzgNP7RDknljxLThvYu9F1nabT4U",
+            size: 7809148,
+            preLoadOnHover: true
+          },
+          {
+            name: "Track 3",
+            url:
+              "/single?fn=mp3-128%2F939476_292726_Geometria_Original_Mix_128k.mp3&md5=X4uzvwtej2z0pQ0XplZKIQ%3D%3D&player_id=1559854500653&token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjo4LCJwaHBiYl91c2VyIjp7InVzZXJfYWN0aXZlIjp0cnVlLCJ1c2VybmFtZSI6ImpheWVwb2NoIiwiYXV0aGVudGljYXRpb25fdG9rZW4iOiJ3ZGZYZXNGR1UwY3hSOFl5MWlTTSIsInByb3Rvbl9zdWJzY3JpYmUiOnRydWV9LCJ1c2VyIjp7ImlkIjoyLCJhY2Nlc3NsZXZlbCI6MH0sInByaXZhdGVfYWxnb2xpYV9rZXkiOiJiZDRlNDQ0MDNmYzNkMjdhMzI4MDE0NmM2Y2JkNjQyNCIsImV4cCI6MTU1OTk0MDQ2MCwiaWF0IjoxNTU5ODU0MDYwfQ.5V8O9CFc_4g8XuKmzgNP7RDknljxLThvYu9F1nabT4U",
+            size: 7083153
+          },
+          {
+            name: "Mix 1",
+            url:
+              "/stream?fn=1063013_Syncopation_%282019-05-14%29_Part_1_-_Christopher_FaFa_-_Syncopation.mp3&md5=m2eNR7trmNZaVvkerJ%2BEvg%3D%3D&player_id=1559854282509&token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjo4LCJwaHBiYl91c2VyIjp7InVzZXJfYWN0aXZlIjp0cnVlLCJ1c2VybmFtZSI6ImpheWVwb2NoIiwiYXV0aGVudGljYXRpb25fdG9rZW4iOiJ3ZGZYZXNGR1UwY3hSOFl5MWlTTSIsInByb3Rvbl9zdWJzY3JpYmUiOnRydWV9LCJ1c2VyIjp7ImlkIjoyLCJhY2Nlc3NsZXZlbCI6MH0sInByaXZhdGVfYWxnb2xpYV9rZXkiOiJiZDRlNDQ0MDNmYzNkMjdhMzI4MDE0NmM2Y2JkNjQyNCIsImV4cCI6MTU1OTk0MDQ2MCwiaWF0IjoxNTU5ODU0MDYwfQ.5V8O9CFc_4g8XuKmzgNP7RDknljxLThvYu9F1nabT4U",
+            size: 82396054,
+            preLoad: true
+          },
+          {
+            name: "Mix 2",
+            url:
+              "/stream?fn=1069804_Visceral_%282019-05-24%29_Part_2_-_James_Warren.mp3&md5=axd6vSbE54P6JfLddms%2Fjg%3D%3D&player_id=1559854370708&token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjo4LCJwaHBiYl91c2VyIjp7InVzZXJfYWN0aXZlIjp0cnVlLCJ1c2VybmFtZSI6ImpheWVwb2NoIiwiYXV0aGVudGljYXRpb25fdG9rZW4iOiJ3ZGZYZXNGR1UwY3hSOFl5MWlTTSIsInByb3Rvbl9zdWJzY3JpYmUiOnRydWV9LCJ1c2VyIjp7ImlkIjoyLCJhY2Nlc3NsZXZlbCI6MH0sInByaXZhdGVfYWxnb2xpYV9rZXkiOiJiZDRlNDQ0MDNmYzNkMjdhMzI4MDE0NmM2Y2JkNjQyNCIsImV4cCI6MTU1OTk0MDQ2MCwiaWF0IjoxNTU5ODU0MDYwfQ.5V8O9CFc_4g8XuKmzgNP7RDknljxLThvYu9F1nabT4U",
+            size: 82787264,
+            preLoadOnHover: true
+          },
+          {
+            name: "Mix 3",
+            url:
+              "/stream?fn=1069805_Audioholics_%282019-05-24%29_Part_1_-_Mariano_Mellino_-_Audioholics_Episode_48_by_Mariano_Mellino_.mp3&md5=vlhwzMUpCOwinq8IFku6AA%3D%3D&player_id=1559854549060&token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjo4LCJwaHBiYl91c2VyIjp7InVzZXJfYWN0aXZlIjp0cnVlLCJ1c2VybmFtZSI6ImpheWVwb2NoIiwiYXV0aGVudGljYXRpb25fdG9rZW4iOiJ3ZGZYZXNGR1UwY3hSOFl5MWlTTSIsInByb3Rvbl9zdWJzY3JpYmUiOnRydWV9LCJ1c2VyIjp7ImlkIjoyLCJhY2Nlc3NsZXZlbCI6MH0sInByaXZhdGVfYWxnb2xpYV9rZXkiOiJiZDRlNDQ0MDNmYzNkMjdhMzI4MDE0NmM2Y2JkNjQyNCIsImV4cCI6MTU1OTk0MDQ2MCwiaWF0IjoxNTU5ODU0MDYwfQ.5V8O9CFc_4g8XuKmzgNP7RDknljxLThvYu9F1nabT4U",
+            size: 85516328
+          }
+        ].forEach(file => {
+          const $btn = document.createElement("input");
+          $btn.setAttribute("class", "btn");
+          $btn.setAttribute("type", "button");
+          $btn.setAttribute("value", file.preLoad ? "Loading..." : file.name);
+          $btn.setAttribute("disabled", file.preLoad ? "disabled" : "");
+          $btn.setAttribute(
+            "style",
+            "background-color: #000; border: none; color: white; padding: 16px 32px; text-decoration: none; margin: 4px 2px; cursor: pointer;"
+          );
+
+          const { url, size, preLoad, preLoadOnHover } = file;
+
+          if (preLoad) {
+            player.preLoad(baseURL + url, size).then(() => {
+              $btn.removeAttribute("disabled");
+              $btn.setAttribute("value", file.name + " (preloaded)");
+            });
+          }
+
+          if (preLoadOnHover) {
+            $btn.onmouseover = function() {
+              if ($btn.preloaded) return;
+              $btn.preloaded = true;
+
+              $btn.setAttribute("value", "Loading...");
+
+              player.preLoad(baseURL + url, size).then(() => {
+                $btn.removeAttribute("disabled");
+                $btn.setAttribute("value", file.name + " (preloaded)");
+              });
+            };
+          }
+
+          $btn.onclick = function() {
+            player.play(baseURL + url, size);
+          };
+
+          $container.appendChild($btn);
+        });
+      }
+
+      init();
     </script>
   </body>
 </html>

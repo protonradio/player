@@ -89,8 +89,6 @@ export default class Fetcher {
   }
 
   _loadFragment() {
-    console.log(`_loadFragment: ${this._nextChunkStart}-${this._nextChunkEnd}`);
-
     const options = {
       headers: {
         range: `${this._nextChunkStart}-${this._nextChunkEnd}`

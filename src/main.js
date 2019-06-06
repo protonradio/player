@@ -2,8 +2,9 @@ import _noop from "lodash.noop";
 import { Loader, Clip } from "./index";
 
 export default class ProtonPlayer {
-  constructor(onReady) {
+  constructor(onReady, onError) {
     this._onReady = onReady || _noop;
+    this._onError = onError || _noop;
     this._ready = false;
     this._silenceChunks = [];
     this._clips = {};
@@ -16,11 +17,11 @@ export default class ProtonPlayer {
       silenceChunkSize,
       this._silenceChunks
     );
-    silenceLoader.on("canplaythrough", () => console.log("canplaythrough"));
-    silenceLoader.on("loadprogress", () => console.log("loadprogress"));
-    silenceLoader.on("loaderror", () => console.log("loaderror"));
+    silenceLoader.on("loaderror", err => {
+      this._ready = false;
+      this._onError(err);
+    });
     silenceLoader.on("load", () => {
-      console.log("load");
       this._ready = true;
       this._onReady();
     });
@@ -28,17 +29,18 @@ export default class ProtonPlayer {
   }
 
   preLoad(url, fileSize) {
-    this._createClip(url, fileSize).preBuffer();
+    return this._getClip(url, fileSize).preBuffer();
   }
 
   play(url, fileSize) {
     if (!this._ready) {
-      console.log("cannot play yet");
+      console.warn("player not ready");
       return;
     }
 
     this.pauseAll();
-    this._createClip(url, fileSize).play();
+
+    return this._getClip(url, fileSize).play();
   }
 
   pauseAll() {
@@ -54,7 +56,7 @@ export default class ProtonPlayer {
     });
   }
 
-  _createClip(url, fileSize) {
+  _getClip(url, fileSize) {
     if (this._clips[url]) {
       return this._clips[url];
     }
