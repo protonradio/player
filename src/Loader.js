@@ -1,106 +1,151 @@
-import _noop from "lodash.noop";
+import Chunk from "./Chunk";
+import EventEmitter from "./EventEmitter";
+import { slice } from "./utils/buffer";
+import parseMetadata from "./utils/parseMetadata";
+import isFrameHeader from "./utils/isFrameHeader";
+import getContext from "./getContext";
 
-export default class Loader {
-  constructor(chunkSize, url, fileSize, preloadChunks = 5) {
-    this.CHUNK_SIZE = chunkSize;
-    this.url = url;
-    this.PRELOAD_CHUNKS = preloadChunks;
-    this.FILE_SIZE = fileSize;
-    this._totalLoaded = 0;
-    this._nextChunkStart = 0;
-    this._nextChunkEnd = 0;
-    this._cancelled = false;
+export default class Loader extends EventEmitter {
+  constructor(chunkSize, chunks, loader) {
+    super();
+    this._chunkSize = chunkSize;
+    this._chunks = chunks;
+    this._loader = loader;
+    this._loadStarted = false;
+    this._referenceHeader = {};
+    this.context = getContext();
+    this.metadata = null;
   }
 
-  cancel() {
-    this._cancelled = true;
-  }
-
-  load({ onProgress, onData, onLoad, onError }) {
-    this._onProgress = onProgress || _noop;
-    this._onData = onData || _noop;
-    this._onLoad = onLoad || _noop;
-    this._onError = onError || _noop;
-    this._cancelled = false;
-    this._preLoad()
-      .then(values => {
-        values.forEach(uint8Array => this._handleChunk(uint8Array));
-        if (this._fullyLoaded) return;
-        this._load();
-      })
-      .catch(this._onError);
-  }
-
-  _handleChunk(uint8Array) {
-    this._totalLoaded += uint8Array.length;
-    this._onData(uint8Array);
-    this._onProgress(1, uint8Array.length, this.FILE_SIZE);
-    this._fullyLoaded = this._totalLoaded >= this.FILE_SIZE;
-    if (this._fullyLoaded) {
-      this._onLoad();
-    }
-  }
-
-  _preLoad() {
-    const promises = [];
-    for (let i = 0; i < this.PRELOAD_CHUNKS; i++) {
-      this._advanceEnd();
-      promises.push(this._loadFragment());
-      this._advanceStart();
-    }
-    return Promise.all(promises);
-  }
-
-  _load() {
-    this._advanceEnd();
-    this._loadFragment()
-      .then(uint8Array => {
-        if (this._cancelled) return;
-        this._handleChunk(uint8Array);
-        if (!this._fullyLoaded) {
-          this._advanceStart();
-          this._load();
+  buffer(bufferToCompletion = false) {
+    if (!this._loadStarted) {
+      this._loadStarted = true;
+      let tempBuffer = new Uint8Array(this._chunkSize * 2);
+      let p = 0;
+      // let loadStartTime = Date.now();
+      let totalLoadedBytes = 0;
+      const checkCanplaythrough = () => {
+        if (this.canplaythrough || !this.length) return;
+        let duration = 0;
+        let bytes = 0;
+        for (let chunk of this._chunks) {
+          if (!chunk.duration) break;
+          duration += chunk.duration;
+          bytes += chunk.raw.length;
         }
-      })
-      .catch(this._onError);
-  }
-
-  _loadFragment() {
-    const options = {
-      headers: {
-        range: `${this._nextChunkStart}-${this._nextChunkEnd}`
-      }
-    };
-    return fetch(this.url, options).then(response => {
-      if (this._cancelled) return null;
-
-      if (!response.ok) {
-        throw new Error(
-          `Bad response (${response.status} – ${response.statusText})`
-        );
-      }
-
-      if (!response.body) {
-        throw new Error("Bad response body");
-      }
-
-      return response.arrayBuffer().then(arrayBuffer => {
-        if (this._cancelled) return null;
-        return new Uint8Array(arrayBuffer);
+        if (!duration) return;
+        const scale = this.length / bytes;
+        const estimatedDuration = duration * scale;
+        // const timeNow = Date.now();
+        // const elapsed = timeNow - loadStartTime;
+        // const bitrate = totalLoadedBytes / elapsed;
+        // const estimatedTimeToDownload =
+        //   (1.5 * (this.length - totalLoadedBytes)) / bitrate / 1e3;
+        const estimatedTimeToDownload = 4; // TODO: ???
+        // if we have enough audio that we can start playing now
+        // and finish downloading before we run out, we've
+        // reached canplaythrough
+        const availableAudio = (bytes / this.length) * estimatedDuration;
+        if (availableAudio > estimatedTimeToDownload) {
+          this.canplaythrough = true;
+          this._fire("canplaythrough");
+        }
+      };
+      const drainBuffer = () => {
+        const isFirstChunk = this._chunks.length === 0;
+        const firstByte = isFirstChunk ? 32 : 0;
+        const chunk = new Chunk({
+          clip: {
+            context: this.context,
+            metadata: this.metadata,
+            _referenceHeader: this._referenceHeader
+          },
+          raw: slice(tempBuffer, firstByte, p),
+          onready: this.canplaythrough ? null : checkCanplaythrough,
+          onerror: error => {
+            error.url = this.url;
+            error.phonographCode = "COULD_NOT_DECODE";
+            this._fire("loaderror", error);
+          }
+        });
+        const lastChunk = this._chunks[this._chunks.length - 1];
+        if (lastChunk) lastChunk.attach(chunk);
+        this._chunks.push(chunk);
+        p = 0;
+        return chunk;
+      };
+      this._loader.load({
+        onProgress: (progress, length, total) => {
+          this.buffered = length;
+          this.length = total;
+          this._fire("loadprogress", { progress, length, total });
+        },
+        onData: uint8Array => {
+          if (!this.metadata) {
+            for (let i = 0; i < uint8Array.length; i += 1) {
+              // determine some facts about this mp3 file from the initial header
+              if (
+                uint8Array[i] === 0b11111111 &&
+                (uint8Array[i + 1] & 0b11110000) === 0b11110000
+              ) {
+                // http://www.datavoyage.com/mpgscript/mpeghdr.htm
+                this._referenceHeader = {
+                  mpegVersion: uint8Array[i + 1] & 0b00001000,
+                  mpegLayer: uint8Array[i + 1] & 0b00000110,
+                  sampleRate: uint8Array[i + 2] & 0b00001100,
+                  channelMode: uint8Array[i + 3] & 0b11000000
+                };
+                this.metadata = parseMetadata(this._referenceHeader);
+                break;
+              }
+            }
+          }
+          for (let i = 0; i < uint8Array.length; i += 1) {
+            // once the buffer is large enough, wait for
+            // the next frame header then drain it
+            if (
+              p > this._chunkSize + 4 &&
+              isFrameHeader(uint8Array, i, this._referenceHeader)
+            ) {
+              drainBuffer();
+            }
+            // write new data to buffer
+            tempBuffer[p++] = uint8Array[i];
+          }
+          totalLoadedBytes += uint8Array.length;
+        },
+        onLoad: () => {
+          if (p) {
+            const lastChunk = drainBuffer();
+            lastChunk.attach(null);
+            totalLoadedBytes += p;
+          }
+          const firstChunk = this._chunks[0];
+          firstChunk.onready(() => {
+            if (!this.canplaythrough) {
+              this.canplaythrough = true;
+              this._fire("canplaythrough");
+            }
+            this.loaded = true;
+            this._fire("load");
+          });
+        },
+        onError: error => {
+          error.url = this.url;
+          error.phonographCode = "COULD_NOT_LOAD";
+          this._fire("loaderror", error);
+          this._loadStarted = false;
+        }
       });
+    }
+    return new Promise((fulfil, reject) => {
+      const ready = bufferToCompletion ? this.loaded : this.canplaythrough;
+      if (ready) {
+        fulfil();
+      } else {
+        this.once(bufferToCompletion ? "load" : "canplaythrough", fulfil);
+        this.once("loaderror", reject);
+      }
     });
-  }
-
-  _advanceStart() {
-    this._nextChunkStart = this._nextChunkEnd + 1;
-  }
-
-  _advanceEnd() {
-    this._nextChunkEnd =
-      this._nextChunkStart + Math.min(this._getRemaining(), this.CHUNK_SIZE);
-  }
-
-  _getRemaining() {
-    return this.FILE_SIZE - this._totalLoaded - 1;
   }
 }

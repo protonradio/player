@@ -1,5 +1,5 @@
 import _noop from "lodash.noop";
-import { Loader, Buffer, Clip } from "./index";
+import { Fetcher, Loader, Clip } from "./index";
 
 export default class ProtonPlayer {
   constructor(onReady) {
@@ -11,13 +11,13 @@ export default class ProtonPlayer {
     const silenceChunkSize = 64 * 64;
     const silenceFileSize = silenceChunkSize;
     const silencePreloadChunks = 1;
-    const silenceLoader = new Loader(
+    const silenceLoader = new Fetcher(
       silenceChunkSize,
       silenceURL,
       silenceFileSize,
       silencePreloadChunks
     );
-    const silenceBuffer = new Buffer(
+    const silenceBuffer = new Loader(
       silenceChunkSize,
       this._silenceChunks,
       silenceLoader

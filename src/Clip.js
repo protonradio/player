@@ -1,5 +1,5 @@
+import Fetcher from "./Fetcher";
 import Loader from "./Loader";
-import Buffer from "./Buffer";
 import EventEmitter from "./EventEmitter";
 import Clone from "./Clone";
 import getContext from "./getContext";
@@ -21,7 +21,7 @@ export default class Clip extends EventEmitter {
     this._currentTime = 0;
     this.url = url;
     this.loop = loop;
-    this.loader = new Loader(CHUNK_SIZE, url, fileSize);
+    this.loader = new Fetcher(CHUNK_SIZE, url, fileSize);
     this._volume = volume;
     this._gain = this.context.createGain();
     this._gain.gain.value = this._volume;
@@ -31,7 +31,7 @@ export default class Clip extends EventEmitter {
   }
 
   buffer(bufferToCompletion = false) {
-    const buffer = new Buffer(CHUNK_SIZE, this._chunks, this.loader);
+    const buffer = new Loader(CHUNK_SIZE, this._chunks, this.loader);
     buffer.on("canplaythrough", () => this._fire("canplaythrough"));
     buffer.on("loadprogress", data => this._fire("loadprogress", data));
     buffer.on("loaderror", error => this._fire("loaderror", error));
