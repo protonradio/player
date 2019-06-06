@@ -1,25 +1,31 @@
 import Chunk from "./Chunk";
 import EventEmitter from "./EventEmitter";
+import Fetcher from "./Fetcher";
 import { slice } from "./utils/buffer";
 import parseMetadata from "./utils/parseMetadata";
 import isFrameHeader from "./utils/isFrameHeader";
 import getContext from "./getContext";
 
 export default class Loader extends EventEmitter {
-  constructor(chunkSize, chunks, loader) {
+  constructor(chunkSize, url, fileSize, chunks) {
     super();
     this._chunkSize = chunkSize;
     this._chunks = chunks;
-    this._loader = loader;
+    this._fetcher = new Fetcher(chunkSize, url, fileSize);
     this._loadStarted = false;
     this._referenceHeader = {};
     this.context = getContext();
     this.metadata = null;
   }
 
-  buffer(bufferToCompletion = false) {
+  cancel() {
+    this._fetcher.cancel();
+  }
+
+  buffer(bufferToCompletion = false, preloadOnly = false) {
     if (!this._loadStarted) {
-      this._loadStarted = true;
+      this._loadStarted = !preloadOnly;
+
       let tempBuffer = new Uint8Array(this._chunkSize * 2);
       let p = 0;
       // let loadStartTime = Date.now();
@@ -51,6 +57,7 @@ export default class Loader extends EventEmitter {
           this._fire("canplaythrough");
         }
       };
+
       const drainBuffer = () => {
         const isFirstChunk = this._chunks.length === 0;
         const firstByte = isFirstChunk ? 32 : 0;
@@ -74,7 +81,8 @@ export default class Loader extends EventEmitter {
         p = 0;
         return chunk;
       };
-      this._loader.load({
+      this._fetcher.load({
+        preloadOnly,
         onProgress: (progress, length, total) => {
           this.buffered = length;
           this.length = total;

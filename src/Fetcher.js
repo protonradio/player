@@ -1,22 +1,24 @@
 import _noop from "lodash.noop";
 
 export default class Fetcher {
-  constructor(chunkSize, url, fileSize, preloadChunks = 5) {
+  constructor(chunkSize, url, fileSize) {
+    this.PRELOAD_CHUNKS = 5;
     this.CHUNK_SIZE = chunkSize;
     this.url = url;
-    this.PRELOAD_CHUNKS = preloadChunks;
     this.FILE_SIZE = fileSize;
     this._totalLoaded = 0;
     this._nextChunkStart = 0;
     this._nextChunkEnd = 0;
     this._cancelled = false;
+    this._preloaded = false;
+    this._preloading = false;
   }
 
   cancel() {
     this._cancelled = true;
   }
 
-  load({ onProgress, onData, onLoad, onError }) {
+  load({ preloadOnly, onProgress, onData, onLoad, onError }) {
     this._onProgress = onProgress || _noop;
     this._onData = onData || _noop;
     this._onLoad = onLoad || _noop;
@@ -25,13 +27,15 @@ export default class Fetcher {
     this._preLoad()
       .then(values => {
         values.forEach(uint8Array => this._handleChunk(uint8Array));
-        if (this._fullyLoaded) return;
+        if (this._fullyLoaded || preloadOnly) return;
         this._load();
       })
       .catch(this._onError);
   }
 
   _handleChunk(uint8Array) {
+    if (uint8Array.length === 0) return;
+
     this._totalLoaded += uint8Array.length;
     this._onData(uint8Array);
     this._onProgress(1, uint8Array.length, this.FILE_SIZE);
@@ -42,13 +46,32 @@ export default class Fetcher {
   }
 
   _preLoad() {
+    if (this._preloading || this._preloaded)
+      return Promise.resolve(new Uint8Array([]));
+
+    this._preloading = true;
+
     const promises = [];
     for (let i = 0; i < this.PRELOAD_CHUNKS; i++) {
+      if (this._nextChunkStart >= this.FILE_SIZE) {
+        break;
+      }
       this._advanceEnd();
       promises.push(this._loadFragment());
       this._advanceStart();
     }
-    return Promise.all(promises);
+
+    return Promise.all(promises)
+      .then(values => {
+        this._preloaded = true;
+        this._preloading = false;
+        return values;
+      })
+      .catch(err => {
+        this._preloaded = false;
+        this._preloading = false;
+        throw err;
+      });
   }
 
   _load() {
@@ -66,6 +89,8 @@ export default class Fetcher {
   }
 
   _loadFragment() {
+    console.log(`_loadFragment: ${this._nextChunkStart}-${this._nextChunkEnd}`);
+
     const options = {
       headers: {
         range: `${this._nextChunkStart}-${this._nextChunkEnd}`

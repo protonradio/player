@@ -1,4 +1,3 @@
-import Fetcher from "./Fetcher";
 import Loader from "./Loader";
 import EventEmitter from "./EventEmitter";
 import Clone from "./Clone";
@@ -10,9 +9,7 @@ const OVERLAP = 0.2;
 export default class Clip extends EventEmitter {
   constructor({ url, fileSize, silenceChunks = [], loop = false, volume = 1 }) {
     super();
-    this.callbacks = {};
     this.context = getContext();
-    this.buffered = 0;
     this.length = 0;
     this.loaded = false;
     this.canplaythrough = false;
@@ -21,22 +18,63 @@ export default class Clip extends EventEmitter {
     this._currentTime = 0;
     this.url = url;
     this.loop = loop;
-    this.loader = new Fetcher(CHUNK_SIZE, url, fileSize);
     this._volume = volume;
     this._gain = this.context.createGain();
     this._gain.gain.value = this._volume;
     this._gain.connect(this.context.destination);
     this._chunks = [];
     this._silenceChunks = silenceChunks;
+    this._loader = new Loader(CHUNK_SIZE, url, fileSize, this._chunks);
+    this._loader.on("canplaythrough", () => this._fire("canplaythrough"));
+    this._loader.on("loadprogress", data => this._fire("loadprogress", data));
+    this._loader.on("loaderror", error => this._fire("loaderror", error));
+    this._loader.on("load", () => this._fire("load"));
+    this._preBuffering = false;
+    this._preBuffered = false;
+    this._buffering = false;
+    this._buffered = false;
+  }
+
+  preBuffer() {
+    if (this._preBuffered) return;
+    if (this._preBuffering) {
+      setTimeout(this.preBuffer.bind(this), 1);
+      return;
+    }
+
+    this._preBuffering = true;
+    const bufferToCompletion = false;
+    const preloadOnly = true;
+    return this._loader
+      .buffer(bufferToCompletion, preloadOnly)
+      .then(() => {
+        this._preBuffering = false;
+        this._preBuffered = true;
+      })
+      .catch(() => {
+        this._preBuffering = false;
+        this._preBuffered = false;
+      });
   }
 
   buffer(bufferToCompletion = false) {
-    const buffer = new Loader(CHUNK_SIZE, this._chunks, this.loader);
-    buffer.on("canplaythrough", () => this._fire("canplaythrough"));
-    buffer.on("loadprogress", data => this._fire("loadprogress", data));
-    buffer.on("loaderror", error => this._fire("loaderror", error));
-    buffer.on("load", () => this._fire("load"));
-    return buffer.buffer(bufferToCompletion);
+    if (this._buffering || this._buffered) return;
+    if (this._preBuffering) {
+      setTimeout(this.buffer.bind(this, bufferToCompletion), 1);
+      return;
+    }
+
+    this._buffering = true;
+    return this._loader
+      .buffer(bufferToCompletion)
+      .then(() => {
+        this._buffering = false;
+        this._buffered = true;
+      })
+      .catch(() => {
+        this._buffering = false;
+        this._buffered = false;
+      });
   }
 
   clone() {
@@ -58,7 +96,7 @@ export default class Clip extends EventEmitter {
 
   dispose() {
     if (this.playing) this.pause();
-    this.loader.cancel();
+    this._loader.cancel();
     this._currentTime = 0;
     this.loaded = false;
     this.canplaythrough = false;
@@ -77,23 +115,6 @@ export default class Clip extends EventEmitter {
       });
     });
 
-    // if (this.playing) {
-    //   warn(
-    //     `clip.play() was called on a clip that was already playing (${
-    //       this.url
-    //     })`
-    //   );
-    // } else if (!this.canplaythrough) {
-    //   warn(
-    //     `clip.play() was called before clip.canplaythrough === true (${
-    //       this.url
-    //     })`
-    //   );
-    //   this.buffer().then(() => this._play());
-    // } else {
-    //   this._play();
-    // }
-
     if (this.playing) {
       warn(
         `clip.play() was called on a clip that was already playing (${
@@ -103,6 +124,7 @@ export default class Clip extends EventEmitter {
       return promise;
     }
 
+    this.buffer();
     this.context.resume();
     this._play();
 
@@ -113,14 +135,9 @@ export default class Clip extends EventEmitter {
   }
 
   pause() {
-    if (!this.playing) {
-      warn(
-        `clip.pause() was called on a clip that was already paused (${
-          this.url
-        })`
-      );
-      return this;
-    }
+    if (!this.playing) return this;
+
+    this._loader.cancel();
     this.playing = false;
     this._currentTime =
       this._startTime + (this.context.currentTime - this._contextTimeAtStart);

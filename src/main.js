@@ -1,36 +1,34 @@
 import _noop from "lodash.noop";
-import { Fetcher, Loader, Clip } from "./index";
+import { Loader, Clip } from "./index";
 
 export default class ProtonPlayer {
   constructor(onReady) {
     this._onReady = onReady || _noop;
     this._ready = false;
     this._silenceChunks = [];
+    this._clips = {};
 
     const silenceURL = "http://local.protonradio.com:3003/silence";
     const silenceChunkSize = 64 * 64;
-    const silenceFileSize = silenceChunkSize;
-    const silencePreloadChunks = 1;
-    const silenceLoader = new Fetcher(
+    const silenceLoader = new Loader(
       silenceChunkSize,
       silenceURL,
-      silenceFileSize,
-      silencePreloadChunks
-    );
-    const silenceBuffer = new Loader(
       silenceChunkSize,
-      this._silenceChunks,
-      silenceLoader
+      this._silenceChunks
     );
-    silenceBuffer.on("canplaythrough", () => console.log("canplaythrough"));
-    silenceBuffer.on("loadprogress", () => console.log("loadprogress"));
-    silenceBuffer.on("loaderror", () => console.log("loaderror"));
-    silenceBuffer.on("load", () => {
+    silenceLoader.on("canplaythrough", () => console.log("canplaythrough"));
+    silenceLoader.on("loadprogress", () => console.log("loadprogress"));
+    silenceLoader.on("loaderror", () => console.log("loaderror"));
+    silenceLoader.on("load", () => {
       console.log("load");
       this._ready = true;
       this._onReady();
     });
-    silenceBuffer.buffer(true);
+    silenceLoader.buffer(true);
+  }
+
+  preLoad(url, fileSize) {
+    this._createClip(url, fileSize).preBuffer();
   }
 
   play(url, fileSize) {
@@ -39,32 +37,43 @@ export default class ProtonPlayer {
       return;
     }
 
-    if (this.clip) {
-      this.clip.dispose();
+    this.pauseAll();
+    this._createClip(url, fileSize).play();
+  }
+
+  pauseAll() {
+    Object.keys(this._clips).forEach(k => {
+      this._clips[k].pause();
+    });
+  }
+
+  disposeAll() {
+    Object.keys(this._clips).forEach(k => {
+      this._clips[k].dispose();
+      delete this._clips[k];
+    });
+  }
+
+  _createClip(url, fileSize) {
+    if (this._clips[url]) {
+      return this._clips[url];
     }
 
-    this.clip = new Clip({
+    const clip = new Clip({
       url,
       fileSize,
       silenceChunks: this._silenceChunks
     });
 
-    this.clip.on("loaderror", err => {
+    clip.on("loaderror", err => {
       console.error("Clip failed to load", err);
     });
 
-    this.clip.on("playbackerror", err => {
+    clip.on("playbackerror", err => {
       console.error("Something went wrong during playback", err);
     });
 
-    this.clip.buffer().then(() => {
-      console.log("buffer promise resolved");
-    });
-
-    this.clip.play();
-  }
-
-  dispose() {
-    this.clip.dispose();
+    this._clips[url] = clip;
+    return clip;
   }
 }
