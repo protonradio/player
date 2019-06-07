@@ -101,7 +101,7 @@ export default class ProtonPlayer {
   }
 
   setPlaybackPosition(percent) {
-    if (!this._currentlyPlaying) {
+    if (!this._currentlyPlaying || percent > 1) {
       return;
     }
 
