@@ -97,8 +97,10 @@ export default class Clip extends EventEmitter {
   }
 
   dispose() {
-    if (this.playing) this.pause();
+    this.pause();
     this._loader.cancel();
+    this._preBuffering = false;
+    this._buffering = false;
     this._currentTime = 0;
     this.loaded = false;
     this.canplaythrough = false;
@@ -119,9 +121,7 @@ export default class Clip extends EventEmitter {
 
     if (this.playing) {
       warn(
-        `clip.play() was called on a clip that was already playing (${
-          this.url
-        })`
+        `clip.play() was called on a clip that was already playing (${this.url})`
       );
       return promise;
     }
@@ -140,9 +140,13 @@ export default class Clip extends EventEmitter {
     if (!this.playing) return this;
 
     this._loader.cancel();
+    this._preBuffering = false;
+    this._buffering = false;
+
     this.playing = false;
     this._currentTime =
       this._startTime + (this.context.currentTime - this._contextTimeAtStart);
+
     this._fire("pause");
     return this;
   }

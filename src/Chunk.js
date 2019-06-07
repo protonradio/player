@@ -58,9 +58,12 @@ export default class Chunk {
         if (timeOffset) {
           const sampleOffset = ~~(timeOffset * decoded.sampleRate);
           const numChannels = decoded.numberOfChannels;
+          const lengthWithOffset = decoded.length - sampleOffset;
+          const length =
+            lengthWithOffset >= 0 ? lengthWithOffset : decoded.length;
           const offset = this.context.createBuffer(
             numChannels,
-            decoded.length - sampleOffset,
+            length,
             decoded.sampleRate
           );
           for (let chan = 0; chan < numChannels; chan += 1) {

@@ -20,6 +20,7 @@ export default class Loader extends EventEmitter {
 
   cancel() {
     this._fetcher.cancel();
+    this._loadStarted = false;
   }
 
   buffer(bufferToCompletion = false, preloadOnly = false) {
@@ -147,11 +148,11 @@ export default class Loader extends EventEmitter {
       });
     }
     return new Promise((fulfil, reject) => {
-      const ready = bufferToCompletion ? this.loaded : this.canplaythrough;
+      const ready = preloadOnly ? this.canplaythrough : this.loaded;
       if (ready) {
         fulfil();
       } else {
-        this.once(bufferToCompletion ? "load" : "canplaythrough", fulfil);
+        this.once(preloadOnly ? "canplaythrough" : "load", fulfil);
         this.once("loaderror", reject);
       }
     });
