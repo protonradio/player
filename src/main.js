@@ -2,12 +2,14 @@ import _noop from "lodash.noop";
 import { Loader, Clip } from "./index";
 
 export default class ProtonPlayer {
-  constructor(onReady, onError) {
-    this._onReady = onReady || _noop;
-    this._onError = onError || _noop;
+  constructor(onReady = _noop, onError = _noop) {
+    this._onReady = onReady;
+    this._onError = onError;
     this._ready = false;
     this._silenceChunks = [];
     this._clips = {};
+    this._playingURL = null;
+    this._playbackPositionInterval = null;
 
     const silenceURL = "http://local.protonradio.com:3003/silence";
     const silenceChunkSize = 64 * 64;
@@ -32,28 +34,55 @@ export default class ProtonPlayer {
     return this._getClip(url, fileSize).preBuffer();
   }
 
-  play(url, fileSize) {
+  play(url, fileSize, onBufferProgress = _noop, onPlaybackProgress = _noop) {
     if (!this._ready) {
       console.warn("player not ready");
       return;
     }
 
-    this.pauseAll();
+    onBufferProgress(0);
+    onPlaybackProgress(0);
 
-    return this._getClip(url, fileSize).play();
+    this.pauseAll();
+    this._playingURL = url;
+    const clip = this._getClip(url, fileSize);
+
+    clip.on("loadprogress", ({ progress }) => onBufferProgress(progress));
+
+    this._playbackPositionInterval = setInterval(() => {
+      const progress = clip.currentTime / clip.duration;
+      onPlaybackProgress(progress);
+    }, 500);
+
+    clip.play();
+    return clip;
   }
 
   pauseAll() {
+    this._playingURL = null;
+    this._clearIntervals();
     Object.keys(this._clips).forEach(k => {
+      this._clips[k].offAll("loadprogress");
       this._clips[k].pause();
     });
   }
 
   disposeAll() {
+    this._playingURL = null;
+    this._clearIntervals();
     Object.keys(this._clips).forEach(k => {
+      this._clips[k].offAll("loadprogress");
       this._clips[k].dispose();
       delete this._clips[k];
     });
+  }
+
+  setPlaybackPosition(time) {
+    const clip = this._clips[this._playingURL];
+    if (!clip) {
+      return;
+    }
+    clip.currentTime = time;
   }
 
   _getClip(url, fileSize) {
@@ -77,5 +106,9 @@ export default class ProtonPlayer {
 
     this._clips[url] = clip;
     return clip;
+  }
+
+  _clearIntervals() {
+    clearInterval(this._playbackPositionInterval);
   }
 }

@@ -16,6 +16,8 @@ export default class Loader extends EventEmitter {
     this._referenceHeader = {};
     this.context = getContext();
     this.metadata = null;
+    this.buffered = 0;
+    this.firstChunkDuration = 0;
   }
 
   cancel() {
@@ -69,7 +71,14 @@ export default class Loader extends EventEmitter {
             _referenceHeader: this._referenceHeader
           },
           raw: slice(tempBuffer, firstByte, p),
-          onready: this.canplaythrough ? null : checkCanplaythrough,
+          onready: () => {
+            if (!this.canplaythrough) {
+              checkCanplaythrough();
+            }
+            if (isFirstChunk) {
+              this.firstChunkDuration = chunk.duration;
+            }
+          },
           onerror: error => {
             error.url = this.url;
             error.phonographCode = "COULD_NOT_DECODE";
@@ -84,10 +93,15 @@ export default class Loader extends EventEmitter {
       };
       this._fetcher.load({
         preloadOnly,
-        onProgress: (progress, length, total) => {
-          this.buffered = length;
+        onProgress: (_, length, total) => {
+          this.buffered += length;
           this.length = total;
-          this._fire("loadprogress", { progress, length, total });
+          const progress = this.buffered / total;
+          this._fire("loadprogress", {
+            progress,
+            length: this.buffered,
+            total
+          });
         },
         onData: uint8Array => {
           if (!this.metadata) {

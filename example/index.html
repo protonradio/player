@@ -17,6 +17,16 @@
         disabled
       />
     </div>
+    <h5>Buffered:</h5>
+    <div
+      id="buffer-display"
+      style="width:100%; height:10px; border:1px solid black;"
+    ></div>
+    <h5>Playback Position:</h5>
+    <div
+      id="playback-position-display"
+      style="width:100%; height:10px; border:1px solid black;"
+    ></div>
     <script>
       const onReady = () => {
         const $btns = document.getElementsByClassName("btn");
@@ -114,7 +124,31 @@
           }
 
           $btn.onclick = function() {
-            player.play(baseURL + url, size);
+            /*
+            background: -webkit-linear-gradient(left, #efe3af 75%,#ffffff 75%);
+            background:    -moz-linear-gradient(left, #efe3af 75%, #ffffff 75%);
+            background:     -ms-linear-gradient(left, #efe3af 75%,#ffffff 75%);
+            background:      -o-linear-gradient(left, #efe3af 75%,#ffffff 75%);
+            background:         linear-gradient(to right, #efe3af 75%,#ffffff 75%);
+            */
+            const onBufferProgress = progress => {
+              const percent = progress * 100;
+              const $bufferDisplay = document.getElementById("buffer-display");
+              $bufferDisplay.style.background = `linear-gradient(to right, #efe3af ${percent}%,#ffffff ${percent}%)`;
+            };
+            const onPlaybackProgress = progress => {
+              const percent = progress * 100;
+              const $playbackPositionDisplay = document.getElementById(
+                "playback-position-display"
+              );
+              $playbackPositionDisplay.style.background = `linear-gradient(to right, #efe3af ${percent}%,#ffffff ${percent}%)`;
+            };
+            player.play(
+              baseURL + url,
+              size,
+              onBufferProgress,
+              onPlaybackProgress
+            );
           };
 
           $container.appendChild($btn);

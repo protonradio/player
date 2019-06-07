@@ -3,6 +3,12 @@ export default class EventEmitter {
     this.callbacks = {};
   }
 
+  offAll(eventName) {
+    if (this.callbacks[eventName]) {
+      this.callbacks[eventName] = [];
+    }
+  }
+
   off(eventName, cb) {
     const callbacks = this.callbacks[eventName];
     if (!callbacks) return;

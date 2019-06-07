@@ -17,6 +17,7 @@ export default class Clip extends EventEmitter {
     this.ended = false;
     this._currentTime = 0;
     this.url = url;
+    this.fileSize = fileSize;
     this.loop = loop;
     this._volume = volume;
     this._gain = this.context.createGain();
@@ -172,12 +173,16 @@ export default class Clip extends EventEmitter {
   }
 
   get duration() {
-    let total = 0;
-    for (let chunk of this._chunks) {
-      if (!chunk.duration) return null;
-      total += chunk.duration;
+    if (this._buffered) {
+      let total = 0;
+      for (let chunk of this._chunks) {
+        if (!chunk.duration) continue;
+        total += chunk.duration;
+      }
+      return total;
     }
-    return total;
+
+    return (this.fileSize / CHUNK_SIZE) * this._loader.firstChunkDuration;
   }
 
   get paused() {
