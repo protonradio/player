@@ -8,7 +8,7 @@ export default class ProtonPlayer {
     this._ready = false;
     this._silenceChunks = [];
     this._clips = {};
-    this._playingURL = null;
+    this._currentlyPlaying = null;
     this._playbackPositionInterval = null;
 
     const silenceURL = "http://local.protonradio.com:3003/silence";
@@ -34,9 +34,15 @@ export default class ProtonPlayer {
     return this._getClip(url, fileSize).preBuffer();
   }
 
-  play(url, fileSize, onBufferProgress = _noop, onPlaybackProgress = _noop) {
+  play(
+    url,
+    fileSize,
+    onBufferProgress = _noop,
+    onPlaybackProgress = _noop,
+    initialByte = 0
+  ) {
     if (!this._ready) {
-      console.warn("player not ready");
+      console.warn("Player not ready");
       return;
     }
 
@@ -44,22 +50,31 @@ export default class ProtonPlayer {
     onPlaybackProgress(0);
 
     this.pauseAll();
-    this._playingURL = url;
-    const clip = this._getClip(url, fileSize);
+    const clip = this._getClip(url, fileSize, initialByte);
+    this._currentlyPlaying = {
+      clip,
+      url,
+      fileSize,
+      onBufferProgress,
+      onPlaybackProgress
+    };
 
     clip.on("loadprogress", ({ progress }) => onBufferProgress(progress));
 
     this._playbackPositionInterval = setInterval(() => {
+      if (clip.duration === 0) return;
       const progress = clip.currentTime / clip.duration;
       onPlaybackProgress(progress);
     }, 500);
+
+    clip.on("ended", () => this.pauseAll());
 
     clip.play();
     return clip;
   }
 
   pauseAll() {
-    this._playingURL = null;
+    this._currentlyPlaying = null;
     this._clearIntervals();
     Object.keys(this._clips).forEach(k => {
       this._clips[k].offAll("loadprogress");
@@ -67,25 +82,42 @@ export default class ProtonPlayer {
     });
   }
 
+  dispose(url) {
+    if (this._currentlyPlaying && this._currentlyPlaying.url === url) {
+      this._currentlyPlaying = null;
+      this._clearIntervals();
+    }
+
+    if (!this._clips[url]) return;
+    this._clips[url].offAll("loadprogress");
+    this._clips[url].dispose();
+    delete this._clips[url];
+  }
+
   disposeAll() {
-    this._playingURL = null;
-    this._clearIntervals();
     Object.keys(this._clips).forEach(k => {
-      this._clips[k].offAll("loadprogress");
-      this._clips[k].dispose();
-      delete this._clips[k];
+      this.dispose(k);
     });
   }
 
-  setPlaybackPosition(time) {
-    const clip = this._clips[this._playingURL];
-    if (!clip) {
+  setPlaybackPosition(percent) {
+    if (!this._currentlyPlaying) {
       return;
     }
-    clip.currentTime = time;
+
+    const {
+      url,
+      fileSize,
+      onBufferProgress,
+      onPlaybackProgress
+    } = this._currentlyPlaying;
+
+    const initialByte = Math.round(fileSize * percent);
+    this.dispose(url);
+    this.play(url, fileSize, onBufferProgress, onPlaybackProgress, initialByte);
   }
 
-  _getClip(url, fileSize) {
+  _getClip(url, fileSize, initialByte = 0) {
     if (this._clips[url]) {
       return this._clips[url];
     }
@@ -93,6 +125,7 @@ export default class ProtonPlayer {
     const clip = new Clip({
       url,
       fileSize,
+      initialByte,
       silenceChunks: this._silenceChunks
     });
 

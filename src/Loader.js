@@ -25,7 +25,7 @@ export default class Loader extends EventEmitter {
     this._loadStarted = false;
   }
 
-  buffer(bufferToCompletion = false, preloadOnly = false) {
+  buffer(bufferToCompletion = false, preloadOnly = false, initialByte = 0) {
     if (!this._loadStarted) {
       this._loadStarted = !preloadOnly;
 
@@ -38,7 +38,8 @@ export default class Loader extends EventEmitter {
         let duration = 0;
         let bytes = 0;
         for (let chunk of this._chunks) {
-          if (!chunk.duration) break;
+          // if (!chunk.duration) break;
+          if (!chunk.duration) continue;
           duration += chunk.duration;
           bytes += chunk.raw.length;
         }
@@ -75,7 +76,7 @@ export default class Loader extends EventEmitter {
             if (!this.canplaythrough) {
               checkCanplaythrough();
             }
-            if (isFirstChunk) {
+            if (!this.firstChunkDuration) {
               this.firstChunkDuration = chunk.duration;
             }
           },
@@ -93,15 +94,11 @@ export default class Loader extends EventEmitter {
       };
       this._fetcher.load({
         preloadOnly,
-        onProgress: (_, length, total) => {
-          this.buffered += length;
+        initialByte,
+        onProgress: (chunkLength, total) => {
+          this.buffered += chunkLength;
           this.length = total;
-          const progress = this.buffered / total;
-          this._fire("loadprogress", {
-            progress,
-            length: this.buffered,
-            total
-          });
+          this._fire("loadprogress", { buffered: this.buffered, total });
         },
         onData: uint8Array => {
           if (!this.metadata) {

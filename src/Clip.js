@@ -4,10 +4,18 @@ import Clone from "./Clone";
 import getContext from "./getContext";
 import warn from "./utils/warn";
 const CHUNK_SIZE = 64 * 1024;
+const MIN_BYTE_LENGTH = CHUNK_SIZE * 5;
 const OVERLAP = 0.2;
 
 export default class Clip extends EventEmitter {
-  constructor({ url, fileSize, silenceChunks = [], loop = false, volume = 1 }) {
+  constructor({
+    url,
+    fileSize,
+    initialByte = 0,
+    silenceChunks = [],
+    loop = false,
+    volume = 1
+  }) {
     super();
     this.context = getContext();
     this.length = 0;
@@ -25,9 +33,21 @@ export default class Clip extends EventEmitter {
     this._gain.connect(this.context.destination);
     this._chunks = [];
     this._silenceChunks = silenceChunks;
+
+    const remaining = fileSize - initialByte;
+    this._initialByte =
+      remaining > MIN_BYTE_LENGTH ? initialByte : fileSize - MIN_BYTE_LENGTH;
+
     this._loader = new Loader(CHUNK_SIZE, url, fileSize, this._chunks);
     this._loader.on("canplaythrough", () => this._fire("canplaythrough"));
-    this._loader.on("loadprogress", data => this._fire("loadprogress", data));
+    this._loader.on("loadprogress", ({ buffered, total }) => {
+      const bufferedWithOffset = buffered + initialByte;
+      this._fire("loadprogress", {
+        total,
+        buffered: bufferedWithOffset,
+        progress: bufferedWithOffset / total
+      });
+    });
     this._loader.on("loaderror", error => this._fire("loaderror", error));
     this._loader.on("load", () => this._fire("load"));
     this._preBuffering = false;
@@ -47,7 +67,7 @@ export default class Clip extends EventEmitter {
     const bufferToCompletion = false;
     const preloadOnly = true;
     return this._loader
-      .buffer(bufferToCompletion, preloadOnly)
+      .buffer(bufferToCompletion, preloadOnly, this._initialByte)
       .then(() => {
         this._preBuffering = false;
         this._preBuffered = true;
@@ -67,8 +87,9 @@ export default class Clip extends EventEmitter {
     }
 
     this._buffering = true;
+    const preloadOnly = false;
     return this._loader
-      .buffer(bufferToCompletion)
+      .buffer(bufferToCompletion, preloadOnly, this._initialByte)
       .then(() => {
         this._buffering = false;
         this._buffered = true;
@@ -101,7 +122,9 @@ export default class Clip extends EventEmitter {
     this.pause();
     this._loader.cancel();
     this._preBuffering = false;
+    this._preBuffered = false;
     this._buffering = false;
+    this._buffered = false;
     this._currentTime = 0;
     this.loaded = false;
     this.canplaythrough = false;
@@ -153,35 +176,21 @@ export default class Clip extends EventEmitter {
   }
 
   get currentTime() {
-    if (this.playing) {
-      return (
-        this._startTime + (this.context.currentTime - this._contextTimeAtStart)
-      );
-    } else {
+    if (!this.playing) {
       return this._currentTime;
     }
-  }
 
-  set currentTime(currentTime) {
-    if (this.playing) {
-      this.pause();
-      this._currentTime = currentTime;
-      this.play();
-    } else {
-      this._currentTime = currentTime;
-    }
+    const offset =
+      (this._initialByte / CHUNK_SIZE) * this._loader.firstChunkDuration;
+
+    return (
+      offset +
+      this._startTime +
+      (this.context.currentTime - this._contextTimeAtStart)
+    );
   }
 
   get duration() {
-    if (this._buffered) {
-      let total = 0;
-      for (let chunk of this._chunks) {
-        if (!chunk.duration) continue;
-        total += chunk.duration;
-      }
-      return total;
-    }
-
     return (this.fileSize / CHUNK_SIZE) * this._loader.firstChunkDuration;
   }
 
@@ -265,6 +274,9 @@ export default class Clip extends EventEmitter {
             : chunkIndex++ % _chunks.length;
           if (this.loop || _playingSilence) i %= _chunks.length;
           chunk = _chunks[i];
+          if (!_playingSilence && chunkIndex > this._chunks.length) {
+            chunk = null;
+          }
           if (chunk) {
             chunk.createSource(
               0,

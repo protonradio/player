@@ -16,13 +16,21 @@
         style="background-color: #ff4e33; border: none; color: #000; padding: 16px 32px; text-decoration: none; margin: 4px 2px; cursor: pointer;"
         disabled
       />
+      <input
+        id="pause-btn"
+        class="btn"
+        type="button"
+        value="Pause"
+        style="background-color: #ffe662; border: none; color: #000; padding: 16px 32px; text-decoration: none; margin: 4px 2px; cursor: pointer;"
+        disabled
+      />
     </div>
     <h5>Buffered:</h5>
     <div
       id="buffer-display"
       style="width:100%; height:10px; border:1px solid black;"
     ></div>
-    <h5>Playback Position:</h5>
+    <h5>Playback Position (use it to seek!):</h5>
     <div
       id="playback-position-display"
       style="width:100%; height:10px; border:1px solid black;"
@@ -41,9 +49,31 @@
       const player = new ProtonPlayer(onReady, onError);
 
       const $container = document.getElementById("container");
-      const $disposeBtn = document.getElementById("stop-btn");
-      $disposeBtn.onclick = function() {
+      const $stopBtn = document.getElementById("stop-btn");
+      $stopBtn.onclick = function() {
         player.disposeAll();
+        const $playBtns = document.getElementsByClassName("play-btn");
+        for (const $btn of $playBtns) {
+          $btn.preloaded = false;
+          $btn.setAttribute(
+            "value",
+            $btn.value.replace(" (preloaded)", "").replace(" (loading...)", "")
+          );
+        }
+      };
+      const $pauseBtn = document.getElementById("pause-btn");
+      $pauseBtn.onclick = function() {
+        player.pauseAll();
+      };
+      const $bufferDisplay = document.getElementById("buffer-display");
+      const $playbackPositionDisplay = document.getElementById(
+        "playback-position-display"
+      );
+      $playbackPositionDisplay.onclick = function(event) {
+        const percent =
+          (event.pageX - event.currentTarget.offsetLeft) /
+          event.currentTarget.offsetWidth;
+        player.setPlaybackPosition(percent);
       };
 
       function init() {
@@ -52,48 +82,51 @@
           {
             name: "Track 1",
             url:
-              "/single?fn=mp3-128%2F943054_282276_Domuyo_Original_Mix_128k.mp3&md5=D2DqeRKTYGBJfcvPbLTGAQ%3D%3D&player_id=1559854170445&token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjo4LCJwaHBiYl91c2VyIjp7InVzZXJfYWN0aXZlIjp0cnVlLCJ1c2VybmFtZSI6ImpheWVwb2NoIiwiYXV0aGVudGljYXRpb25fdG9rZW4iOiJ3ZGZYZXNGR1UwY3hSOFl5MWlTTSIsInByb3Rvbl9zdWJzY3JpYmUiOnRydWV9LCJ1c2VyIjp7ImlkIjoyLCJhY2Nlc3NsZXZlbCI6MH0sInByaXZhdGVfYWxnb2xpYV9rZXkiOiJiZDRlNDQ0MDNmYzNkMjdhMzI4MDE0NmM2Y2JkNjQyNCIsImV4cCI6MTU1OTk0MDQ2MCwiaWF0IjoxNTU5ODU0MDYwfQ.5V8O9CFc_4g8XuKmzgNP7RDknljxLThvYu9F1nabT4U",
+              "/single?fn=mp3-128%2F943054_282276_Domuyo_Original_Mix_128k.mp3&md5=D2DqeRKTYGBJfcvPbLTGAQ%3D%3D&player_id=1559854170445&token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjozMDMyMjIsInBocGJiX3VzZXIiOnsidXNlcl9hY3RpdmUiOnRydWUsInVzZXJuYW1lIjoiY2hhcmxlc25hdmkiLCJhdXRoZW50aWNhdGlvbl90b2tlbiI6IkJ6WWZpUU53SzdVY0g5TDNGaHBFIiwicHJvdG9uX3N1YnNjcmliZSI6dHJ1ZX0sInVzZXIiOnsiaWQiOjI4NjY4LCJhY2Nlc3NsZXZlbCI6M30sImV4cCI6MTU2MDAxNzQ0NCwiaWF0IjoxNTU5OTMxMDQ0fQ.vbA9_5k4v8gZop2F5KW3T9g9TuhyW5CmDcEzC7QQfUI",
             size: 7743110,
             preLoad: true
           },
           {
             name: "Track 2",
             url:
-              "/single?fn=mp3-128%2F936950_299413_Catharsis_Original_Mix_128k.mp3&md5=ArYcPsajrGKmnQm%2FD6WCuQ%3D%3D&player_id=1559854235788&token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjo4LCJwaHBiYl91c2VyIjp7InVzZXJfYWN0aXZlIjp0cnVlLCJ1c2VybmFtZSI6ImpheWVwb2NoIiwiYXV0aGVudGljYXRpb25fdG9rZW4iOiJ3ZGZYZXNGR1UwY3hSOFl5MWlTTSIsInByb3Rvbl9zdWJzY3JpYmUiOnRydWV9LCJ1c2VyIjp7ImlkIjoyLCJhY2Nlc3NsZXZlbCI6MH0sInByaXZhdGVfYWxnb2xpYV9rZXkiOiJiZDRlNDQ0MDNmYzNkMjdhMzI4MDE0NmM2Y2JkNjQyNCIsImV4cCI6MTU1OTk0MDQ2MCwiaWF0IjoxNTU5ODU0MDYwfQ.5V8O9CFc_4g8XuKmzgNP7RDknljxLThvYu9F1nabT4U",
+              "/single?fn=mp3-128%2F936950_299413_Catharsis_Original_Mix_128k.mp3&md5=ArYcPsajrGKmnQm%2FD6WCuQ%3D%3D&player_id=1559854235788&token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjozMDMyMjIsInBocGJiX3VzZXIiOnsidXNlcl9hY3RpdmUiOnRydWUsInVzZXJuYW1lIjoiY2hhcmxlc25hdmkiLCJhdXRoZW50aWNhdGlvbl90b2tlbiI6IkJ6WWZpUU53SzdVY0g5TDNGaHBFIiwicHJvdG9uX3N1YnNjcmliZSI6dHJ1ZX0sInVzZXIiOnsiaWQiOjI4NjY4LCJhY2Nlc3NsZXZlbCI6M30sImV4cCI6MTU2MDAxNzQ0NCwiaWF0IjoxNTU5OTMxMDQ0fQ.vbA9_5k4v8gZop2F5KW3T9g9TuhyW5CmDcEzC7QQfUI",
             size: 7809148,
             preLoadOnHover: true
           },
           {
             name: "Track 3",
             url:
-              "/single?fn=mp3-128%2F939476_292726_Geometria_Original_Mix_128k.mp3&md5=X4uzvwtej2z0pQ0XplZKIQ%3D%3D&player_id=1559854500653&token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjo4LCJwaHBiYl91c2VyIjp7InVzZXJfYWN0aXZlIjp0cnVlLCJ1c2VybmFtZSI6ImpheWVwb2NoIiwiYXV0aGVudGljYXRpb25fdG9rZW4iOiJ3ZGZYZXNGR1UwY3hSOFl5MWlTTSIsInByb3Rvbl9zdWJzY3JpYmUiOnRydWV9LCJ1c2VyIjp7ImlkIjoyLCJhY2Nlc3NsZXZlbCI6MH0sInByaXZhdGVfYWxnb2xpYV9rZXkiOiJiZDRlNDQ0MDNmYzNkMjdhMzI4MDE0NmM2Y2JkNjQyNCIsImV4cCI6MTU1OTk0MDQ2MCwiaWF0IjoxNTU5ODU0MDYwfQ.5V8O9CFc_4g8XuKmzgNP7RDknljxLThvYu9F1nabT4U",
+              "/single?fn=mp3-128%2F939476_292726_Geometria_Original_Mix_128k.mp3&md5=X4uzvwtej2z0pQ0XplZKIQ%3D%3D&player_id=1559854500653&token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjozMDMyMjIsInBocGJiX3VzZXIiOnsidXNlcl9hY3RpdmUiOnRydWUsInVzZXJuYW1lIjoiY2hhcmxlc25hdmkiLCJhdXRoZW50aWNhdGlvbl90b2tlbiI6IkJ6WWZpUU53SzdVY0g5TDNGaHBFIiwicHJvdG9uX3N1YnNjcmliZSI6dHJ1ZX0sInVzZXIiOnsiaWQiOjI4NjY4LCJhY2Nlc3NsZXZlbCI6M30sImV4cCI6MTU2MDAxNzQ0NCwiaWF0IjoxNTU5OTMxMDQ0fQ.vbA9_5k4v8gZop2F5KW3T9g9TuhyW5CmDcEzC7QQfUI",
             size: 7083153
           },
           {
             name: "Mix 1",
             url:
-              "/stream?fn=1063013_Syncopation_%282019-05-14%29_Part_1_-_Christopher_FaFa_-_Syncopation.mp3&md5=m2eNR7trmNZaVvkerJ%2BEvg%3D%3D&player_id=1559854282509&token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjo4LCJwaHBiYl91c2VyIjp7InVzZXJfYWN0aXZlIjp0cnVlLCJ1c2VybmFtZSI6ImpheWVwb2NoIiwiYXV0aGVudGljYXRpb25fdG9rZW4iOiJ3ZGZYZXNGR1UwY3hSOFl5MWlTTSIsInByb3Rvbl9zdWJzY3JpYmUiOnRydWV9LCJ1c2VyIjp7ImlkIjoyLCJhY2Nlc3NsZXZlbCI6MH0sInByaXZhdGVfYWxnb2xpYV9rZXkiOiJiZDRlNDQ0MDNmYzNkMjdhMzI4MDE0NmM2Y2JkNjQyNCIsImV4cCI6MTU1OTk0MDQ2MCwiaWF0IjoxNTU5ODU0MDYwfQ.5V8O9CFc_4g8XuKmzgNP7RDknljxLThvYu9F1nabT4U",
+              "/stream?fn=1063013_Syncopation_%282019-05-14%29_Part_1_-_Christopher_FaFa_-_Syncopation.mp3&md5=m2eNR7trmNZaVvkerJ%2BEvg%3D%3D&player_id=1559854282509&token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjozMDMyMjIsInBocGJiX3VzZXIiOnsidXNlcl9hY3RpdmUiOnRydWUsInVzZXJuYW1lIjoiY2hhcmxlc25hdmkiLCJhdXRoZW50aWNhdGlvbl90b2tlbiI6IkJ6WWZpUU53SzdVY0g5TDNGaHBFIiwicHJvdG9uX3N1YnNjcmliZSI6dHJ1ZX0sInVzZXIiOnsiaWQiOjI4NjY4LCJhY2Nlc3NsZXZlbCI6M30sImV4cCI6MTU2MDAxNzQ0NCwiaWF0IjoxNTU5OTMxMDQ0fQ.vbA9_5k4v8gZop2F5KW3T9g9TuhyW5CmDcEzC7QQfUI",
             size: 82396054,
             preLoad: true
           },
           {
             name: "Mix 2",
             url:
-              "/stream?fn=1069804_Visceral_%282019-05-24%29_Part_2_-_James_Warren.mp3&md5=axd6vSbE54P6JfLddms%2Fjg%3D%3D&player_id=1559854370708&token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjo4LCJwaHBiYl91c2VyIjp7InVzZXJfYWN0aXZlIjp0cnVlLCJ1c2VybmFtZSI6ImpheWVwb2NoIiwiYXV0aGVudGljYXRpb25fdG9rZW4iOiJ3ZGZYZXNGR1UwY3hSOFl5MWlTTSIsInByb3Rvbl9zdWJzY3JpYmUiOnRydWV9LCJ1c2VyIjp7ImlkIjoyLCJhY2Nlc3NsZXZlbCI6MH0sInByaXZhdGVfYWxnb2xpYV9rZXkiOiJiZDRlNDQ0MDNmYzNkMjdhMzI4MDE0NmM2Y2JkNjQyNCIsImV4cCI6MTU1OTk0MDQ2MCwiaWF0IjoxNTU5ODU0MDYwfQ.5V8O9CFc_4g8XuKmzgNP7RDknljxLThvYu9F1nabT4U",
+              "/stream?fn=1069804_Visceral_%282019-05-24%29_Part_2_-_James_Warren.mp3&md5=axd6vSbE54P6JfLddms%2Fjg%3D%3D&player_id=1559854370708&token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjozMDMyMjIsInBocGJiX3VzZXIiOnsidXNlcl9hY3RpdmUiOnRydWUsInVzZXJuYW1lIjoiY2hhcmxlc25hdmkiLCJhdXRoZW50aWNhdGlvbl90b2tlbiI6IkJ6WWZpUU53SzdVY0g5TDNGaHBFIiwicHJvdG9uX3N1YnNjcmliZSI6dHJ1ZX0sInVzZXIiOnsiaWQiOjI4NjY4LCJhY2Nlc3NsZXZlbCI6M30sImV4cCI6MTU2MDAxNzQ0NCwiaWF0IjoxNTU5OTMxMDQ0fQ.vbA9_5k4v8gZop2F5KW3T9g9TuhyW5CmDcEzC7QQfUI",
             size: 82787264,
             preLoadOnHover: true
           },
           {
             name: "Mix 3",
             url:
-              "/stream?fn=1069805_Audioholics_%282019-05-24%29_Part_1_-_Mariano_Mellino_-_Audioholics_Episode_48_by_Mariano_Mellino_.mp3&md5=vlhwzMUpCOwinq8IFku6AA%3D%3D&player_id=1559854549060&token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjo4LCJwaHBiYl91c2VyIjp7InVzZXJfYWN0aXZlIjp0cnVlLCJ1c2VybmFtZSI6ImpheWVwb2NoIiwiYXV0aGVudGljYXRpb25fdG9rZW4iOiJ3ZGZYZXNGR1UwY3hSOFl5MWlTTSIsInByb3Rvbl9zdWJzY3JpYmUiOnRydWV9LCJ1c2VyIjp7ImlkIjoyLCJhY2Nlc3NsZXZlbCI6MH0sInByaXZhdGVfYWxnb2xpYV9rZXkiOiJiZDRlNDQ0MDNmYzNkMjdhMzI4MDE0NmM2Y2JkNjQyNCIsImV4cCI6MTU1OTk0MDQ2MCwiaWF0IjoxNTU5ODU0MDYwfQ.5V8O9CFc_4g8XuKmzgNP7RDknljxLThvYu9F1nabT4U",
+              "/stream?fn=1069805_Audioholics_%282019-05-24%29_Part_1_-_Mariano_Mellino_-_Audioholics_Episode_48_by_Mariano_Mellino_.mp3&md5=vlhwzMUpCOwinq8IFku6AA%3D%3D&player_id=1559854549060&token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjozMDMyMjIsInBocGJiX3VzZXIiOnsidXNlcl9hY3RpdmUiOnRydWUsInVzZXJuYW1lIjoiY2hhcmxlc25hdmkiLCJhdXRoZW50aWNhdGlvbl90b2tlbiI6IkJ6WWZpUU53SzdVY0g5TDNGaHBFIiwicHJvdG9uX3N1YnNjcmliZSI6dHJ1ZX0sInVzZXIiOnsiaWQiOjI4NjY4LCJhY2Nlc3NsZXZlbCI6M30sImV4cCI6MTU2MDAxNzQ0NCwiaWF0IjoxNTU5OTMxMDQ0fQ.vbA9_5k4v8gZop2F5KW3T9g9TuhyW5CmDcEzC7QQfUI",
             size: 85516328
           }
         ].forEach(file => {
           const $btn = document.createElement("input");
-          $btn.setAttribute("class", "btn");
+          $btn.setAttribute("class", "btn play-btn");
           $btn.setAttribute("type", "button");
-          $btn.setAttribute("value", file.preLoad ? "Loading..." : file.name);
+          $btn.setAttribute(
+            "value",
+            file.preLoad ? `${file.name} (loading...)` : file.name
+          );
           $btn.setAttribute("disabled", file.preLoad ? "disabled" : "");
           $btn.setAttribute(
             "style",
@@ -114,7 +147,7 @@
               if ($btn.preloaded) return;
               $btn.preloaded = true;
 
-              $btn.setAttribute("value", "Loading...");
+              $btn.setAttribute("value", `${file.name} (loading...)`);
 
               player.preLoad(baseURL + url, size).then(() => {
                 $btn.removeAttribute("disabled");
@@ -133,14 +166,10 @@
             */
             const onBufferProgress = progress => {
               const percent = progress * 100;
-              const $bufferDisplay = document.getElementById("buffer-display");
               $bufferDisplay.style.background = `linear-gradient(to right, #efe3af ${percent}%,#ffffff ${percent}%)`;
             };
             const onPlaybackProgress = progress => {
               const percent = progress * 100;
-              const $playbackPositionDisplay = document.getElementById(
-                "playback-position-display"
-              );
               $playbackPositionDisplay.style.background = `linear-gradient(to right, #efe3af ${percent}%,#ffffff ${percent}%)`;
             };
             player.play(

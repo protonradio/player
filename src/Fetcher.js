@@ -18,7 +18,16 @@ export default class Fetcher {
     this._cancelled = true;
   }
 
-  load({ preloadOnly, onProgress, onData, onLoad, onError }) {
+  load({
+    preloadOnly = false,
+    initialByte = 0,
+    onProgress,
+    onData,
+    onLoad,
+    onError
+  }) {
+    this._totalLoaded = initialByte;
+    this._nextChunkStart = initialByte;
     this._onProgress = onProgress || _noop;
     this._onData = onData || _noop;
     this._onLoad = onLoad || _noop;
@@ -34,11 +43,11 @@ export default class Fetcher {
   }
 
   _handleChunk(uint8Array) {
-    if (uint8Array.length === 0) return;
+    if (!uint8Array || uint8Array.length === 0) return;
 
     this._totalLoaded += uint8Array.length;
     this._onData(uint8Array);
-    this._onProgress(1, uint8Array.length, this.FILE_SIZE);
+    this._onProgress(uint8Array.length, this.FILE_SIZE);
     this._fullyLoaded = this._totalLoaded >= this.FILE_SIZE;
     if (this._fullyLoaded) {
       this._onLoad();
