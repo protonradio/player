@@ -26,8 +26,8 @@ export default class Fetcher {
     onLoad,
     onError
   }) {
-    this._totalLoaded = initialByte;
-    this._nextChunkStart = initialByte;
+    this._totalLoaded = this._totalLoaded || initialByte;
+    this._nextChunkStart = this._nextChunkStart || initialByte;
     this._onProgress = onProgress || _noop;
     this._onData = onData || _noop;
     this._onLoad = onLoad || _noop;
