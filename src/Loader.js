@@ -123,10 +123,7 @@ export default class Loader extends EventEmitter {
           for (let i = 0; i < uint8Array.length; i += 1) {
             // once the buffer is large enough, wait for
             // the next frame header then drain it
-            if (
-              p > this._chunkSize + 4 &&
-              isFrameHeader(uint8Array, i, this._referenceHeader)
-            ) {
+            if (p >= this._chunkSize) {
               drainBuffer();
             }
             // write new data to buffer

@@ -40,16 +40,19 @@ export default class Chunk {
       this._ready();
     }, onerror);
   }
+
   attach(nextChunk) {
     this.next = nextChunk;
     this._attached = true;
     this._ready();
   }
+
   createSource(timeOffset, callback, errback) {
     if (!this.ready) {
-      throw new Error(
+      console.error(
         "Something went wrong! Chunk was not ready in time for playback"
       );
+      return;
     }
 
     this.context.decodeAudioData(
@@ -82,6 +85,7 @@ export default class Chunk {
       errback
     );
   }
+
   onready(callback) {
     if (this.ready) {
       setTimeout(callback);
@@ -89,31 +93,34 @@ export default class Chunk {
       this._callback = callback;
     }
   }
+
   _ready() {
     if (this.ready) return;
-    if (this._attached && this.duration !== null) {
-      this.ready = true;
-      if (this.next) {
-        const rawLen = this.raw.length;
-        const nextLen = this.next.raw.length >> 1; // we don't need the whole thing
-        this.extended = new Uint8Array(rawLen + nextLen);
-        let p = 0;
-        for (let i = this._firstByte; i < rawLen; i += 1) {
-          this.extended[p++] = this.raw[i];
-        }
-        for (let i = 0; i < nextLen; i += 1) {
-          this.extended[p++] = this.next.raw[i];
-        }
-      } else {
-        this.extended =
-          this._firstByte > 0
-            ? slice(this.raw, this._firstByte, this.raw.length)
-            : this.raw;
+    if (!this._attached || this.duration === null) return;
+
+    this.ready = true;
+
+    if (this.next) {
+      const rawLen = this.raw.length;
+      const nextLen = this.next.raw.length >> 1; // we don't need the whole thing
+      this.extended = new Uint8Array(rawLen + nextLen);
+      let p = 0;
+      for (let i = this._firstByte; i < rawLen; i += 1) {
+        this.extended[p++] = this.raw[i];
       }
-      if (this._callback) {
-        this._callback();
-        this._callback = null;
+      for (let i = 0; i < nextLen; i += 1) {
+        this.extended[p++] = this.next.raw[i];
       }
+    } else {
+      this.extended =
+        this._firstByte > 0
+          ? slice(this.raw, this._firstByte, this.raw.length)
+          : this.raw;
+    }
+
+    if (this._callback) {
+      this._callback();
+      this._callback = null;
     }
   }
 }

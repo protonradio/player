@@ -3,9 +3,9 @@ import _noop from "lodash.noop";
 export default class Fetcher {
   constructor(chunkSize, url, fileSize) {
     this.PRELOAD_CHUNKS = 5;
-    this.CHUNK_SIZE = chunkSize;
+    this.chunkSize = chunkSize;
     this.url = url;
-    this.FILE_SIZE = fileSize;
+    this.fileSize = fileSize;
     this._totalLoaded = 0;
     this._nextChunkStart = 0;
     this._nextChunkEnd = 0;
@@ -47,8 +47,8 @@ export default class Fetcher {
 
     this._totalLoaded += uint8Array.length;
     this._onData(uint8Array);
-    this._onProgress(uint8Array.length, this.FILE_SIZE);
-    this._fullyLoaded = this._totalLoaded >= this.FILE_SIZE;
+    this._onProgress(uint8Array.length, this.fileSize);
+    this._fullyLoaded = this._totalLoaded >= this.fileSize;
     if (this._fullyLoaded) {
       this._onLoad();
     }
@@ -62,7 +62,7 @@ export default class Fetcher {
 
     const promises = [];
     for (let i = 0; i < this.PRELOAD_CHUNKS; i++) {
-      if (this._nextChunkStart >= this.FILE_SIZE) {
+      if (this._nextChunkStart >= this.fileSize) {
         break;
       }
       this._advanceEnd();
@@ -129,10 +129,10 @@ export default class Fetcher {
 
   _advanceEnd() {
     this._nextChunkEnd =
-      this._nextChunkStart + Math.min(this._getRemaining(), this.CHUNK_SIZE);
+      this._nextChunkStart + Math.min(this._getRemaining(), this.chunkSize);
   }
 
   _getRemaining() {
-    return this.FILE_SIZE - this._totalLoaded - 1;
+    return this.fileSize - this._totalLoaded - 1;
   }
 }

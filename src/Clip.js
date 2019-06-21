@@ -210,19 +210,6 @@ export default class Clip extends EventEmitter {
     let chunkIndex = 0;
     let silenceChunkIndex = 0;
     let time = 0;
-    // for (chunkIndex = 0; chunkIndex < this._chunks.length; chunkIndex += 1) {
-    //   const chunk = this._chunks[chunkIndex];
-    //   if (!chunk.duration) {
-    //     warn(`attempted to play content that has not yet buffered ${this.url}`);
-    //     setTimeout(() => {
-    //       this._play();
-    //     }, 100);
-    //     return;
-    //   }
-    //   const chunkEnd = time + chunk.duration;
-    //   if (chunkEnd > this._currentTime) break;
-    //   time = chunkEnd;
-    // }
     this._startTime = this._currentTime;
     const timeOffset = this._currentTime - time;
     this._fire("play");
@@ -305,7 +292,12 @@ export default class Clip extends EventEmitter {
           }
         };
         const tick = () => {
-          if (this.context.currentTime > lastStart) {
+          const shouldAdvance = _playingSilence
+            ? this.context.currentTime > lastStart
+            : this._chunks[chunkIndex] &&
+              this._chunks[chunkIndex].ready === true;
+
+          if (shouldAdvance) {
             advance();
           } else {
             setTimeout(tick, 500);
