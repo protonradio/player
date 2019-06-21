@@ -120,14 +120,13 @@ export default class Clip extends EventEmitter {
 
   dispose() {
     this.pause();
-    this._loader.cancel();
     this._preBuffering = false;
     this._preBuffered = false;
     this._buffering = false;
     this._buffered = false;
-    this._currentTime = 0;
     this.loaded = false;
     this.canplaythrough = false;
+    this._currentTime = 0;
     this._chunks = [];
     this._fire("dispose");
   }
@@ -151,6 +150,11 @@ export default class Clip extends EventEmitter {
     }
 
     this.buffer();
+
+    this._gain = this.context.createGain();
+    this._gain.gain.value = this._volume;
+    this._gain.connect(this.context.destination);
+
     this.context.resume();
     this._play();
 
@@ -163,11 +167,15 @@ export default class Clip extends EventEmitter {
   pause() {
     if (!this.playing) return this;
 
+    this._gain.gain.value = 0;
+    this._gain.disconnect(this.context.destination);
+    this._gain = null;
+
     this._loader.cancel();
     this._preBuffering = false;
     this._buffering = false;
-
     this.playing = false;
+
     this._currentTime =
       this._startTime + (this.context.currentTime - this._contextTimeAtStart);
 
@@ -292,6 +300,8 @@ export default class Clip extends EventEmitter {
           }
         };
         const tick = () => {
+          if (!this.playing) return;
+
           const shouldAdvance = _playingSilence
             ? this.context.currentTime > lastStart
             : this._chunks[chunkIndex] &&
