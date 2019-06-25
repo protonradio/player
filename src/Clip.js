@@ -216,24 +216,27 @@ export default class Clip extends EventEmitter {
 
   _play() {
     let chunkIndex = 0;
-    let silenceChunkIndex = 0;
     let time = 0;
     this._startTime = this._currentTime;
     const timeOffset = this._currentTime - time;
     this._fire("play");
     let playing = true;
+
     const pauseListener = this.on("pause", () => {
       playing = false;
       if (previousSource) previousSource.stop();
       if (currentSource) currentSource.stop();
       pauseListener.cancel();
     });
+
     const _playingSilence =
-      this._chunks.length === 0 || this._chunks[0].ready !== true;
+      this._chunks.length === 0 ||
+      this._chunks[0].ready !== true ||
+      this._chunks[0].duration == null;
+
     const _chunks = _playingSilence ? this._silenceChunks : this._chunks;
-    const i = _playingSilence
-      ? silenceChunkIndex++ % _chunks.length
-      : chunkIndex++ % _chunks.length;
+    const i = _playingSilence ? 0 : chunkIndex++ % _chunks.length;
+
     let chunk = _chunks[i];
     let previousSource;
     let currentSource;
@@ -245,67 +248,97 @@ export default class Clip extends EventEmitter {
         let lastStart = this._contextTimeAtStart;
         let nextStart =
           this._contextTimeAtStart + (chunk.duration - timeOffset);
+
         const gain = this.context.createGain();
         gain.connect(this._gain);
         gain.gain.setValueAtTime(0, nextStart + OVERLAP);
         source.connect(gain);
         source.start(this.context.currentTime);
+
         const endGame = () => {
           if (this.context.currentTime >= nextStart) {
-            this.pause()._currentTime = 0;
+            this.pause();
+            this._currentTime = 0;
             this.ended = true;
             this._fire("ended");
           } else {
             requestAnimationFrame(endGame);
           }
         };
+
         const advance = () => {
           if (!playing) return;
+
           const _playingSilence =
-            this._chunks.length === 0 || this._chunks[0].ready !== true;
+            this._chunks.length === 0 ||
+            chunkIndex >= this._chunks.length ||
+            this._chunks[chunkIndex].ready !== true ||
+            this._chunks[chunkIndex].duration == null;
+
           const _chunks = _playingSilence ? this._silenceChunks : this._chunks;
-          let i = _playingSilence
-            ? silenceChunkIndex++ % _chunks.length
-            : chunkIndex++ % _chunks.length;
+          let i = _playingSilence ? 0 : chunkIndex++ % _chunks.length;
+
           if (this.loop || _playingSilence) i %= _chunks.length;
+
           chunk = _chunks[i];
-          if (!_playingSilence && chunkIndex > this._chunks.length) {
+
+          if (!_playingSilence && chunkIndex >= this._chunks.length) {
             chunk = null;
           }
-          if (chunk) {
-            chunk.createSource(
-              0,
-              source => {
-                previousSource = currentSource;
-                currentSource = source;
-                const gain = this.context.createGain();
-                gain.connect(this._gain);
-                gain.gain.setValueAtTime(0, nextStart);
-                gain.gain.setValueAtTime(1, nextStart + OVERLAP);
-                source.connect(gain);
-                source.start(nextStart);
-                lastStart = nextStart;
-                nextStart += chunk.duration;
-                gain.gain.setValueAtTime(0, nextStart + OVERLAP);
-                tick();
-              },
-              error => {
-                error.url = this.url;
-                error.phonographCode = "COULD_NOT_CREATE_SOURCE";
-                this._fire("playbackerror", error);
-              }
-            );
-          } else {
+
+          if (!chunk) {
             endGame();
+            return;
           }
+
+          if (!chunk.ready) {
+            return;
+          }
+
+          chunk.createSource(
+            0,
+            source => {
+              if (Number.isNaN(chunk.duration)) {
+                return;
+              }
+
+              if (_playingSilence) this._wasPlayingSilence = true;
+              if (this._wasPlayingSilence && !_playingSilence) {
+                this._wasPlayingSilence = false;
+                this._contextTimeAtStart = this.context.currentTime;
+                nextStart = this.context.currentTime;
+              }
+
+              previousSource = currentSource;
+              currentSource = source;
+              const gain = this.context.createGain();
+              gain.connect(this._gain);
+              gain.gain.setValueAtTime(0, nextStart);
+              gain.gain.setValueAtTime(1, nextStart + OVERLAP);
+              source.connect(gain);
+              source.start(nextStart);
+              lastStart = nextStart;
+              nextStart += chunk.duration;
+              gain.gain.setValueAtTime(0, nextStart + OVERLAP);
+              tick();
+            },
+            error => {
+              error.url = this.url;
+              error.phonographCode = "COULD_NOT_CREATE_SOURCE";
+              this._fire("playbackerror", error);
+            }
+          );
         };
+
         const tick = () => {
           if (!this.playing) return;
 
           const shouldAdvance = _playingSilence
             ? this.context.currentTime > lastStart
-            : this._chunks[chunkIndex] &&
-              this._chunks[chunkIndex].ready === true;
+            : this.context.currentTime > lastStart &&
+              this._chunks[chunkIndex] &&
+              this._chunks[chunkIndex].ready === true &&
+              this._chunks[chunkIndex].duration != null;
 
           if (shouldAdvance) {
             advance();
@@ -313,11 +346,13 @@ export default class Clip extends EventEmitter {
             setTimeout(tick, 500);
           }
         };
+
         const frame = () => {
           if (!playing) return;
           requestAnimationFrame(frame);
           this._fire("progress");
         };
+
         tick();
         frame();
       },
