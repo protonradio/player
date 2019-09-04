@@ -33,6 +33,8 @@ export default class Clip extends EventEmitter {
     this._gain.connect(this.context.destination);
     this._chunks = [];
     this._silenceChunks = silenceChunks;
+    this._chunkIndex = 0;
+    this._tickTimeout = null;
 
     const remaining = fileSize - initialByte;
     this._initialByte =
@@ -183,6 +185,34 @@ export default class Clip extends EventEmitter {
     return this;
   }
 
+  setCurrentByte(byte = 0) {
+    this._initialByte = byte;
+    this.playing = false;
+    clearTimeout(this._tickTimeout);
+
+    this._gain.gain.value = 0;
+    this._gain.disconnect(this.context.destination);
+    this._gain = null;
+
+    this._currentTime = 0;
+    this._chunkIndex = Math.round(byte / CHUNK_SIZE);
+
+    this._gain = this.context.createGain();
+    this._gain.gain.value = this._volume;
+    this._gain.connect(this.context.destination);
+
+    this.context.resume();
+    this._play();
+
+    this.playing = true;
+    this.ended = false;
+  }
+
+  isByteLoaded(byte = 0) {
+    const wantedChunk = Math.round(byte / CHUNK_SIZE);
+    return !!this._chunks[wantedChunk];
+  }
+
   get currentTime() {
     if (!this.playing) {
       return this._currentTime;
@@ -235,7 +265,7 @@ export default class Clip extends EventEmitter {
       this._chunks[0].duration == null;
 
     const _chunks = _playingSilence ? this._silenceChunks : this._chunks;
-    const i = _playingSilence ? 0 : chunkIndex++ % _chunks.length;
+    const i = _playingSilence ? 0 : this._chunkIndex++ % _chunks.length;
 
     let chunk = _chunks[i];
     let previousSource;
@@ -271,18 +301,18 @@ export default class Clip extends EventEmitter {
 
           const _playingSilence =
             this._chunks.length === 0 ||
-            chunkIndex >= this._chunks.length ||
-            this._chunks[chunkIndex].ready !== true ||
-            this._chunks[chunkIndex].duration == null;
+            this._chunkIndex >= this._chunks.length ||
+            this._chunks[this._chunkIndex].ready !== true ||
+            this._chunks[this._chunkIndex].duration == null;
 
           const _chunks = _playingSilence ? this._silenceChunks : this._chunks;
-          let i = _playingSilence ? 0 : chunkIndex++ % _chunks.length;
+          let i = _playingSilence ? 0 : this._chunkIndex++ % _chunks.length;
 
           if (this.loop || _playingSilence) i %= _chunks.length;
 
           chunk = _chunks[i];
 
-          if (!_playingSilence && chunkIndex >= this._chunks.length) {
+          if (!_playingSilence && this._chunkIndex >= this._chunks.length) {
             chunk = null;
           }
 
@@ -336,14 +366,14 @@ export default class Clip extends EventEmitter {
           const shouldAdvance = _playingSilence
             ? this.context.currentTime > lastStart
             : this.context.currentTime > lastStart &&
-              this._chunks[chunkIndex] &&
-              this._chunks[chunkIndex].ready === true &&
-              this._chunks[chunkIndex].duration != null;
+              this._chunks[this._chunkIndex] &&
+              this._chunks[this._chunkIndex].ready === true &&
+              this._chunks[this._chunkIndex].duration != null;
 
           if (shouldAdvance) {
             advance();
           } else {
-            setTimeout(tick, 500);
+            this._tickTimeout = setTimeout(tick, 500);
           }
         };
 

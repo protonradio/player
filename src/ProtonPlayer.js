@@ -113,8 +113,24 @@ export default class ProtonPlayer {
     } = this._currentlyPlaying;
 
     const initialByte = Math.round(fileSize * percent);
+
+    if (this._isChunkBuffered(url, initialByte)) {
+      const clip = this._clips[url];
+      clip.setCurrentByte(initialByte);
+      return;
+    }
+
     this.dispose(url);
     this.play(url, fileSize, onBufferProgress, onPlaybackProgress, initialByte);
+  }
+
+  _isChunkBuffered(url, initialByte = 0) {
+    const clip = this._clips[url];
+    if (!clip) {
+      return false;
+    }
+
+    return clip.isByteLoaded(initialByte);
   }
 
   _getClip(url, fileSize, initialByte = 0) {
