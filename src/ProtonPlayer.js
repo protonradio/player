@@ -46,7 +46,7 @@ export default class ProtonPlayer {
       return;
     }
 
-    onBufferProgress(0);
+    onBufferProgress(0, 0);
     onPlaybackProgress(0);
 
     this.pauseAll();
@@ -59,7 +59,9 @@ export default class ProtonPlayer {
       onPlaybackProgress
     };
 
-    clip.on("loadprogress", ({ progress }) => onBufferProgress(progress));
+    clip.on("loadprogress", ({ initialPosition, progress }) =>
+      onBufferProgress(initialPosition, progress)
+    );
 
     this._playbackPositionInterval = setInterval(() => {
       if (clip.duration === 0) return;

@@ -50,6 +50,7 @@ export default class Clip extends EventEmitter {
       const bufferedWithOffset = buffered + initialByte;
       this._fire("loadprogress", {
         total,
+        initialPosition: this._initialChunk / totalChunksCount,
         buffered: bufferedWithOffset,
         progress: bufferedWithOffset / total
       });

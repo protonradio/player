@@ -160,13 +160,19 @@
             background:      -o-linear-gradient(left, #efe3af 75%,#ffffff 75%);
             background:         linear-gradient(to right, #efe3af 75%,#ffffff 75%);
             */
-            const onBufferProgress = progress => {
-              const percent = progress * 100;
-              $bufferDisplay.style.background = `linear-gradient(to right, #efe3af ${percent}%,#ffffff ${percent}%)`;
+            const onBufferProgress = (initialPosition, progress) => {
+              const start = Math.min(initialPosition, 1) * 100;
+              const end = Math.min(progress, 1) * 100;
+              $bufferDisplay.style.background = `linear-gradient(
+                to right,
+                white, white ${start}%,
+                #efe3af ${start}%, #efe3af ${end}%,
+                white ${end}%, white ${end}%
+              )`;
             };
             const onPlaybackProgress = progress => {
-              const percent = progress * 100;
-              $playbackPositionDisplay.style.background = `linear-gradient(to right, #efe3af ${percent}%,#ffffff ${percent}%)`;
+              const percent = Math.min(progress, 1) * 100;
+              $playbackPositionDisplay.style.background = `linear-gradient(to right, #efe3af ${percent}%, #ffffff ${percent}%)`;
             };
             player.play(url, size, onBufferProgress, onPlaybackProgress);
           };
