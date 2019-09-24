@@ -4,7 +4,7 @@ import Clone from "./Clone";
 import getContext from "./getContext";
 import warn from "./utils/warn";
 const CHUNK_SIZE = 64 * 1024;
-const MIN_BYTE_LENGTH = CHUNK_SIZE * 5;
+const MIN_CHUNK_COUNT = 8;
 const OVERLAP = 0.2;
 
 export default class Clip extends EventEmitter {
@@ -36,9 +36,13 @@ export default class Clip extends EventEmitter {
     this._chunkIndex = 0;
     this._tickTimeout = null;
 
-    const remaining = fileSize - initialByte;
-    this._initialByte =
-      remaining > MIN_BYTE_LENGTH ? initialByte : fileSize - MIN_BYTE_LENGTH;
+    const totalChunksCount = Math.ceil(fileSize / CHUNK_SIZE);
+    const initialChunk = Math.round(initialByte / CHUNK_SIZE);
+    this._initialChunk =
+      initialChunk + MIN_CHUNK_COUNT > totalChunksCount
+        ? totalChunksCount - MIN_CHUNK_COUNT
+        : initialChunk;
+    this._initialByte = this._initialChunk * CHUNK_SIZE;
 
     this._loader = new Loader(CHUNK_SIZE, url, fileSize, this._chunks);
     this._loader.on("canplaythrough", () => this._fire("canplaythrough"));
@@ -169,6 +173,8 @@ export default class Clip extends EventEmitter {
   pause() {
     if (!this.playing) return this;
 
+    clearTimeout(this._tickTimeout);
+
     this._gain.gain.value = 0;
     this._gain.disconnect(this.context.destination);
     this._gain = null;
@@ -195,7 +201,7 @@ export default class Clip extends EventEmitter {
     this._gain = null;
 
     this._currentTime = 0;
-    this._chunkIndex = Math.round(byte / CHUNK_SIZE);
+    this._chunkIndex = Math.round(byte / CHUNK_SIZE) - this._initialChunk;
 
     this._gain = this.context.createGain();
     this._gain.gain.value = this._volume;
@@ -209,8 +215,9 @@ export default class Clip extends EventEmitter {
   }
 
   isByteLoaded(byte = 0) {
-    const wantedChunk = Math.round(byte / CHUNK_SIZE);
-    return !!this._chunks[wantedChunk];
+    const wantedChunk = Math.round(byte / CHUNK_SIZE) - this._initialChunk;
+    const chunk = this._chunks[wantedChunk] || {};
+    return chunk.ready === true && Number.isNaN(chunk.duration) === false;
   }
 
   get currentTime() {
@@ -245,7 +252,6 @@ export default class Clip extends EventEmitter {
   }
 
   _play() {
-    let chunkIndex = 0;
     let time = 0;
     this._startTime = this._currentTime;
     const timeOffset = this._currentTime - time;
@@ -259,10 +265,10 @@ export default class Clip extends EventEmitter {
       pauseListener.cancel();
     });
 
-    const _playingSilence =
+    let _playingSilence =
       this._chunks.length === 0 ||
       this._chunks[0].ready !== true ||
-      this._chunks[0].duration == null;
+      Number.isNaN(this._chunks[0].duration) === true;
 
     const _chunks = _playingSilence ? this._silenceChunks : this._chunks;
     const i = _playingSilence ? 0 : this._chunkIndex++ % _chunks.length;
@@ -273,6 +279,14 @@ export default class Clip extends EventEmitter {
     chunk.createSource(
       timeOffset,
       source => {
+        if (Number.isNaN(chunk.duration)) {
+          this._fire(
+            "playbackerror",
+            "Error playing initial chunk because duration is NaN"
+          );
+          return;
+        }
+
         currentSource = source;
         this._contextTimeAtStart = this.context.currentTime;
         let lastStart = this._contextTimeAtStart;
@@ -299,11 +313,11 @@ export default class Clip extends EventEmitter {
         const advance = () => {
           if (!playing) return;
 
-          const _playingSilence =
+          _playingSilence =
             this._chunks.length === 0 ||
             this._chunkIndex >= this._chunks.length ||
             this._chunks[this._chunkIndex].ready !== true ||
-            this._chunks[this._chunkIndex].duration == null;
+            Number.isNaN(this._chunks[this._chunkIndex].duration) === true;
 
           const _chunks = _playingSilence ? this._silenceChunks : this._chunks;
           let i = _playingSilence ? 0 : this._chunkIndex++ % _chunks.length;
@@ -329,6 +343,10 @@ export default class Clip extends EventEmitter {
             0,
             source => {
               if (Number.isNaN(chunk.duration)) {
+                this._fire(
+                  "playbackerror",
+                  "Error playing chunk because duration is NaN"
+                );
                 return;
               }
 
@@ -368,7 +386,7 @@ export default class Clip extends EventEmitter {
             : this.context.currentTime > lastStart &&
               this._chunks[this._chunkIndex] &&
               this._chunks[this._chunkIndex].ready === true &&
-              this._chunks[this._chunkIndex].duration != null;
+              Number.isNaN(this._chunks[this._chunkIndex].duration) === false;
 
           if (shouldAdvance) {
             advance();
