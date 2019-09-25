@@ -3,19 +3,25 @@ import EventEmitter from "./EventEmitter";
 import Fetcher from "./Fetcher";
 import { slice } from "./utils/buffer";
 import parseMetadata from "./utils/parseMetadata";
-import isFrameHeader from "./utils/isFrameHeader";
 import getContext from "./getContext";
 
 export default class Loader extends EventEmitter {
-  constructor(chunkSize, url, fileSize, chunks) {
+  constructor(
+    chunkSize,
+    url,
+    fileSize,
+    chunks,
+    referenceHeader = {},
+    metadata = {}
+  ) {
     super();
     this._chunkSize = chunkSize;
     this._chunks = chunks;
+    this._referenceHeader = referenceHeader;
+    this.metadata = metadata;
     this._fetcher = new Fetcher(chunkSize, url, fileSize);
     this._loadStarted = false;
-    this._referenceHeader = {};
     this.context = getContext();
-    this.metadata = null;
     this.buffered = 0;
     this.firstChunkDuration = 0;
   }
@@ -83,7 +89,8 @@ export default class Loader extends EventEmitter {
           onerror: error => {
             error.url = this.url;
             error.phonographCode = "COULD_NOT_DECODE";
-            this._fire("loaderror", error);
+            this._fire("playbackerror", error);
+            this.cancel();
           }
         });
         const lastChunk = this._chunks[this._chunks.length - 1];
@@ -101,7 +108,12 @@ export default class Loader extends EventEmitter {
           this._fire("loadprogress", { buffered: this.buffered, total });
         },
         onData: uint8Array => {
-          if (!this.metadata) {
+          if (
+            !this.metadata ||
+            !this._referenceHeader ||
+            Object.keys(this.metadata).length === 0 ||
+            Object.keys(this._referenceHeader).length === 0
+          ) {
             for (let i = 0; i < uint8Array.length; i += 1) {
               // determine some facts about this mp3 file from the initial header
               if (
@@ -109,13 +121,28 @@ export default class Loader extends EventEmitter {
                 (uint8Array[i + 1] & 0b11110000) === 0b11110000
               ) {
                 // http://www.datavoyage.com/mpgscript/mpeghdr.htm
-                this._referenceHeader = {
-                  mpegVersion: uint8Array[i + 1] & 0b00001000,
-                  mpegLayer: uint8Array[i + 1] & 0b00000110,
-                  sampleRate: uint8Array[i + 2] & 0b00001100,
-                  channelMode: uint8Array[i + 3] & 0b11000000
-                };
-                this.metadata = parseMetadata(this._referenceHeader);
+                // TODO: go back to commented version and retrieve these attributes differently.
+                // this._referenceHeader = {
+                //   mpegVersion: uint8Array[i + 1] & 0b00001000,
+                //   mpegLayer: uint8Array[i + 1] & 0b00000110,
+                //   sampleRate: uint8Array[i + 2] & 0b00001100,
+                //   channelMode: uint8Array[i + 3] & 0b11000000
+                // };
+                this._referenceHeader.mpegVersion =
+                  uint8Array[i + 1] & 0b00001000;
+                this._referenceHeader.mpegLayer =
+                  uint8Array[i + 1] & 0b00000110;
+                this._referenceHeader.sampleRate =
+                  uint8Array[i + 2] & 0b00001100;
+                this._referenceHeader.channelMode =
+                  uint8Array[i + 3] & 0b11000000;
+
+                // this.metadata = parseMetadata(this._referenceHeader);
+                const metadata = parseMetadata(this._referenceHeader);
+                this.metadata.mpegVersion = metadata.mpegVersion;
+                this.metadata.mpegLayer = metadata.mpegLayer;
+                this.metadata.sampleRate = metadata.sampleRate;
+                this.metadata.channelMode = metadata.channelMode;
                 break;
               }
             }

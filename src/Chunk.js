@@ -37,7 +37,11 @@ export default class Chunk {
         }
       }
       this.duration = (numFrames * 1152) / clip.metadata.sampleRate;
-      this._ready();
+      if (this.duration > 0) {
+        this._ready();
+      } else {
+        onerror(new Error(`Got 0 frames when decoding audio buffer`));
+      }
     }, onerror);
   }
 

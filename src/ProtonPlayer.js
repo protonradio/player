@@ -39,7 +39,9 @@ export default class ProtonPlayer {
     fileSize,
     onBufferProgress = _noop,
     onPlaybackProgress = _noop,
-    initialByte = 0
+    initialByte = 0,
+    referenceHeader = {},
+    metadata = {}
   ) {
     if (!this._ready) {
       console.warn("Player not ready");
@@ -50,7 +52,13 @@ export default class ProtonPlayer {
     onPlaybackProgress(0);
 
     this.pauseAll();
-    const clip = this._getClip(url, fileSize, initialByte);
+    const clip = this._getClip(
+      url,
+      fileSize,
+      initialByte,
+      referenceHeader,
+      metadata
+    );
     this._currentlyPlaying = {
       clip,
       url,
@@ -115,15 +123,26 @@ export default class ProtonPlayer {
     } = this._currentlyPlaying;
 
     const initialByte = Math.round(fileSize * percent);
+    const clip = this._clips[url];
 
     if (this._isChunkBuffered(url, initialByte)) {
-      const clip = this._clips[url];
       clip.setCurrentByte(initialByte);
       return;
     }
 
+    const referenceHeader = clip && clip.referenceHeader;
+    const metadata = clip && clip.metadata;
+
     this.dispose(url);
-    this.play(url, fileSize, onBufferProgress, onPlaybackProgress, initialByte);
+    this.play(
+      url,
+      fileSize,
+      onBufferProgress,
+      onPlaybackProgress,
+      initialByte,
+      referenceHeader,
+      metadata
+    );
   }
 
   _isChunkBuffered(url, initialByte = 0) {
@@ -135,7 +154,13 @@ export default class ProtonPlayer {
     return clip.isByteLoaded(initialByte);
   }
 
-  _getClip(url, fileSize, initialByte = 0) {
+  _getClip(
+    url,
+    fileSize,
+    initialByte = 0,
+    referenceHeader = {},
+    metadata = {}
+  ) {
     if (this._clips[url]) {
       return this._clips[url];
     }
@@ -144,7 +169,9 @@ export default class ProtonPlayer {
       url,
       fileSize,
       initialByte,
-      silenceChunks: this._silenceChunks
+      silenceChunks: this._silenceChunks,
+      referenceHeader,
+      metadata
     });
 
     clip.on("loaderror", err => {

@@ -14,7 +14,9 @@ export default class Clip extends EventEmitter {
     initialByte = 0,
     silenceChunks = [],
     loop = false,
-    volume = 1
+    volume = 1,
+    referenceHeader = {},
+    metadata = {}
   }) {
     super();
     this.context = getContext();
@@ -35,6 +37,8 @@ export default class Clip extends EventEmitter {
     this._silenceChunks = silenceChunks;
     this._chunkIndex = 0;
     this._tickTimeout = null;
+    this._referenceHeader = referenceHeader;
+    this._metadata = metadata;
 
     const totalChunksCount = Math.ceil(fileSize / CHUNK_SIZE);
     const initialChunk = Math.round(initialByte / CHUNK_SIZE);
@@ -44,7 +48,14 @@ export default class Clip extends EventEmitter {
         : initialChunk;
     this._initialByte = this._initialChunk * CHUNK_SIZE;
 
-    this._loader = new Loader(CHUNK_SIZE, url, fileSize, this._chunks);
+    this._loader = new Loader(
+      CHUNK_SIZE,
+      url,
+      fileSize,
+      this._chunks,
+      this._referenceHeader,
+      this._metadata
+    );
     this._loader.on("canplaythrough", () => this._fire("canplaythrough"));
     this._loader.on("loadprogress", ({ buffered, total }) => {
       const bufferedWithOffset = buffered + initialByte;
@@ -250,6 +261,14 @@ export default class Clip extends EventEmitter {
 
   set volume(volume) {
     this._gain.gain.value = this._volume = volume;
+  }
+
+  get referenceHeader() {
+    return this._referenceHeader;
+  }
+
+  get metadata() {
+    return this._metadata;
   }
 
   _play() {
