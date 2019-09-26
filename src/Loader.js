@@ -89,6 +89,7 @@ export default class Loader extends EventEmitter {
           onerror: error => {
             error.url = this.url;
             error.phonographCode = "COULD_NOT_DECODE";
+            // TODO: make sure events fire up
             this._fire("playbackerror", error);
             this.cancel();
           }
