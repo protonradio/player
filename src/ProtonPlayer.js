@@ -40,8 +40,7 @@ export default class ProtonPlayer {
     onBufferProgress = _noop,
     onPlaybackProgress = _noop,
     initialByte = 0,
-    referenceHeader = {},
-    metadata = {}
+    audioMetadata = {}
   ) {
     if (!this._ready) {
       console.warn("Player not ready");
@@ -52,13 +51,7 @@ export default class ProtonPlayer {
     onPlaybackProgress(0);
 
     this.pauseAll();
-    const clip = this._getClip(
-      url,
-      fileSize,
-      initialByte,
-      referenceHeader,
-      metadata
-    );
+    const clip = this._getClip(url, fileSize, initialByte, audioMetadata);
     this._currentlyPlaying = {
       clip,
       url,
@@ -130,8 +123,7 @@ export default class ProtonPlayer {
       return;
     }
 
-    const referenceHeader = clip && clip.referenceHeader;
-    const metadata = clip && clip.metadata;
+    const audioMetadata = clip && clip.audioMetadata;
 
     this.dispose(url);
     this.play(
@@ -140,8 +132,7 @@ export default class ProtonPlayer {
       onBufferProgress,
       onPlaybackProgress,
       initialByte,
-      referenceHeader,
-      metadata
+      audioMetadata
     );
   }
 
@@ -154,13 +145,7 @@ export default class ProtonPlayer {
     return clip.isByteLoaded(initialByte);
   }
 
-  _getClip(
-    url,
-    fileSize,
-    initialByte = 0,
-    referenceHeader = {},
-    metadata = {}
-  ) {
+  _getClip(url, fileSize, initialByte = 0, audioMetadata = {}) {
     if (this._clips[url]) {
       return this._clips[url];
     }
@@ -170,8 +155,7 @@ export default class ProtonPlayer {
       fileSize,
       initialByte,
       silenceChunks: this._silenceChunks,
-      referenceHeader,
-      metadata
+      audioMetadata
     });
 
     clip.on("loaderror", err => {
