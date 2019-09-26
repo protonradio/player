@@ -18,7 +18,8 @@ export default class Clip extends EventEmitter {
     audioMetadata = {}
   }) {
     super();
-    this.context = getContext();
+
+    this._useMediaSource = typeof window.MediaSource !== "undefined";
     this.length = 0;
     this.loaded = false;
     this.canplaythrough = false;
@@ -29,6 +30,7 @@ export default class Clip extends EventEmitter {
     this.fileSize = fileSize;
     this.loop = loop;
     this._volume = volume;
+    this.context = getContext();
     this._gain = this.context.createGain();
     this._gain.gain.value = this._volume;
     this._gain.connect(this.context.destination);
@@ -36,12 +38,13 @@ export default class Clip extends EventEmitter {
     this._silenceChunks = silenceChunks;
     this._chunkIndex = 0;
     this._tickTimeout = null;
+    this._mediaSourceTimeout = null;
 
-    const totalChunksCount = Math.ceil(fileSize / CHUNK_SIZE);
+    this._totalChunksCount = Math.ceil(fileSize / CHUNK_SIZE);
     const initialChunk = Math.round(initialByte / CHUNK_SIZE);
     this._initialChunk =
-      initialChunk + MIN_CHUNK_COUNT > totalChunksCount
-        ? totalChunksCount - MIN_CHUNK_COUNT
+      initialChunk + MIN_CHUNK_COUNT > this._totalChunksCount
+        ? this._totalChunksCount - MIN_CHUNK_COUNT
         : initialChunk;
     this._initialByte = this._initialChunk * CHUNK_SIZE;
 
@@ -57,7 +60,7 @@ export default class Clip extends EventEmitter {
       const bufferedWithOffset = buffered + initialByte;
       this._fire("loadprogress", {
         total,
-        initialPosition: this._initialChunk / totalChunksCount,
+        initialPosition: this._initialChunk / this._totalChunksCount,
         buffered: bufferedWithOffset,
         progress: bufferedWithOffset / total
       });
@@ -165,12 +168,22 @@ export default class Clip extends EventEmitter {
 
     this.buffer();
 
-    this._gain = this.context.createGain();
-    this._gain.gain.value = this._volume;
-    this._gain.connect(this.context.destination);
-
-    this.context.resume();
-    this._play();
+    if (this._useMediaSource) {
+      this._audioElement = document.querySelector("audio");
+      this._mediaSource = new MediaSource();
+      this._audioElement.src = URL.createObjectURL(this._mediaSource);
+      const self = this;
+      this._mediaSource.addEventListener("sourceopen", function() {
+        self._sourceBuffer = this.addSourceBuffer("audio/mpeg");
+        self._play();
+      });
+    } else {
+      this._gain = this.context.createGain();
+      this._gain.gain.value = this._volume;
+      this._gain.connect(this.context.destination);
+      this.context.resume();
+      this._play();
+    }
 
     this.playing = true;
     this.ended = false;
@@ -181,11 +194,15 @@ export default class Clip extends EventEmitter {
   pause() {
     if (!this.playing) return this;
 
-    clearTimeout(this._tickTimeout);
-
-    this._gain.gain.value = 0;
-    this._gain.disconnect(this.context.destination);
-    this._gain = null;
+    if (this._useMediaSource) {
+      clearTimeout(this._mediaSourceTimeout);
+      this._audioElement.pause();
+    } else {
+      clearTimeout(this._tickTimeout);
+      this._gain.gain.value = 0;
+      this._gain.disconnect(this.context.destination);
+      this._gain = null;
+    }
 
     this._loader.cancel();
     this._preBuffering = false;
@@ -202,21 +219,36 @@ export default class Clip extends EventEmitter {
   setCurrentByte(byte = 0) {
     this._initialByte = byte;
     this.playing = false;
-    clearTimeout(this._tickTimeout);
 
-    this._gain.gain.value = 0;
-    this._gain.disconnect(this.context.destination);
-    this._gain = null;
+    if (this._useMediaSource) {
+      clearTimeout(this._mediaSourceTimeout);
+      this._audioElement.pause();
+    } else {
+      clearTimeout(this._tickTimeout);
+      this._gain.gain.value = 0;
+      this._gain.disconnect(this.context.destination);
+      this._gain = null;
+      this._currentTime = 0;
+    }
 
-    this._currentTime = 0;
     this._chunkIndex = Math.round(byte / CHUNK_SIZE) - this._initialChunk;
 
-    this._gain = this.context.createGain();
-    this._gain.gain.value = this._volume;
-    this._gain.connect(this.context.destination);
-
-    this.context.resume();
-    this._play();
+    if (this._useMediaSource) {
+      this._audioElement = document.querySelector("audio");
+      this._mediaSource = new MediaSource();
+      this._audioElement.src = URL.createObjectURL(this._mediaSource);
+      const self = this;
+      this._mediaSource.addEventListener("sourceopen", function() {
+        self._sourceBuffer = this.addSourceBuffer("audio/mpeg");
+        self._play();
+      });
+    } else {
+      this._gain = this.context.createGain();
+      this._gain.gain.value = this._volume;
+      this._gain.connect(this.context.destination);
+      this.context.resume();
+      this._play();
+    }
 
     this.playing = true;
     this.ended = false;
@@ -235,6 +267,10 @@ export default class Clip extends EventEmitter {
 
     const offset =
       (this._initialByte / CHUNK_SIZE) * this._loader.firstChunkDuration;
+
+    if (this._useMediaSource) {
+      return this._audioElement.currentTime + offset;
+    }
 
     return (
       offset +
@@ -264,6 +300,11 @@ export default class Clip extends EventEmitter {
   }
 
   _play() {
+    if (this._useMediaSource) {
+      this._playUsingMediaSource();
+      return;
+    }
+
     let time = 0;
     this._startTime = this._currentTime;
     const timeOffset = this._currentTime - time;
@@ -421,6 +462,33 @@ export default class Clip extends EventEmitter {
         error.phonographCode = "COULD_NOT_START_PLAYBACK";
         this._fire("playbackerror", error);
       }
+    );
+  }
+
+  _playUsingMediaSource() {
+    if (!this.playing) return;
+
+    if (this._chunkIndex + this._initialChunk >= this._totalChunksCount) {
+      this.playing = false;
+      this._mediaSource.endOfStream();
+      return;
+    }
+
+    const shouldSkip =
+      this._chunks.length === 0 ||
+      this._chunkIndex >= this._chunks.length ||
+      this._chunks[this._chunkIndex].ready !== true ||
+      Number.isNaN(this._chunks[this._chunkIndex].duration) === true;
+
+    if (!shouldSkip) {
+      const chunk = this._chunks[this._chunkIndex];
+      this._sourceBuffer.appendBuffer(chunk.raw);
+      this._chunkIndex += 1;
+    }
+
+    this._mediaSourceTimeout = setTimeout(
+      () => this._playUsingMediaSource(),
+      500
     );
   }
 }
