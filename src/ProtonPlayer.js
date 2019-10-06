@@ -11,23 +11,34 @@ export default class ProtonPlayer {
     this._currentlyPlaying = null;
     this._playbackPositionInterval = null;
 
-    const silenceURL = "http://local.protonradio.com:3003/silence";
-    const silenceChunkSize = 64 * 64;
-    const silenceLoader = new Loader(
-      silenceChunkSize,
-      silenceURL,
-      silenceChunkSize,
-      this._silenceChunks
-    );
-    silenceLoader.on("loaderror", err => {
-      this._ready = false;
-      this._onError(err);
-    });
-    silenceLoader.on("load", () => {
+    if (typeof window.MediaSource !== "undefined") {
+      const audioElement = document.querySelector("audio");
+      audioElement.addEventListener("ended", () => {
+        Object.keys(this._clips).forEach(k => {
+          this._clips[k].playing = false;
+        });
+      });
       this._ready = true;
       this._onReady();
-    });
-    silenceLoader.buffer(true);
+    } else {
+      const silenceURL = "http://local.protonradio.com:3003/silence";
+      const silenceChunkSize = 64 * 64;
+      const silenceLoader = new Loader(
+        silenceChunkSize,
+        silenceURL,
+        silenceChunkSize,
+        this._silenceChunks
+      );
+      silenceLoader.on("loaderror", err => {
+        this._ready = false;
+        this._onError(err);
+      });
+      silenceLoader.on("load", () => {
+        this._ready = true;
+        this._onReady();
+      });
+      silenceLoader.buffer(true);
+    }
   }
 
   preLoad(url, fileSize) {

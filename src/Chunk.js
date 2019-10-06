@@ -13,13 +13,6 @@ export default class Chunk {
     this._callback = onready;
     this._firstByte = 0;
 
-    if (typeof window.MediaSource !== "undefined") {
-      this.duration = 1;
-      this.ready = true;
-      setTimeout(this._callback);
-      return;
-    }
-
     const decode = (callback, errback) => {
       const buffer = slice(raw, this._firstByte, raw.length).buffer;
       this.context.decodeAudioData(buffer, callback, err => {

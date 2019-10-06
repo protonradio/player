@@ -1,4 +1,3 @@
-import "./Clone.js"; // need to import Clone before Clip
 export { default as Fetcher } from "./Fetcher";
 export { default as Loader } from "./Loader";
 export { default as Clip } from "./Clip";

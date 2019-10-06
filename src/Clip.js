@@ -1,10 +1,8 @@
 import Loader from "./Loader";
 import EventEmitter from "./EventEmitter";
-import Clone from "./Clone";
 import getContext from "./getContext";
 import warn from "./utils/warn";
 const CHUNK_SIZE = 64 * 1024;
-const MIN_CHUNK_COUNT = 8;
 const OVERLAP = 0.2;
 
 export default class Clip extends EventEmitter {
@@ -20,6 +18,15 @@ export default class Clip extends EventEmitter {
     super();
 
     this._useMediaSource = typeof window.MediaSource !== "undefined";
+    if (this._useMediaSource) {
+      this._audioElement = document.querySelector("audio");
+    } else {
+      this.context = getContext();
+      this._gain = this.context.createGain();
+      this._gain.gain.value = this._volume;
+      this._gain.connect(this.context.destination);
+    }
+
     this.length = 0;
     this.loaded = false;
     this.canplaythrough = false;
@@ -30,10 +37,6 @@ export default class Clip extends EventEmitter {
     this.fileSize = fileSize;
     this.loop = loop;
     this._volume = volume;
-    this.context = getContext();
-    this._gain = this.context.createGain();
-    this._gain.gain.value = this._volume;
-    this._gain.connect(this.context.destination);
     this._chunks = [];
     this._silenceChunks = silenceChunks;
     this._chunkIndex = 0;
@@ -43,8 +46,8 @@ export default class Clip extends EventEmitter {
     this._totalChunksCount = Math.ceil(fileSize / CHUNK_SIZE);
     const initialChunk = Math.round(initialByte / CHUNK_SIZE);
     this._initialChunk =
-      initialChunk + MIN_CHUNK_COUNT > this._totalChunksCount
-        ? this._totalChunksCount - MIN_CHUNK_COUNT
+      initialChunk >= this._totalChunksCount
+        ? this._totalChunksCount - 1
         : initialChunk;
     this._initialByte = this._initialChunk * CHUNK_SIZE;
 
@@ -118,10 +121,6 @@ export default class Clip extends EventEmitter {
       });
   }
 
-  clone() {
-    return new Clone(this);
-  }
-
   connect(destination, output, input) {
     if (!this._connected) {
       this._gain.disconnect();
@@ -169,20 +168,19 @@ export default class Clip extends EventEmitter {
     this.buffer();
 
     if (this._useMediaSource) {
-      this._audioElement = document.querySelector("audio");
       this._mediaSource = new MediaSource();
       this._audioElement.src = URL.createObjectURL(this._mediaSource);
       const self = this;
       this._mediaSource.addEventListener("sourceopen", function() {
         self._sourceBuffer = this.addSourceBuffer("audio/mpeg");
-        self._play();
+        self._playUsingMediaSource();
       });
     } else {
       this._gain = this.context.createGain();
       this._gain.gain.value = this._volume;
       this._gain.connect(this.context.destination);
       this.context.resume();
-      this._play();
+      this._playUsingAudioContext();
     }
 
     this.playing = true;
@@ -202,15 +200,14 @@ export default class Clip extends EventEmitter {
       this._gain.gain.value = 0;
       this._gain.disconnect(this.context.destination);
       this._gain = null;
+      this._currentTime =
+        this._startTime + (this.context.currentTime - this._contextTimeAtStart);
     }
 
     this._loader.cancel();
     this._preBuffering = false;
     this._buffering = false;
     this.playing = false;
-
-    this._currentTime =
-      this._startTime + (this.context.currentTime - this._contextTimeAtStart);
 
     this._fire("pause");
     return this;
@@ -234,20 +231,19 @@ export default class Clip extends EventEmitter {
     this._chunkIndex = Math.round(byte / CHUNK_SIZE) - this._initialChunk;
 
     if (this._useMediaSource) {
-      this._audioElement = document.querySelector("audio");
       this._mediaSource = new MediaSource();
       this._audioElement.src = URL.createObjectURL(this._mediaSource);
       const self = this;
       this._mediaSource.addEventListener("sourceopen", function() {
         self._sourceBuffer = this.addSourceBuffer("audio/mpeg");
-        self._play();
+        self._playUsingMediaSource();
       });
     } else {
       this._gain = this.context.createGain();
       this._gain.gain.value = this._volume;
       this._gain.connect(this.context.destination);
       this.context.resume();
-      this._play();
+      this._playUsingAudioContext();
     }
 
     this.playing = true;
@@ -299,12 +295,7 @@ export default class Clip extends EventEmitter {
     return this._loader.audioMetadata;
   }
 
-  _play() {
-    if (this._useMediaSource) {
-      this._playUsingMediaSource();
-      return;
-    }
-
+  _playUsingAudioContext() {
     let time = 0;
     this._startTime = this._currentTime;
     const timeOffset = this._currentTime - time;
@@ -469,7 +460,6 @@ export default class Clip extends EventEmitter {
     if (!this.playing) return;
 
     if (this._chunkIndex + this._initialChunk >= this._totalChunksCount) {
-      this.playing = false;
       this._mediaSource.endOfStream();
       return;
     }
@@ -487,7 +477,7 @@ export default class Clip extends EventEmitter {
     }
 
     this._mediaSourceTimeout = setTimeout(
-      () => this._playUsingMediaSource(),
+      this._playUsingMediaSource.bind(this),
       500
     );
   }
