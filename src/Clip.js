@@ -23,7 +23,7 @@ export default class Clip extends EventEmitter {
     } else {
       this.context = getContext();
       this._gain = this.context.createGain();
-      this._gain.gain.value = this._volume;
+      this._gain.gain.value = volume;
       this._gain.connect(this.context.destination);
     }
 
