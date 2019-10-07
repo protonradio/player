@@ -106,6 +106,18 @@ export default class Fetcher {
     return fetch(this.url, options).then(response => {
       if (this._cancelled) return null;
 
+      if (response.status === 429) {
+        return new Promise((resolve, reject) => {
+          setTimeout(
+            () =>
+              this._loadFragment()
+                .then(resolve)
+                .catch(reject),
+            10 * 1000
+          );
+        });
+      }
+
       if (!response.ok) {
         throw new Error(
           `Bad response (${response.status} – ${response.statusText})`
