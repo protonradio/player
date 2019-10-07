@@ -16,10 +16,13 @@ export default class ProtonPlayer {
       audioElement.addEventListener("ended", () => {
         Object.keys(this._clips).forEach(k => {
           this._clips[k].playing = false;
+          this._clips[k].ended = true;
         });
       });
-      this._ready = true;
-      this._onReady();
+      setTimeout(() => {
+        this._ready = true;
+        this._onReady();
+      });
     } else {
       const silenceURL = "http://local.protonradio.com:3003/silence";
       const silenceChunkSize = 64 * 64;
