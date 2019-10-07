@@ -2,7 +2,7 @@ import _noop from "lodash.noop";
 import { Loader, Clip } from "./index";
 
 export default class ProtonPlayer {
-  constructor(onReady = _noop, onError = _noop) {
+  constructor(silenceURL, onReady = _noop, onError = _noop) {
     this._onReady = onReady;
     this._onError = onError;
     this._ready = false;
@@ -24,7 +24,11 @@ export default class ProtonPlayer {
         this._onReady();
       });
     } else {
-      const silenceURL = "http://local.protonradio.com:3003/silence";
+      if (!silenceURL) {
+        throw new Error(
+          "The `silenceURL` argument is required for using the AudioContext API backend"
+        );
+      }
       const silenceChunkSize = 64 * 64;
       const silenceLoader = new Loader(
         silenceChunkSize,

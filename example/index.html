@@ -57,7 +57,11 @@
         console.error(err);
       };
 
-      const player = new ProtonPlayer(onReady, onError);
+      const player = new ProtonPlayer(
+        "http://local.protonradio.com:3003/silence",
+        onReady,
+        onError
+      );
 
       const $container = document.getElementById("container");
       const $stopBtn = document.getElementById("stop-btn");
