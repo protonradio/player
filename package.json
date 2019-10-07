@@ -8,7 +8,7 @@
     "lodash.noop": "^3.0.1"
   },
   "devDependencies": {
-    "rollup": "^1.23.0",
+    "rollup": "^1.23.1",
     "rollup-plugin-commonjs": "^10.1.0",
     "rollup-plugin-node-resolve": "^5.2.0"
   },
