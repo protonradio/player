@@ -68,6 +68,9 @@ export default class Clip extends EventEmitter {
         progress: bufferedWithOffset / total
       });
     });
+    this._loader.on("playbackerror", error =>
+      this._fire("playbackerror", error)
+    );
     this._loader.on("loaderror", error => this._fire("loaderror", error));
     this._loader.on("load", () => this._fire("load"));
     this._preBuffering = false;
@@ -148,21 +151,11 @@ export default class Clip extends EventEmitter {
   }
 
   play() {
-    const promise = new Promise((fulfil, reject) => {
-      this.once("ended", fulfil);
-      this.once("loaderror", reject);
-      this.once("playbackerror", reject);
-      this.once("dispose", () => {
-        if (this.ended) return;
-        fulfil();
-      });
-    });
-
     if (this.playing) {
       warn(
         `clip.play() was called on a clip that was already playing (${this.url})`
       );
-      return promise;
+      return;
     }
 
     this.buffer();
@@ -185,8 +178,6 @@ export default class Clip extends EventEmitter {
 
     this.playing = true;
     this.ended = false;
-
-    return promise;
   }
 
   pause() {

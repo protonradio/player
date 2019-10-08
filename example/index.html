@@ -56,12 +56,8 @@
       const onError = err => {
         console.error(err);
       };
-
-      const player = new ProtonPlayer(
-        "http://local.protonradio.com:3003/silence",
-        onReady,
-        onError
-      );
+      const baseURL = "http://local.protonradio.com:3003";
+      const player = new ProtonPlayer(`${baseURL}/silence`, onReady, onError);
 
       const $container = document.getElementById("container");
       const $stopBtn = document.getElementById("stop-btn");
@@ -92,7 +88,6 @@
       };
 
       function init() {
-        const baseURL = "http://local.protonradio.com:3003";
         const token =
           "eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjozMDMyMjIsInBocGJiX3VzZXIiOnsidXNlcm5hbWUiOiJjaGFybGVzbmF2aSIsInVzZXJfYWN0aXZlIjp0cnVlLCJhdXRoZW50aWNhdGlvbl90b2tlbiI6IkJ6WWZpUU53SzdVY0g5TDNGaHBFIiwicHJvdG9uX3N1YnNjcmliZSI6dHJ1ZX0sInVzZXIiOnsiaWQiOjI4NjY4LCJhY2Nlc3NsZXZlbCI6M30sImV4cCI6MTU2NzcxNTY4NywiaWF0IjoxNTY3NjI5Mjg3fQ.tXapKEjTqkUqqU6D6Q08w6ySulg2Hw5yQGXcayQAeEk";
         [
