@@ -1,5 +1,5 @@
-import _noop from "lodash.noop";
-import { Loader, Clip } from "./index";
+import _noop from 'lodash.noop';
+import { Loader, Clip } from './index';
 
 export default class ProtonPlayer {
   constructor({ silenceURL, volume = 1, onReady = _noop, onError = _noop }) {
@@ -12,9 +12,13 @@ export default class ProtonPlayer {
     this._currentlyPlaying = null;
     this._playbackPositionInterval = null;
 
-    if (typeof window.MediaSource !== "undefined") {
-      const audioElement = document.querySelector("audio");
-      audioElement.addEventListener("ended", () => {
+    if (typeof window.MediaSource !== 'undefined') {
+      let audioElement = document.createElement('audio');
+      audioElement.autoplay = true;
+
+      document.body.appendChild(audioElement);
+
+      audioElement.addEventListener('ended', () => {
         Object.keys(this._clips).forEach(k => {
           this._clips[k].playing = false;
           this._clips[k].ended = true;
@@ -27,7 +31,7 @@ export default class ProtonPlayer {
     } else {
       if (!silenceURL) {
         throw new Error(
-          "The `silenceURL` argument is required for using the AudioContext API backend"
+          'The `silenceURL` argument is required for using the AudioContext API backend'
         );
       }
       const silenceChunkSize = 64 * 64;
@@ -37,11 +41,11 @@ export default class ProtonPlayer {
         silenceChunkSize,
         this._silenceChunks
       );
-      silenceLoader.on("loaderror", err => {
+      silenceLoader.on('loaderror', err => {
         this._ready = false;
         this._onError(err);
       });
-      silenceLoader.on("load", () => {
+      silenceLoader.on('load', () => {
         this._ready = true;
         this._onReady();
       });
@@ -62,7 +66,7 @@ export default class ProtonPlayer {
     audioMetadata = {}
   ) {
     if (!this._ready) {
-      console.warn("Player not ready");
+      console.warn('Player not ready');
       return;
     }
 
@@ -79,7 +83,7 @@ export default class ProtonPlayer {
       onPlaybackProgress
     };
 
-    clip.on("loadprogress", ({ initialPosition, progress }) =>
+    clip.on('loadprogress', ({ initialPosition, progress }) =>
       onBufferProgress(initialPosition, progress)
     );
 
@@ -89,7 +93,7 @@ export default class ProtonPlayer {
       onPlaybackProgress(progress);
     }, 500);
 
-    clip.on("ended", () => this.pauseAll());
+    clip.on('ended', () => this.pauseAll());
 
     clip.play();
     return clip;
@@ -99,7 +103,7 @@ export default class ProtonPlayer {
     this._currentlyPlaying = null;
     this._clearIntervals();
     Object.keys(this._clips).forEach(k => {
-      this._clips[k].offAll("loadprogress");
+      this._clips[k].offAll('loadprogress');
       this._clips[k].pause();
     });
   }
@@ -111,7 +115,7 @@ export default class ProtonPlayer {
     }
 
     if (!this._clips[url]) return;
-    this._clips[url].offAll("loadprogress");
+    this._clips[url].offAll('loadprogress');
     this._clips[url].dispose();
     delete this._clips[url];
   }
@@ -175,12 +179,12 @@ export default class ProtonPlayer {
       audioMetadata
     });
 
-    clip.on("loaderror", err => {
-      console.error("Clip failed to load", err);
+    clip.on('loaderror', err => {
+      console.error('Clip failed to load', err);
     });
 
-    clip.on("playbackerror", err => {
-      console.error("Something went wrong during playback", err);
+    clip.on('playbackerror', err => {
+      console.error('Something went wrong during playback', err);
     });
 
     this._clips[url] = clip;

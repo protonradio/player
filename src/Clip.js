@@ -1,7 +1,7 @@
-import Loader from "./Loader";
-import EventEmitter from "./EventEmitter";
-import getContext from "./getContext";
-import warn from "./utils/warn";
+import Loader from './Loader';
+import EventEmitter from './EventEmitter';
+import getContext from './getContext';
+import warn from './utils/warn';
 const CHUNK_SIZE = 64 * 1024;
 const OVERLAP = 0.2;
 
@@ -17,9 +17,9 @@ export default class Clip extends EventEmitter {
   }) {
     super();
 
-    this._useMediaSource = typeof window.MediaSource !== "undefined";
+    this._useMediaSource = typeof window.MediaSource !== 'undefined';
     if (this._useMediaSource) {
-      this._audioElement = document.querySelector("audio");
+      this._audioElement = document.querySelector('audio');
     } else {
       this.context = getContext();
       this._gain = this.context.createGain();
@@ -54,21 +54,21 @@ export default class Clip extends EventEmitter {
       this._chunks,
       audioMetadata
     );
-    this._loader.on("canplaythrough", () => this._fire("canplaythrough"));
-    this._loader.on("loadprogress", ({ buffered, total }) => {
+    this._loader.on('canplaythrough', () => this._fire('canplaythrough'));
+    this._loader.on('loadprogress', ({ buffered, total }) => {
       const bufferedWithOffset = buffered + this._initialByte;
-      this._fire("loadprogress", {
+      this._fire('loadprogress', {
         total,
         initialPosition: this._initialChunk / this._totalChunksCount,
         buffered: bufferedWithOffset,
         progress: bufferedWithOffset / total
       });
     });
-    this._loader.on("playbackerror", error =>
-      this._fire("playbackerror", error)
+    this._loader.on('playbackerror', error =>
+      this._fire('playbackerror', error)
     );
-    this._loader.on("loaderror", error => this._fire("loaderror", error));
-    this._loader.on("load", () => this._fire("load"));
+    this._loader.on('loaderror', error => this._fire('loaderror', error));
+    this._loader.on('load', () => this._fire('load'));
     this._preBuffering = false;
     this._preBuffered = false;
     this._buffering = false;
@@ -143,7 +143,7 @@ export default class Clip extends EventEmitter {
     this.canplaythrough = false;
     this._currentTime = 0;
     this._chunks = [];
-    this._fire("dispose");
+    this._fire('dispose');
   }
 
   play() {
@@ -160,8 +160,8 @@ export default class Clip extends EventEmitter {
       this._mediaSource = new MediaSource();
       this._audioElement.src = URL.createObjectURL(this._mediaSource);
       const self = this;
-      this._mediaSource.addEventListener("sourceopen", function() {
-        self._sourceBuffer = this.addSourceBuffer("audio/mpeg");
+      this._mediaSource.addEventListener('sourceopen', function() {
+        self._sourceBuffer = this.addSourceBuffer('audio/mpeg');
         self._playUsingMediaSource();
       });
     } else {
@@ -197,7 +197,7 @@ export default class Clip extends EventEmitter {
     this._buffering = false;
     this.playing = false;
 
-    this._fire("pause");
+    this._fire('pause');
     return this;
   }
 
@@ -224,8 +224,8 @@ export default class Clip extends EventEmitter {
       this._mediaSource = new MediaSource();
       this._audioElement.src = URL.createObjectURL(this._mediaSource);
       const self = this;
-      this._mediaSource.addEventListener("sourceopen", function() {
-        self._sourceBuffer = this.addSourceBuffer("audio/mpeg");
+      this._mediaSource.addEventListener('sourceopen', function() {
+        self._sourceBuffer = this.addSourceBuffer('audio/mpeg');
         self._playUsingMediaSource();
       });
     } else {
@@ -297,10 +297,10 @@ export default class Clip extends EventEmitter {
     let time = 0;
     this._startTime = this._currentTime;
     const timeOffset = this._currentTime - time;
-    this._fire("play");
+    this._fire('play');
     let playing = true;
 
-    const pauseListener = this.on("pause", () => {
+    const pauseListener = this.on('pause', () => {
       playing = false;
       if (previousSource) previousSource.stop();
       if (currentSource) currentSource.stop();
@@ -323,8 +323,8 @@ export default class Clip extends EventEmitter {
       source => {
         if (Number.isNaN(chunk.duration)) {
           this._fire(
-            "playbackerror",
-            "Error playing initial chunk because duration is NaN"
+            'playbackerror',
+            'Error playing initial chunk because duration is NaN'
           );
           return;
         }
@@ -346,7 +346,7 @@ export default class Clip extends EventEmitter {
             this.pause();
             this._currentTime = 0;
             this.ended = true;
-            this._fire("ended");
+            this._fire('ended');
           } else {
             requestAnimationFrame(endGame);
           }
@@ -386,8 +386,8 @@ export default class Clip extends EventEmitter {
             source => {
               if (Number.isNaN(chunk.duration)) {
                 this._fire(
-                  "playbackerror",
-                  "Error playing chunk because duration is NaN"
+                  'playbackerror',
+                  'Error playing chunk because duration is NaN'
                 );
                 return;
               }
@@ -414,8 +414,8 @@ export default class Clip extends EventEmitter {
             },
             error => {
               error.url = this.url;
-              error.phonographCode = "COULD_NOT_CREATE_SOURCE";
-              this._fire("playbackerror", error);
+              error.phonographCode = 'COULD_NOT_CREATE_SOURCE';
+              this._fire('playbackerror', error);
             }
           );
         };
@@ -440,7 +440,7 @@ export default class Clip extends EventEmitter {
         const frame = () => {
           if (!playing) return;
           requestAnimationFrame(frame);
-          this._fire("progress");
+          this._fire('progress');
         };
 
         tick();
@@ -448,8 +448,8 @@ export default class Clip extends EventEmitter {
       },
       error => {
         error.url = this.url;
-        error.phonographCode = "COULD_NOT_START_PLAYBACK";
-        this._fire("playbackerror", error);
+        error.phonographCode = 'COULD_NOT_START_PLAYBACK';
+        this._fire('playbackerror', error);
       }
     );
   }
