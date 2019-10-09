@@ -9,7 +9,7 @@ export default class Clip extends EventEmitter {
   constructor({
     url,
     fileSize,
-    initialByte = 0,
+    initialPosition = 0,
     silenceChunks = [],
     loop = false,
     volume = 1,
@@ -44,11 +44,7 @@ export default class Clip extends EventEmitter {
     this._mediaSourceTimeout = null;
 
     this._totalChunksCount = Math.ceil(fileSize / CHUNK_SIZE);
-    const initialChunk = Math.round(initialByte / CHUNK_SIZE);
-    this._initialChunk =
-      initialChunk >= this._totalChunksCount
-        ? this._totalChunksCount - 1
-        : initialChunk;
+    this._initialChunk = this._getChunkIndexByPosition(initialPosition);
     this._initialByte = this._initialChunk * CHUNK_SIZE;
 
     this._loader = new Loader(
@@ -60,7 +56,7 @@ export default class Clip extends EventEmitter {
     );
     this._loader.on("canplaythrough", () => this._fire("canplaythrough"));
     this._loader.on("loadprogress", ({ buffered, total }) => {
-      const bufferedWithOffset = buffered + initialByte;
+      const bufferedWithOffset = buffered + this._initialByte;
       this._fire("loadprogress", {
         total,
         initialPosition: this._initialChunk / this._totalChunksCount,
@@ -204,8 +200,7 @@ export default class Clip extends EventEmitter {
     return this;
   }
 
-  setCurrentByte(byte = 0) {
-    this._initialByte = byte;
+  setCurrentPosition(position = 0) {
     this.playing = false;
 
     if (this._useMediaSource) {
@@ -219,7 +214,9 @@ export default class Clip extends EventEmitter {
       this._currentTime = 0;
     }
 
-    this._chunkIndex = Math.round(byte / CHUNK_SIZE) - this._initialChunk;
+    const initialChunk = this._getChunkIndexByPosition(position);
+    this._initialByte = initialChunk * CHUNK_SIZE;
+    this._chunkIndex = initialChunk - this._initialChunk;
 
     if (this._useMediaSource) {
       this._mediaSource = new MediaSource();
@@ -241,8 +238,9 @@ export default class Clip extends EventEmitter {
     this.ended = false;
   }
 
-  isByteLoaded(byte = 0) {
-    const wantedChunk = Math.round(byte / CHUNK_SIZE) - this._initialChunk;
+  isPositionLoaded(position = 0) {
+    const initialChunk = this._getChunkIndexByPosition(position);
+    const wantedChunk = initialChunk - this._initialChunk;
     const chunk = this._chunks[wantedChunk] || {};
     return chunk.ready === true && Number.isNaN(chunk.duration) === false;
   }
@@ -471,5 +469,12 @@ export default class Clip extends EventEmitter {
       this._playUsingMediaSource.bind(this),
       500
     );
+  }
+
+  _getChunkIndexByPosition(position = 0) {
+    const initialChunk = Math.floor(this._totalChunksCount * position);
+    return initialChunk >= this._totalChunksCount
+      ? this._totalChunksCount - 1
+      : initialChunk;
   }
 }

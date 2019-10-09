@@ -166,7 +166,7 @@
           const { url, size, preLoad, preLoadOnHover } = file;
 
           if (preLoad) {
-            player.preLoad(url, size).then(() => {
+            player.preLoad(url, size, 0).then(() => {
               $btn.removeAttribute("disabled");
               $btn.setAttribute("value", file.name + " (preloaded)");
             });
@@ -179,7 +179,7 @@
 
               $btn.setAttribute("value", `${file.name} (loading...)`);
 
-              player.preLoad(url, size).then(() => {
+              player.preLoad(url, size, 0).then(() => {
                 $btn.removeAttribute("disabled");
                 $btn.setAttribute("value", file.name + " (preloaded)");
               });
@@ -187,13 +187,6 @@
           }
 
           $btn.onclick = function() {
-            /*
-            background: -webkit-linear-gradient(left, #efe3af 75%,#ffffff 75%);
-            background:    -moz-linear-gradient(left, #efe3af 75%, #ffffff 75%);
-            background:     -ms-linear-gradient(left, #efe3af 75%,#ffffff 75%);
-            background:      -o-linear-gradient(left, #efe3af 75%,#ffffff 75%);
-            background:         linear-gradient(to right, #efe3af 75%,#ffffff 75%);
-            */
             const onBufferProgress = (initialPosition, progress) => {
               const start = Math.min(initialPosition, 1) * 100;
               const end = Math.min(progress, 1) * 100;
@@ -208,7 +201,7 @@
               const percent = Math.min(progress, 1) * 100;
               $playbackPositionDisplay.style.background = `linear-gradient(to right, #efe3af ${percent}%, #ffffff ${percent}%)`;
             };
-            player.play(url, size, onBufferProgress, onPlaybackProgress);
+            player.play(url, size, onBufferProgress, onPlaybackProgress, 0);
           };
 
           $container.appendChild($btn);

@@ -48,8 +48,8 @@ export default class ProtonPlayer {
     }
   }
 
-  preLoad(url, fileSize) {
-    return this._getClip(url, fileSize).preBuffer();
+  preLoad(url, fileSize, initialPosition = 0) {
+    return this._getClip(url, fileSize, initialPosition).preBuffer();
   }
 
   play(
@@ -57,7 +57,7 @@ export default class ProtonPlayer {
     fileSize,
     onBufferProgress = _noop,
     onPlaybackProgress = _noop,
-    initialByte = 0,
+    initialPosition = 0,
     audioMetadata = {}
   ) {
     if (!this._ready) {
@@ -69,7 +69,7 @@ export default class ProtonPlayer {
     onPlaybackProgress(0);
 
     this.pauseAll();
-    const clip = this._getClip(url, fileSize, initialByte, audioMetadata);
+    const clip = this._getClip(url, fileSize, initialPosition, audioMetadata);
     this._currentlyPlaying = {
       clip,
       url,
@@ -133,11 +133,10 @@ export default class ProtonPlayer {
       onPlaybackProgress
     } = this._currentlyPlaying;
 
-    const initialByte = Math.round(fileSize * percent);
     const clip = this._clips[url];
 
-    if (this._isChunkBuffered(url, initialByte)) {
-      clip.setCurrentByte(initialByte);
+    if (clip && clip.isPositionLoaded(percent)) {
+      clip.setCurrentPosition(percent);
       return;
     }
 
@@ -149,21 +148,12 @@ export default class ProtonPlayer {
       fileSize,
       onBufferProgress,
       onPlaybackProgress,
-      initialByte,
+      percent,
       audioMetadata
     );
   }
 
-  _isChunkBuffered(url, initialByte = 0) {
-    const clip = this._clips[url];
-    if (!clip) {
-      return false;
-    }
-
-    return clip.isByteLoaded(initialByte);
-  }
-
-  _getClip(url, fileSize, initialByte = 0, audioMetadata = {}) {
+  _getClip(url, fileSize, initialPosition = 0, audioMetadata = {}) {
     if (this._clips[url]) {
       return this._clips[url];
     }
@@ -171,7 +161,7 @@ export default class ProtonPlayer {
     const clip = new Clip({
       url,
       fileSize,
-      initialByte,
+      initialPosition,
       silenceChunks: this._silenceChunks,
       audioMetadata
     });
