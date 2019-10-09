@@ -23,7 +23,6 @@ export default class Clip extends EventEmitter {
     } else {
       this.context = getContext();
       this._gain = this.context.createGain();
-      this._gain.gain.value = volume;
       this._gain.connect(this.context.destination);
     }
 
@@ -36,7 +35,7 @@ export default class Clip extends EventEmitter {
     this.url = url;
     this.fileSize = fileSize;
     this.loop = loop;
-    this._volume = volume;
+    this.volume = volume;
     this._chunks = [];
     this._silenceChunks = silenceChunks;
     this._chunkIndex = 0;
@@ -166,12 +165,12 @@ export default class Clip extends EventEmitter {
       });
     } else {
       this._gain = this.context.createGain();
-      this._gain.gain.value = this._volume;
       this._gain.connect(this.context.destination);
       this.context.resume();
       this._playUsingAudioContext();
     }
 
+    this.volume = this._volume;
     this.playing = true;
     this.ended = false;
   }
@@ -182,6 +181,7 @@ export default class Clip extends EventEmitter {
     if (this._useMediaSource) {
       clearTimeout(this._mediaSourceTimeout);
       this._audioElement.pause();
+      this._audioElement.volume = 0;
     } else {
       clearTimeout(this._tickTimeout);
       this._gain.gain.value = 0;
@@ -206,6 +206,7 @@ export default class Clip extends EventEmitter {
     if (this._useMediaSource) {
       clearTimeout(this._mediaSourceTimeout);
       this._audioElement.pause();
+      this._audioElement.volume = 0;
     } else {
       clearTimeout(this._tickTimeout);
       this._gain.gain.value = 0;
@@ -228,12 +229,12 @@ export default class Clip extends EventEmitter {
       });
     } else {
       this._gain = this.context.createGain();
-      this._gain.gain.value = this._volume;
       this._gain.connect(this.context.destination);
       this.context.resume();
       this._playUsingAudioContext();
     }
 
+    this.volume = this._volume;
     this.playing = true;
     this.ended = false;
   }
@@ -277,7 +278,13 @@ export default class Clip extends EventEmitter {
   }
 
   set volume(volume) {
-    this._gain.gain.value = this._volume = volume;
+    this._volume = volume;
+
+    if (this._useMediaSource && this._audioElement) {
+      this._audioElement.volume = this._volume;
+    } else if (this._gain && this._gain.gain) {
+      this._gain.gain.value = this._volume;
+    }
   }
 
   get audioMetadata() {

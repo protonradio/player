@@ -2,9 +2,10 @@ import _noop from "lodash.noop";
 import { Loader, Clip } from "./index";
 
 export default class ProtonPlayer {
-  constructor(silenceURL, onReady = _noop, onError = _noop) {
+  constructor({ silenceURL, volume = 1, onReady = _noop, onError = _noop }) {
     this._onReady = onReady;
     this._onError = onError;
+    this._volume = volume;
     this._ready = false;
     this._silenceChunks = [];
     this._clips = {};
@@ -153,6 +154,13 @@ export default class ProtonPlayer {
     );
   }
 
+  setVolume(volume = 1) {
+    this._volume = volume;
+    Object.keys(this._clips).forEach(k => {
+      this._clips[k].volume = this._volume;
+    });
+  }
+
   _getClip(url, fileSize, initialPosition = 0, audioMetadata = {}) {
     if (this._clips[url]) {
       return this._clips[url];
@@ -163,6 +171,7 @@ export default class ProtonPlayer {
       fileSize,
       initialPosition,
       silenceChunks: this._silenceChunks,
+      volume: this._volume,
       audioMetadata
     });
 

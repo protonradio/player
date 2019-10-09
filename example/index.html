@@ -35,11 +35,22 @@
       id="playback-position-display"
       style="width:100%; height:10px; border:1px solid black;"
     ></div>
+    <h5>Volume:</h5>
+    <input id="volume-range" type="range" min="0" max="100" value="75" />
     <h5 id="audio-engine-text" style="width: 100%; text-align: center;"></h5>
     <audio autoplay>
       Your browser doesn't support HTML audio element.
     </audio>
     <script>
+      const $container = document.getElementById("container");
+      const $stopBtn = document.getElementById("stop-btn");
+      const $pauseBtn = document.getElementById("pause-btn");
+      const $volumeRange = document.getElementById("volume-range");
+      const $bufferDisplay = document.getElementById("buffer-display");
+      const $playbackPositionDisplay = document.getElementById(
+        "playback-position-display"
+      );
+
       const onReady = () => {
         const $audioEngineText = document.getElementById("audio-engine-text");
         if (typeof window.MediaSource !== "undefined") {
@@ -53,14 +64,15 @@
           $btn.removeAttribute("disabled");
         }
       };
-      const onError = err => {
-        console.error(err);
-      };
+      const onError = err => console.error(err);
       const baseURL = "http://local.protonradio.com:3003";
-      const player = new ProtonPlayer(`${baseURL}/silence`, onReady, onError);
+      const player = new ProtonPlayer({
+        silenceURL: `${baseURL}/silence`,
+        volume: getVolume(),
+        onReady,
+        onError
+      });
 
-      const $container = document.getElementById("container");
-      const $stopBtn = document.getElementById("stop-btn");
       $stopBtn.onclick = function() {
         player.disposeAll();
         const $playBtns = document.getElementsByClassName("play-btn");
@@ -72,20 +84,26 @@
           );
         }
       };
-      const $pauseBtn = document.getElementById("pause-btn");
+
       $pauseBtn.onclick = function() {
         player.pauseAll();
       };
-      const $bufferDisplay = document.getElementById("buffer-display");
-      const $playbackPositionDisplay = document.getElementById(
-        "playback-position-display"
-      );
+
       $playbackPositionDisplay.onclick = function(event) {
         const percent =
           (event.pageX - event.currentTarget.offsetLeft) /
           event.currentTarget.offsetWidth;
         player.setPlaybackPosition(percent);
       };
+
+      $volumeRange.onchange = function(event) {
+        const volume = getVolume();
+        player.setVolume(volume);
+      };
+
+      function getVolume() {
+        return parseInt($volumeRange.value) / 100;
+      }
 
       function init() {
         const token =
