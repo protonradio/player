@@ -42,37 +42,53 @@ export default class Clip extends EventEmitter {
     this._tickTimeout = null;
     this._mediaSourceTimeout = null;
 
+    this._preBuffering = false;
+    this._preBuffered = false;
+    this._buffering = false;
+    this._buffered = false;
+
     this._totalChunksCount = Math.ceil(fileSize / CHUNK_SIZE);
     this._initialChunk = this._getChunkIndexByPosition(initialPosition);
     this._initialByte = this._initialChunk * CHUNK_SIZE;
     this._seekedChunk = 0;
 
-    this._loader = new Loader(
-      CHUNK_SIZE,
-      url,
-      fileSize,
-      this._chunks,
-      audioMetadata
-    );
-    this._loader.on('canplaythrough', () => this._fire('canplaythrough'));
-    this._loader.on('loadprogress', ({ buffered, total }) => {
-      const bufferedWithOffset = buffered + this._initialByte;
-      this._fire('loadprogress', {
-        total,
-        initialPosition: this._initialChunk / this._totalChunksCount,
-        buffered: bufferedWithOffset,
-        progress: bufferedWithOffset / total
+    if (initialPosition !== 0 && Object.keys(audioMetadata).length === 0) {
+      const initialChunkLoader = new Loader(
+        CHUNK_SIZE,
+        url,
+        fileSize,
+        [],
+        null
+      ); // TODO: tell the loader to just load 1 chunk
+      initialChunkLoader.on("loaderror", err => {
+        this._loader.on("loaderror", error => this._fire("loaderror", error));
       });
-    });
-    this._loader.on('playbackerror', error =>
-      this._fire('playbackerror', error)
-    );
-    this._loader.on('loaderror', error => this._fire('loaderror', error));
-    this._loader.on('load', () => this._fire('load'));
-    this._preBuffering = false;
-    this._preBuffered = false;
-    this._buffering = false;
-    this._buffered = false;
+      initialChunkLoader.on("load", () => {
+        this._loader = new Loader(
+          CHUNK_SIZE,
+          url,
+          fileSize,
+          this._chunks,
+          audioMetadata
+        );
+        this._loader.on("canplaythrough", () => this._fire("canplaythrough"));
+        this._loader.on("loadprogress", ({ buffered, total }) => {
+          const bufferedWithOffset = buffered + this._initialByte;
+          this._fire("loadprogress", {
+            total,
+            initialPosition: this._initialChunk / this._totalChunksCount,
+            buffered: bufferedWithOffset,
+            progress: bufferedWithOffset / total
+          });
+        });
+        this._loader.on("playbackerror", error =>
+          this._fire("playbackerror", error)
+        );
+        this._loader.on("loaderror", error => this._fire("loaderror", error));
+        this._loader.on("load", () => this._fire("load"));
+      });
+      initialChunkLoader.buffer(true);
+    }
   }
 
   preBuffer() {
