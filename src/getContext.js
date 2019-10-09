@@ -1,9 +1,6 @@
-let context;
 export default function getContext() {
-  return (
-    context ||
-    (context = new (typeof AudioContext !== "undefined"
-      ? AudioContext
-      : webkitAudioContext)())
-  );
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContext) throw new Error('AudioContext not supported');
+
+  return new AudioContext();
 }
