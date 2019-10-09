@@ -45,6 +45,7 @@ export default class Clip extends EventEmitter {
     this._totalChunksCount = Math.ceil(fileSize / CHUNK_SIZE);
     this._initialChunk = this._getChunkIndexByPosition(initialPosition);
     this._initialByte = this._initialChunk * CHUNK_SIZE;
+    this._seekedChunk = 0;
 
     this._loader = new Loader(
       CHUNK_SIZE,
@@ -216,7 +217,7 @@ export default class Clip extends EventEmitter {
     }
 
     const initialChunk = this._getChunkIndexByPosition(position);
-    this._initialByte = initialChunk * CHUNK_SIZE;
+    this._seekedChunk = initialChunk;
     this._chunkIndex = initialChunk - this._initialChunk;
 
     if (this._useMediaSource) {
@@ -252,7 +253,8 @@ export default class Clip extends EventEmitter {
     }
 
     const offset =
-      (this._initialByte / CHUNK_SIZE) * this._loader.firstChunkDuration;
+      (this._seekedChunk || this._initialChunk) *
+      this._loader.firstChunkDuration;
 
     if (this._useMediaSource) {
       return this._audioElement.currentTime + offset;
