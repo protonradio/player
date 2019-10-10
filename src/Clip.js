@@ -53,30 +53,32 @@ export default class Clip extends EventEmitter {
     this._seekedChunk = 0;
 
     if (initialPosition !== 0 && Object.keys(audioMetadata).length === 0) {
+      this._preBuffering = true;
       const initialChunkLoader = new Loader(
         CHUNK_SIZE,
-        url,
-        fileSize,
-        [],
-        null
-      ); // TODO: tell the "initialChunkLoader" to just load 1 chunk
+        this.url,
+        CHUNK_SIZE, // load just 1 chunk
+        []
+      );
       initialChunkLoader.on("loaderror", err => {
-        this._loader.on("loaderror", error => this._fire("loaderror", error));
+        this._preBuffering = false;
+        this._fire("loaderror", error);
       });
       initialChunkLoader.on("load", () => {
-        this._initLoader();
+        this._preBuffering = false;
+        this._initLoader(initialChunkLoader.audioMetadata);
       });
       initialChunkLoader.buffer(true);
     } else {
-      this._initLoader();
+      this._initLoader(audioMetadata);
     }
   }
 
-  _initLoader(url, fileSize, audioMetadata) {
+  _initLoader(audioMetadata) {
     this._loader = new Loader(
       CHUNK_SIZE,
-      url,
-      fileSize,
+      this.url,
+      this.fileSize,
       this._chunks,
       audioMetadata
     );
@@ -98,10 +100,17 @@ export default class Clip extends EventEmitter {
   }
 
   preBuffer() {
-    if (this._preBuffered) return;
+    if (this._preBuffered) return Promise.reject();
     if (this._preBuffering) {
-      setTimeout(this.preBuffer.bind(this), 1);
-      return;
+      return new Promise((resolve, reject) => {
+        setTimeout(
+          () =>
+            this.preBuffer()
+              .then(resolve)
+              .catch(reject),
+          1
+        );
+      });
     }
 
     this._preBuffering = true;
@@ -121,10 +130,17 @@ export default class Clip extends EventEmitter {
   }
 
   buffer(bufferToCompletion = false) {
-    if (this._buffering || this._buffered) return;
+    if (this._buffering || this._buffered) return Promise.reject();
     if (this._preBuffering) {
-      setTimeout(this.buffer.bind(this, bufferToCompletion), 1);
-      return;
+      return new Promise((resolve, reject) => {
+        setTimeout(
+          () =>
+            this.buffer(bufferToCompletion)
+              .then(resolve)
+              .catch(reject),
+          1
+        );
+      });
     }
 
     this._buffering = true;
@@ -290,6 +306,7 @@ export default class Clip extends EventEmitter {
   }
 
   get duration() {
+    if (!this._loader) return 0;
     return (this.fileSize / CHUNK_SIZE) * this._loader.firstChunkDuration;
   }
 
