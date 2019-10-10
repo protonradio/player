@@ -101,7 +101,7 @@ export default class Clip extends EventEmitter {
 
   preBuffer() {
     if (this._preBuffered) return Promise.reject();
-    if (this._preBuffering) {
+    if (this._preBuffering || !this._loader) {
       return new Promise((resolve, reject) => {
         setTimeout(
           () =>
@@ -131,7 +131,7 @@ export default class Clip extends EventEmitter {
 
   buffer(bufferToCompletion = false) {
     if (this._buffering || this._buffered) return Promise.reject();
-    if (this._preBuffering) {
+    if (this._preBuffering || !this._loader) {
       return new Promise((resolve, reject) => {
         setTimeout(
           () =>
@@ -230,7 +230,10 @@ export default class Clip extends EventEmitter {
         this._startTime + (this.context.currentTime - this._contextTimeAtStart);
     }
 
-    this._loader.cancel();
+    if (this._loader) {
+      this._loader.cancel();
+    }
+
     this._preBuffering = false;
     this._buffering = false;
     this.playing = false;
@@ -292,7 +295,7 @@ export default class Clip extends EventEmitter {
 
     const offset =
       (this._seekedChunk || this._initialChunk) *
-      this._loader.firstChunkDuration;
+      (this._loader ? this._loader.firstChunkDuration : 0);
 
     if (this._useMediaSource) {
       return this._audioElement.currentTime + offset;
@@ -329,6 +332,7 @@ export default class Clip extends EventEmitter {
   }
 
   get audioMetadata() {
+    if (!this._loader) return {};
     return this._loader.audioMetadata;
   }
 
