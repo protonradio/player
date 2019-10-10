@@ -62,7 +62,7 @@ export default class Clip extends EventEmitter {
       );
       initialChunkLoader.on("loaderror", err => {
         this._preBuffering = false;
-        this._fire("loaderror", error);
+        this._fire("loaderror", err);
       });
       initialChunkLoader.on("load", () => {
         this._preBuffering = false;
