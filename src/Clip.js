@@ -42,44 +42,75 @@ export default class Clip extends EventEmitter {
     this._tickTimeout = null;
     this._mediaSourceTimeout = null;
 
+    this._preBuffering = false;
+    this._preBuffered = false;
+    this._buffering = false;
+    this._buffered = false;
+
     this._totalChunksCount = Math.ceil(fileSize / CHUNK_SIZE);
     this._initialChunk = this._getChunkIndexByPosition(initialPosition);
     this._initialByte = this._initialChunk * CHUNK_SIZE;
     this._seekedChunk = 0;
 
+    if (initialPosition !== 0 && Object.keys(audioMetadata).length === 0) {
+      this._preBuffering = true;
+      const initialChunkLoader = new Loader(
+        CHUNK_SIZE,
+        this.url,
+        CHUNK_SIZE, // load just 1 chunk
+        []
+      );
+      initialChunkLoader.on("loaderror", err => {
+        this._preBuffering = false;
+        this._fire("loaderror", err);
+      });
+      initialChunkLoader.on("load", () => {
+        this._preBuffering = false;
+        this._initLoader(initialChunkLoader.audioMetadata);
+      });
+      initialChunkLoader.buffer(true);
+    } else {
+      this._initLoader(audioMetadata);
+    }
+  }
+
+  _initLoader(audioMetadata) {
     this._loader = new Loader(
       CHUNK_SIZE,
-      url,
-      fileSize,
+      this.url,
+      this.fileSize,
       this._chunks,
       audioMetadata
     );
-    this._loader.on('canplaythrough', () => this._fire('canplaythrough'));
-    this._loader.on('loadprogress', ({ buffered, total }) => {
+    this._loader.on("canplaythrough", () => this._fire("canplaythrough"));
+    this._loader.on("loadprogress", ({ buffered, total }) => {
       const bufferedWithOffset = buffered + this._initialByte;
-      this._fire('loadprogress', {
+      this._fire("loadprogress", {
         total,
         initialPosition: this._initialChunk / this._totalChunksCount,
         buffered: bufferedWithOffset,
         progress: bufferedWithOffset / total
       });
     });
-    this._loader.on('playbackerror', error =>
-      this._fire('playbackerror', error)
+    this._loader.on("playbackerror", error =>
+      this._fire("playbackerror", error)
     );
-    this._loader.on('loaderror', error => this._fire('loaderror', error));
-    this._loader.on('load', () => this._fire('load'));
-    this._preBuffering = false;
-    this._preBuffered = false;
-    this._buffering = false;
-    this._buffered = false;
+    this._loader.on("loaderror", error => this._fire("loaderror", error));
+    this._loader.on("load", () => this._fire("load"));
   }
 
   preBuffer() {
-    if (this._preBuffered) return;
+    if (this._preBuffered) return Promise.reject();
     if (this._preBuffering) {
-      setTimeout(this.preBuffer.bind(this), 1);
-      return;
+      return new Promise((resolve, reject) => {
+        setTimeout(
+          () =>
+            this.preBuffer()
+              .then(resolve)
+              .catch(reject),
+          1
+        );
+      });
     }
 
     this._preBuffering = true;
@@ -99,10 +130,17 @@ export default class Clip extends EventEmitter {
   }
 
   buffer(bufferToCompletion = false) {
-    if (this._buffering || this._buffered) return;
+    if (this._buffering || this._buffered) return Promise.reject();
     if (this._preBuffering) {
-      setTimeout(this.buffer.bind(this, bufferToCompletion), 1);
-      return;
+      return new Promise((resolve, reject) => {
+        setTimeout(
+          () =>
+            this.buffer(bufferToCompletion)
+              .then(resolve)
+              .catch(reject),
+          1
+        );
+      });
     }
 
     this._buffering = true;
@@ -268,6 +306,7 @@ export default class Clip extends EventEmitter {
   }
 
   get duration() {
+    if (!this._loader) return 0;
     return (this.fileSize / CHUNK_SIZE) * this._loader.firstChunkDuration;
   }
 
