@@ -122,7 +122,7 @@ export default class ProtonPlayer {
   }
 
   disposeAll() {
-    Object.keys(this._clips).forEach(k => this.dispose(k));
+    this.disposeAllExcept();
   }
 
   disposeAllExcept(urls = []) {
