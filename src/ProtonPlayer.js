@@ -115,15 +115,20 @@ export default class ProtonPlayer {
     }
 
     if (!this._clips[url]) return;
+
     this._clips[url].offAll('loadprogress');
     this._clips[url].dispose();
     delete this._clips[url];
   }
 
   disposeAll() {
-    Object.keys(this._clips).forEach(k => {
-      this.dispose(k);
-    });
+    Object.keys(this._clips).forEach(k => this.dispose(k));
+  }
+
+  disposeAllExcept(urls = []) {
+    Object.keys(this._clips)
+      .filter(k => urls.indexOf(k) < 0)
+      .forEach(k => this.dispose(k));
   }
 
   setPlaybackPosition(percent) {
