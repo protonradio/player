@@ -13,10 +13,10 @@ const sampleRateLookup = {
   2: 32000
 };
 const channelModeLookup = {
-  0: "stereo",
-  1: "joint stereo",
-  2: "dual channel",
-  3: "mono"
+  0: 'stereo',
+  1: 'joint stereo',
+  2: 'dual channel',
+  3: 'mono'
 };
 export default function parseMetadata(metadata) {
   const mpegVersion = mpegVersionLookup[metadata.mpegVersion >> 3];

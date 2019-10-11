@@ -1,4 +1,4 @@
-import _noop from "lodash.noop";
+import _noop from 'lodash.noop';
 
 export default class Fetcher {
   constructor(chunkSize, url, fileSize) {
@@ -125,7 +125,7 @@ export default class Fetcher {
       }
 
       if (!response.body) {
-        throw new Error("Bad response body");
+        throw new Error('Bad response body');
       }
 
       return response.arrayBuffer().then(arrayBuffer => {

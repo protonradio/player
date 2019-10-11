@@ -1,4 +1,4 @@
-import Clip from "./Clip.js";
+import Clip from './Clip.js';
 export default class Clone extends Clip {
   constructor(original) {
     super({ url: original.url });

@@ -1,9 +1,9 @@
-import Chunk from "./Chunk";
-import EventEmitter from "./EventEmitter";
-import Fetcher from "./Fetcher";
-import { slice } from "./utils/buffer";
-import parseMetadata from "./utils/parseMetadata";
-import getContext from "./getContext";
+import Chunk from './Chunk';
+import EventEmitter from './EventEmitter';
+import Fetcher from './Fetcher';
+import { slice } from './utils/buffer';
+import parseMetadata from './utils/parseMetadata';
+import getContext from './getContext';
 
 export default class Loader extends EventEmitter {
   constructor(chunkSize, url, fileSize, chunks, audioMetadata = {}) {
@@ -64,7 +64,7 @@ export default class Loader extends EventEmitter {
         const availableAudio = (bytes / this.length) * estimatedDuration;
         if (availableAudio > estimatedTimeToDownload) {
           this.canplaythrough = true;
-          this._fire("canplaythrough");
+          this._fire('canplaythrough');
         }
       };
 
@@ -88,8 +88,8 @@ export default class Loader extends EventEmitter {
           },
           onerror: error => {
             error.url = this.url;
-            error.phonographCode = "COULD_NOT_DECODE";
-            this._fire("playbackerror", error);
+            error.phonographCode = 'COULD_NOT_DECODE';
+            this._fire('playbackerror', error);
             this.cancel();
           }
         });
@@ -105,7 +105,7 @@ export default class Loader extends EventEmitter {
         onProgress: (chunkLength, total) => {
           this.buffered += chunkLength;
           this.length = total;
-          this._fire("loadprogress", { buffered: this.buffered, total });
+          this._fire('loadprogress', { buffered: this.buffered, total });
         },
         onData: uint8Array => {
           if (
@@ -153,16 +153,16 @@ export default class Loader extends EventEmitter {
           firstChunk.onready(() => {
             if (!this.canplaythrough) {
               this.canplaythrough = true;
-              this._fire("canplaythrough");
+              this._fire('canplaythrough');
             }
             this.loaded = true;
-            this._fire("load");
+            this._fire('load');
           });
         },
         onError: error => {
           error.url = this.url;
-          error.phonographCode = "COULD_NOT_LOAD";
-          this._fire("loaderror", error);
+          error.phonographCode = 'COULD_NOT_LOAD';
+          this._fire('loaderror', error);
           this._loadStarted = false;
         }
       });
@@ -172,8 +172,8 @@ export default class Loader extends EventEmitter {
       if (ready) {
         fulfil();
       } else {
-        this.once(preloadOnly ? "canplaythrough" : "load", fulfil);
-        this.once("loaderror", reject);
+        this.once(preloadOnly ? 'canplaythrough' : 'load', fulfil);
+        this.once('loaderror', reject);
       }
     });
   }

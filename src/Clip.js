@@ -60,11 +60,11 @@ export default class Clip extends EventEmitter {
         CHUNK_SIZE, // load just 1 chunk
         []
       );
-      initialChunkLoader.on("loaderror", err => {
+      initialChunkLoader.on('loaderror', err => {
         this._preBuffering = false;
-        this._fire("loaderror", err);
+        this._fire('loaderror', err);
       });
-      initialChunkLoader.on("load", () => {
+      initialChunkLoader.on('load', () => {
         this._preBuffering = false;
         this._initLoader(initialChunkLoader.audioMetadata);
       });
@@ -82,21 +82,21 @@ export default class Clip extends EventEmitter {
       this._chunks,
       audioMetadata
     );
-    this._loader.on("canplaythrough", () => this._fire("canplaythrough"));
-    this._loader.on("loadprogress", ({ buffered, total }) => {
+    this._loader.on('canplaythrough', () => this._fire('canplaythrough'));
+    this._loader.on('loadprogress', ({ buffered, total }) => {
       const bufferedWithOffset = buffered + this._initialByte;
-      this._fire("loadprogress", {
+      this._fire('loadprogress', {
         total,
         initialPosition: this._initialChunk / this._totalChunksCount,
         buffered: bufferedWithOffset,
         progress: bufferedWithOffset / total
       });
     });
-    this._loader.on("playbackerror", error =>
-      this._fire("playbackerror", error)
+    this._loader.on('playbackerror', error =>
+      this._fire('playbackerror', error)
     );
-    this._loader.on("loaderror", error => this._fire("loaderror", error));
-    this._loader.on("load", () => this._fire("load"));
+    this._loader.on('loaderror', error => this._fire('loaderror', error));
+    this._loader.on('load', () => this._fire('load'));
   }
 
   preBuffer() {
