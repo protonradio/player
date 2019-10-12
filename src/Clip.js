@@ -358,7 +358,15 @@ export default class Clip extends EventEmitter {
     const _chunks = _playingSilence ? this._silenceChunks : this._chunks;
     const i = _playingSilence ? 0 : this._chunkIndex++ % _chunks.length;
 
-    let chunk = _chunks[i];
+    console.log(`
+    _playUsingAudioContext (initial)
+    _playingSilence: ${_playingSilence}
+    this._chunkIndex: ${this._chunkIndex}
+    i: ${i}
+    `);
+
+    // let chunk = _chunks[i];
+    let chunk = _chunks[0]; // TODO: is this OK?
     let previousSource;
     let currentSource;
     chunk.createSource(

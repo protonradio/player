@@ -1,8 +1,14 @@
+import Bowser from 'bowser';
 import _noop from 'lodash.noop';
 import { Loader, Clip } from './index';
 
 export default class ProtonPlayer {
   constructor({ silenceURL, volume = 1, onReady = _noop, onError = _noop }) {
+    const browser = Bowser.getParser(window.navigator.userAgent);
+    if (browser.getBrowser().name === 'Safari') {
+      window.MediaSource = undefined;
+    }
+
     this._onReady = onReady;
     this._onError = onError;
     this._volume = volume;
