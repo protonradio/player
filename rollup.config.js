@@ -1,15 +1,15 @@
-import resolve from "rollup-plugin-node-resolve";
-import commonjs from "rollup-plugin-commonjs";
-import pkg from "./package.json";
+import resolve from 'rollup-plugin-node-resolve';
+import commonjs from 'rollup-plugin-commonjs';
+import pkg from './package.json';
 
 export default [
   // browser-friendly UMD build
   {
-    input: "src/ProtonPlayer.js",
+    input: 'src/ProtonPlayer.js',
     output: {
-      name: "ProtonPlayer",
+      name: 'ProtonPlayer',
       file: pkg.browser,
-      format: "umd",
+      format: 'umd',
       sourcemap: true
     },
     plugins: [resolve(), commonjs()]
@@ -22,11 +22,11 @@ export default [
   // an array for the `output` option, where we can specify
   // `file` and `format` for each target)
   {
-    input: "src/ProtonPlayer.js",
-    external: ["lodash.noop"],
+    input: 'src/ProtonPlayer.js',
+    external: ['bowser', 'lodash.noop'],
     output: [
-      { file: pkg.main, format: "cjs" },
-      { file: pkg.module, format: "es" }
+      { file: pkg.main, format: 'cjs' },
+      { file: pkg.module, format: 'es' }
     ]
   }
 ];

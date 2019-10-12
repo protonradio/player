@@ -38,7 +38,7 @@ export default class Loader extends EventEmitter {
       let tempBuffer = new Uint8Array(this._chunkSize * 2);
       let p = 0;
       // let loadStartTime = Date.now();
-      let totalLoadedBytes = 0;
+      // let totalLoadedBytes = 0;
       const checkCanplaythrough = () => {
         if (this.canplaythrough || !this.length) return;
         let duration = 0;
@@ -141,13 +141,13 @@ export default class Loader extends EventEmitter {
             // write new data to buffer
             tempBuffer[p++] = uint8Array[i];
           }
-          totalLoadedBytes += uint8Array.length;
+          // totalLoadedBytes += uint8Array.length;
         },
         onLoad: () => {
           if (p) {
             const lastChunk = drainBuffer();
             lastChunk.attach(null);
-            totalLoadedBytes += p;
+            // totalLoadedBytes += p;
           }
           const firstChunk = this._chunks[0];
           firstChunk.onready(() => {
