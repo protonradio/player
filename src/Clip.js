@@ -100,7 +100,10 @@ export default class Clip extends EventEmitter {
   }
 
   preBuffer() {
-    if (this._preBuffered) return Promise.reject();
+    if (this._preBuffered) {
+      return Promise.reject(new Error('Clip is already pre-buffered'));
+    }
+
     if (this._preBuffering || !this._loader) {
       return new Promise((resolve, reject) => {
         setTimeout(
