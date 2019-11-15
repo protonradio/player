@@ -1,4 +1,4 @@
-import _noop from 'lodash.noop';
+import _noop from 'lodash/noop';
 
 export default class Fetcher {
   constructor(chunkSize, url, fileSize) {

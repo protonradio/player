@@ -1,5 +1,5 @@
 import Bowser from 'bowser';
-import _noop from 'lodash.noop';
+import _noop from 'lodash/noop';
 import { Loader, Clip } from './index';
 
 export default class ProtonPlayer {

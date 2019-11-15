@@ -6,7 +6,7 @@
   "browser": "dist/proton-player.umd.js",
   "dependencies": {
     "bowser": "^2.7.0",
-    "lodash.noop": "^3.0.1"
+    "lodash": "^4.17.15"
   },
   "devDependencies": {
     "rollup": "^1.27.0",
