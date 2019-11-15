@@ -523,8 +523,15 @@ export default class Clip extends EventEmitter {
 
     if (!shouldSkip) {
       const chunk = this._chunks[this._chunkIndex];
-      this._sourceBuffer.appendBuffer(chunk.raw);
-      this._chunkIndex += 1;
+      try {
+        this._sourceBuffer.appendBuffer(chunk.raw);
+        this._chunkIndex += 1;
+      } catch (e) {
+        // SourceBuffer might be full, remove segments that have already been played.
+        if (!this._sourceBuffer.updating) {
+          this._sourceBuffer.remove(0, this._audioElement.currentTime);
+        }
+      }
     }
 
     this._mediaSourceTimeout = setTimeout(
