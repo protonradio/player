@@ -82,7 +82,12 @@ export default class Clip extends EventEmitter {
       this._chunks,
       audioMetadata
     );
-    this._loader.on('canplaythrough', () => this._fire('canplaythrough'));
+    this._loader.on('canplaythrough', () => {
+      if (this._buffering && !this._preBuffering) {
+        this._preBuffered = true;
+      }
+      this._fire('canplaythrough');
+    });
     this._loader.on('loadprogress', ({ buffered, total }) => {
       const bufferedWithOffset = buffered + this._initialByte;
       this._fire('loadprogress', {
@@ -100,11 +105,11 @@ export default class Clip extends EventEmitter {
   }
 
   preBuffer() {
-    if (this._preBuffered) {
+    if (this._preBuffered || this._buffered) {
       return Promise.reject(new Error('Clip is already pre-buffered'));
     }
 
-    if (this._preBuffering || !this._loader) {
+    if (this._preBuffering || this._buffering || !this._loader) {
       return new Promise((resolve, reject) => {
         setTimeout(
           () =>
