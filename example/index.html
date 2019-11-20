@@ -64,8 +64,12 @@
           $btn.removeAttribute('disabled');
         }
       };
+
       const onError = err => console.error(err);
-      const baseURL = 'http://local.protonradio.com:3003';
+
+      const baseURL =
+        'https://media-server-staging-dot-proton-assets.appspot.com';
+
       const player = new ProtonPlayer({
         silenceURL: `${baseURL}/silence`,
         volume: getVolume(),
@@ -73,103 +77,116 @@
         onError
       });
 
-      $stopBtn.onclick = function() {
-        player.disposeAll();
-        const $playBtns = document.getElementsByClassName('play-btn');
-        for (const $btn of $playBtns) {
-          $btn.preloaded = false;
-          $btn.setAttribute(
-            'value',
-            $btn.value.replace(' (preloaded)', '').replace(' (loading...)', '')
-          );
+      const token =
+        'eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjozMDMyMjIsInBocGJiX3VzZXIiOnsidXNlcm5hbWUiOiJjaGFybGVzbmF2aSIsInVzZXJfYWN0aXZlIjp0cnVlLCJhdXRoZW50aWNhdGlvbl90b2tlbiI6IkJ6WWZpUU53SzdVY0g5TDNGaHBFIiwicHJvdG9uX3N1YnNjcmliZSI6dHJ1ZX0sInVzZXIiOnsiaWQiOjI4NjY4LCJhY2Nlc3NsZXZlbCI6M30sImV4cCI6MTU3NDI4NzEzNywiaWF0IjoxNTc0MjAwNzM3fQ.Q8uwslPTqfQV0w2_K13s3k58cj_2zyxzu9ra8gL6yfQ';
+
+      const audios = [
+        {
+          name:
+            'Track 1 | 96 kbps | Skyscrapers Praveen Achary (Extended Dub Edition)',
+          url: `${baseURL}/single?fn=${encodeURIComponent(
+            'mp3-96/1144331_322956_Skyscrapers_Praveen_Achary_Extended_Dub_Edition_96k.mp3'
+          )}&md5=${encodeURIComponent(
+            'urgwWw4oxEUp6NoCjDeunQ=='
+          )}&player_id=1559854170445&token=${token}`,
+          size: 7543327,
+          preLoad: false
+        },
+        {
+          name: 'Track 2 | 128 kbps | La Alegria (Original Mix)',
+          url: `${baseURL}/single?fn=${encodeURIComponent(
+            'mp3-128/1144327_324075_La_Alegria_Original_Mix_128k.mp3'
+          )}&md5=${encodeURIComponent(
+            'z9C6QXJm4ux1BGsC0jEItw=='
+          )}&player_id=1559854235788&token=${token}`,
+          size: 3357465,
+          preLoadOnHover: false
+        },
+        {
+          name: 'Track 3 | 128 kbps | Gnosis (Matt Black Remix)',
+          url: `${baseURL}/single?fn=${encodeURIComponent(
+            'mp3-128/754475_253204_Gnosis_Matt_Black_Remix_128k.mp3'
+          )}&md5=${encodeURIComponent(
+            '123slGyfBJ826Udcm1W6Lg=='
+          )}&player_id=1559854500653&token=${token}`,
+          size: 7233200
+        },
+        {
+          name: 'Mix 1 | Embliss - Mind Over Matter 127',
+          url: `${baseURL}/stream?fn=${encodeURIComponent(
+            '1144329_Mind_Over_Matter_(2019-09-28)_Part_1_-_Embliss_-_Mind_Over_Matter_127.mp3'
+          )}&md5=${encodeURIComponent(
+            'c/RGi+lC2DbxhYhe6dk8vA=='
+          )}&player_id=1559854282509&token=${token}`,
+          size: 86353292,
+          preLoad: false
+        },
+        {
+          name: 'Mix 2 | Bedroom Bedlam (2019-09-28) Part 1 - Rohit Bangera',
+          url: `${baseURL}/stream?fn=${encodeURIComponent(
+            '1144250_Bedroom_Bedlam_(2019-09-28)_Part_1_-_Rohit_Bangera.mp3'
+          )}&md5=${encodeURIComponent(
+            'Zz/o7fvoHU0IAUlnrnshXA=='
+          )}&player_id=1559854370708&token=${token}`,
+          size: 86387146,
+          preLoadOnHover: false
+        },
+        {
+          name:
+            'Mix 3 | Drumcode Live (2019-09-29) Part 1 - Adam Beyer - DRCD 478',
+          url: `${baseURL}/stream?fn=${encodeURIComponent(
+            '1143927_Drumcode_Live_(2019-09-29)_Part_1_-_Adam_Beyer_-_DRCD_478_Live__Connect.mp3'
+          )}&md5=${encodeURIComponent(
+            'RNYFr9b5I5uRHu3U00owHQ=='
+          )}&player_id=1559854549060&token=${token}`,
+          size: 83519528
         }
-      };
+      ];
 
-      $pauseBtn.onclick = function() {
-        player.pauseAll();
-      };
+      $stopBtn.onclick = () => stopAll();
 
-      $playbackPositionDisplay.onclick = function(event) {
+      $pauseBtn.onclick = () => player.pauseAll();
+
+      $playbackPositionDisplay.onclick = event => {
         const percent =
           (event.pageX - event.currentTarget.offsetLeft) /
           event.currentTarget.offsetWidth;
         player.setPlaybackPosition(percent);
       };
 
-      $volumeRange.onchange = function(event) {
+      $volumeRange.onchange = event => {
         const volume = getVolume();
         player.setVolume(volume);
       };
+
+      function stopAll(exceptUrls = []) {
+        player.disposeAllExcept(exceptUrls);
+        audios.forEach(audio => {
+          if (exceptUrls.indexOf(audio.url) >= 0) return;
+          audio.preloaded = false;
+          audio.$btn.setAttribute('value', audio.name);
+        });
+      }
 
       function getVolume() {
         return parseInt($volumeRange.value) / 100;
       }
 
+      async function preLoadAudio(audio) {
+        const { $btn, name, url, size } = audio;
+        if (audio.preloaded) return Promise.resolve();
+        audio.preloaded = true;
+
+        $btn.setAttribute('value', `${name} (loading...)`);
+
+        await player.preLoad(url, size, 0).then(() => {
+          $btn.removeAttribute('disabled');
+          $btn.setAttribute('value', name + ' (preloaded)');
+        });
+      }
+
       function init() {
-        const token =
-          'eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjozMDMyMjIsInBocGJiX3VzZXIiOnsidXNlcl9hY3RpdmUiOnRydWUsInVzZXJuYW1lIjoiY2hhcmxlc25hdmkiLCJhdXRoZW50aWNhdGlvbl90b2tlbiI6IkJ6WWZpUU53SzdVY0g5TDNGaHBFIiwicHJvdG9uX3N1YnNjcmliZSI6dHJ1ZX0sInVzZXIiOnsiaWQiOjI4NjY4LCJhY2Nlc3NsZXZlbCI6M30sImV4cCI6MTU3MDk2MTMyNCwiaWF0IjoxNTcwODc0OTI0fQ.2jKHUqDWkG6JuT1B_AMC-sMLM2mp8pb2IgUVicmYoQQ';
-        [
-          {
-            name:
-              'Track 1 | 96 kbps | Skyscrapers Praveen Achary (Extended Dub Edition)',
-            url: `${baseURL}/single?fn=${encodeURIComponent(
-              'mp3-96/1144331_322956_Skyscrapers_Praveen_Achary_Extended_Dub_Edition_96k.mp3'
-            )}&md5=${encodeURIComponent(
-              'urgwWw4oxEUp6NoCjDeunQ=='
-            )}&player_id=1559854170445&token=${token}`,
-            size: 7543327,
-            preLoad: true
-          },
-          {
-            name: 'Track 2 | 128 kbps | La Alegria (Original Mix)',
-            url: `${baseURL}/single?fn=${encodeURIComponent(
-              'mp3-128/1144327_324075_La_Alegria_Original_Mix_128k.mp3'
-            )}&md5=${encodeURIComponent(
-              'z9C6QXJm4ux1BGsC0jEItw=='
-            )}&player_id=1559854235788&token=${token}`,
-            size: 3357465,
-            preLoadOnHover: true
-          },
-          {
-            name: 'Track 3 | 128 kbps | Gnosis (Matt Black Remix)',
-            url: `${baseURL}/single?fn=${encodeURIComponent(
-              'mp3-128/754475_253204_Gnosis_Matt_Black_Remix_128k.mp3'
-            )}&md5=${encodeURIComponent(
-              '123slGyfBJ826Udcm1W6Lg=='
-            )}&player_id=1559854500653&token=${token}`,
-            size: 7233200
-          },
-          {
-            name: 'Mix 1 | Embliss - Mind Over Matter 127',
-            url: `${baseURL}/stream?fn=${encodeURIComponent(
-              '1144329_Mind_Over_Matter_(2019-09-28)_Part_1_-_Embliss_-_Mind_Over_Matter_127.mp3'
-            )}&md5=${encodeURIComponent(
-              'c/RGi+lC2DbxhYhe6dk8vA=='
-            )}&player_id=1559854282509&token=${token}`,
-            size: 86353292,
-            preLoad: true
-          },
-          {
-            name: 'Mix 2 | Bedroom Bedlam (2019-09-28) Part 1 - Rohit Bangera',
-            url: `${baseURL}/stream?fn=${encodeURIComponent(
-              '1144250_Bedroom_Bedlam_(2019-09-28)_Part_1_-_Rohit_Bangera.mp3'
-            )}&md5=${encodeURIComponent(
-              'Zz/o7fvoHU0IAUlnrnshXA=='
-            )}&player_id=1559854370708&token=${token}`,
-            size: 86387146,
-            preLoadOnHover: true
-          },
-          {
-            name:
-              'Mix 3 | Drumcode Live (2019-09-29) Part 1 - Adam Beyer - DRCD 478',
-            url: `${baseURL}/stream?fn=${encodeURIComponent(
-              '1143927_Drumcode_Live_(2019-09-29)_Part_1_-_Adam_Beyer_-_DRCD_478_Live__Connect.mp3'
-            )}&md5=${encodeURIComponent(
-              'RNYFr9b5I5uRHu3U00owHQ=='
-            )}&player_id=1559854549060&token=${token}`,
-            size: 83519528
-          }
-        ].forEach(file => {
+        audios.forEach(file => {
           const $btn = document.createElement('input');
           $btn.setAttribute('class', 'btn play-btn');
           $btn.setAttribute('type', 'button');
@@ -183,30 +200,19 @@
             'background-color: #000; border: none; color: white; padding: 16px 32px; text-decoration: none; margin: 4px 2px; cursor: pointer;'
           );
 
+          file.$btn = $btn;
+
           const { url, size, preLoad, preLoadOnHover } = file;
 
           if (preLoad) {
-            player.preLoad(url, size, 0).then(() => {
-              $btn.removeAttribute('disabled');
-              $btn.setAttribute('value', file.name + ' (preloaded)');
-            });
+            preLoadAudio(file);
           }
 
           if (preLoadOnHover) {
-            $btn.onmouseover = function() {
-              if ($btn.preloaded) return;
-              $btn.preloaded = true;
-
-              $btn.setAttribute('value', `${file.name} (loading...)`);
-
-              player.preLoad(url, size, 0).then(() => {
-                $btn.removeAttribute('disabled');
-                $btn.setAttribute('value', file.name + ' (preloaded)');
-              });
-            };
+            $btn.onmouseover = () => preLoadAudio(file);
           }
 
-          $btn.onclick = function() {
+          $btn.onclick = () => {
             const onBufferProgress = (initialPosition, progress) => {
               const start = Math.min(initialPosition, 1) * 100;
               const end = Math.min(progress, 1) * 100;
@@ -217,10 +223,22 @@
                 white ${end}%, white ${end}%
               )`;
             };
+
             const onPlaybackProgress = progress => {
               const percent = Math.min(progress, 1) * 100;
               $playbackPositionDisplay.style.background = `linear-gradient(to right, #efe3af ${percent}%, #ffffff ${percent}%)`;
             };
+
+            stopAll([file.url]);
+
+            preLoadAudio(file).then(async () => {
+              for (let i = 0; i < audios.length; i++) {
+                const audio = audios[i];
+                if (audio.url === url) continue;
+                await preLoadAudio(audio);
+              }
+            });
+
             player.play(url, size, onBufferProgress, onPlaybackProgress, 0);
           };
 
