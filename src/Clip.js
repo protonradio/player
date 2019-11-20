@@ -42,6 +42,7 @@ export default class Clip extends EventEmitter {
     this._tickTimeout = null;
     this._mediaSourceTimeout = null;
 
+    this._shouldStopBuffering = false;
     this._preBuffering = false;
     this._preBuffered = false;
     this._buffering = false;
@@ -104,7 +105,13 @@ export default class Clip extends EventEmitter {
     this._loader.on('load', () => this._fire('load'));
   }
 
-  preBuffer() {
+  preBuffer(isRetrying = false) {
+    if (isRetrying && this._shouldStopBuffering) {
+      return Promise.reject(new Error('Clip was paused or disposed'));
+    } else {
+      this._shouldStopBuffering = false;
+    }
+
     if (this._preBuffered || this._buffered) {
       return Promise.reject(new Error('Clip is already pre-buffered'));
     }
@@ -113,7 +120,7 @@ export default class Clip extends EventEmitter {
       return new Promise((resolve, reject) => {
         setTimeout(
           () =>
-            this.preBuffer()
+            this.preBuffer(true)
               .then(resolve)
               .catch(reject),
           1
@@ -137,13 +144,22 @@ export default class Clip extends EventEmitter {
       });
   }
 
-  buffer(bufferToCompletion = false) {
-    if (this._buffering || this._buffered) return Promise.reject();
+  buffer(bufferToCompletion = false, isRetrying = false) {
+    if (isRetrying && this._shouldStopBuffering) {
+      return Promise.reject(new Error('Clip was paused or disposed'));
+    } else {
+      this._shouldStopBuffering = false;
+    }
+
+    if (this._buffering || this._buffered) {
+      return Promise.reject(new Error('Clip is already buffering or buffered'));
+    }
+
     if (this._preBuffering || !this._loader) {
       return new Promise((resolve, reject) => {
         setTimeout(
           () =>
-            this.buffer(bufferToCompletion)
+            this.buffer(bufferToCompletion, true)
               .then(resolve)
               .catch(reject),
           1
@@ -223,7 +239,7 @@ export default class Clip extends EventEmitter {
   }
 
   pause() {
-    if (!this.playing) return this;
+    this._shouldStopBuffering = true;
 
     if (this._useMediaSource) {
       clearTimeout(this._mediaSourceTimeout);
