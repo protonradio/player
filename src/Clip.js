@@ -40,6 +40,7 @@ export default class Clip extends EventEmitter {
     this._silenceChunks = silenceChunks;
     this._chunkIndex = 0;
     this._tickTimeout = null;
+    this._mediaSourceURL = null;
     this._mediaSourceTimeout = null;
 
     this._shouldStopBuffering = false;
@@ -219,13 +220,14 @@ export default class Clip extends EventEmitter {
     this.buffer();
 
     if (this._useMediaSource) {
-      this._mediaSource = new MediaSource();
-      this._audioElement.src = URL.createObjectURL(this._mediaSource);
       const self = this;
+      this._mediaSource = new MediaSource();
       this._mediaSource.addEventListener('sourceopen', function() {
         self._sourceBuffer = this.addSourceBuffer('audio/mpeg');
         self._playUsingMediaSource();
       });
+      this._mediaSourceURL = URL.createObjectURL(this._mediaSource);
+      this._audioElement.src = this._mediaSourceURL;
     } else {
       this._gain = this.context.createGain();
       this._gain.connect(this.context.destination);
@@ -242,9 +244,7 @@ export default class Clip extends EventEmitter {
     this._shouldStopBuffering = true;
 
     if (this._useMediaSource) {
-      clearTimeout(this._mediaSourceTimeout);
-      this._audioElement.pause();
-      this._audioElement.volume = 0;
+      this._pauseUsingMediaSource();
     } else {
       clearTimeout(this._tickTimeout);
       this._gain.gain.value = 0;
@@ -270,9 +270,7 @@ export default class Clip extends EventEmitter {
     this.playing = false;
 
     if (this._useMediaSource) {
-      clearTimeout(this._mediaSourceTimeout);
-      this._audioElement.pause();
-      this._audioElement.volume = 0;
+      this._pauseUsingMediaSource();
     } else {
       clearTimeout(this._tickTimeout);
       this._gain.gain.value = 0;
@@ -554,6 +552,15 @@ export default class Clip extends EventEmitter {
       this._playUsingMediaSource.bind(this),
       500
     );
+  }
+
+  _pauseUsingMediaSource() {
+    clearTimeout(this._mediaSourceTimeout);
+    if (this._audioElement.src === this._mediaSourceURL) {
+      this._audioElement.pause();
+      this._audioElement.volume = 0;
+      this._mediaSourceURL = null;
+    }
   }
 
   _getChunkIndexByPosition(position = 0) {
