@@ -178,6 +178,9 @@ export default class ProtonPlayer {
   }
 
   _getClip(url, fileSize, initialPosition = 0, audioMetadata = {}) {
+    if (typeof url !== 'string') throw new Error('Invalid URL');
+    if (typeof fileSize !== 'number') throw new Error('Invalid file size');
+
     if (this._clips[url]) {
       return this._clips[url];
     }
