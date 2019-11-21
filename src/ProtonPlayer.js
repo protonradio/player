@@ -79,6 +79,8 @@ export default class ProtonPlayer {
     onBufferProgress(0, 0);
     onPlaybackProgress(initialPosition);
 
+    this.pauseAll();
+
     const clip = this._getClip(url, fileSize, initialPosition, audioMetadata);
     this._currentlyPlaying = {
       clip,
