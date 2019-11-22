@@ -67,7 +67,7 @@ export default class ProtonPlayer {
       this._onError(err);
       return Promise.reject(err);
     }
-  }_
+  }
 
   play(
     url,
