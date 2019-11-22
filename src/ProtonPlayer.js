@@ -1,6 +1,7 @@
 import Bowser from 'bowser';
 import _noop from 'lodash/noop';
 import { Loader, Clip } from './index';
+import ProtonPlayerError from './ProtonPlayerError';
 
 export default class ProtonPlayer {
   constructor({ silenceURL, volume = 1, onReady = _noop, onError = _noop }) {
@@ -60,7 +61,11 @@ export default class ProtonPlayer {
   }
 
   preLoad(url, fileSize, initialPosition = 0) {
-    return this._getClip(url, fileSize, initialPosition).preBuffer();
+    try {
+      return this._getClip(url, fileSize, initialPosition).preBuffer();
+    } catch (err) {
+      this._onError(err);
+    }
   }
 
   play(
@@ -81,29 +86,33 @@ export default class ProtonPlayer {
 
     this.pauseAll();
 
-    const clip = this._getClip(url, fileSize, initialPosition, audioMetadata);
-    this._currentlyPlaying = {
-      clip,
-      url,
-      fileSize,
-      onBufferProgress,
-      onPlaybackProgress
-    };
+    try {
+      const clip = this._getClip(url, fileSize, initialPosition, audioMetadata);
 
-    clip.on('loadprogress', ({ initialPosition, progress }) =>
-      onBufferProgress(initialPosition, progress)
-    );
+      this._currentlyPlaying = {
+        clip,
+        url,
+        fileSize,
+        onBufferProgress,
+        onPlaybackProgress
+      };
 
-    this._playbackPositionInterval = setInterval(() => {
-      if (clip.duration === 0) return;
-      const progress = clip.currentTime / clip.duration;
-      onPlaybackProgress(progress);
-    }, 500);
+      clip.on('loadprogress', ({ initialPosition, progress }) =>
+        onBufferProgress(initialPosition, progress)
+      );
 
-    clip.on('ended', () => this.pauseAll());
+      clip.on('ended', () => this.pauseAll());
 
-    clip.play();
-    return clip;
+      this._playbackPositionInterval = setInterval(() => {
+        if (clip.duration === 0) return;
+        const progress = clip.currentTime / clip.duration;
+        onPlaybackProgress(progress);
+      }, 500);
+
+      clip.play();
+    } catch (err) {
+      this._onError(err);
+    }
   }
 
   pauseAll() {
@@ -178,8 +187,13 @@ export default class ProtonPlayer {
   }
 
   _getClip(url, fileSize, initialPosition = 0, audioMetadata = {}) {
-    if (typeof url !== 'string') throw new Error('Invalid URL');
-    if (typeof fileSize !== 'number') throw new Error('Invalid file size');
+    if (typeof url !== 'string') {
+      throw new ProtonPlayerError('Invalid URL');
+    }
+
+    if (typeof fileSize !== 'number') {
+      throw new ProtonPlayerError('Invalid file size');
+    }
 
     if (this._clips[url]) {
       return this._clips[url];

@@ -1,5 +1,7 @@
+import _noop from 'lodash/noop';
 import Loader from './Loader';
 import EventEmitter from './EventEmitter';
+import ProtonPlayerError from './ProtonPlayerError';
 import getContext from './getContext';
 import warn from './utils/warn';
 const CHUNK_SIZE = 64 * 1024;
@@ -40,7 +42,6 @@ export default class Clip extends EventEmitter {
     this._silenceChunks = silenceChunks;
     this._chunkIndex = 0;
     this._tickTimeout = null;
-    this._mediaSourceURL = null;
     this._mediaSourceTimeout = null;
 
     this._shouldStopBuffering = false;
@@ -108,14 +109,16 @@ export default class Clip extends EventEmitter {
 
   preBuffer(isRetrying = false) {
     if (isRetrying && this._shouldStopBuffering) {
-      return Promise.reject(new Error('Clip was paused or disposed'));
-    } else {
-      this._shouldStopBuffering = false;
+      return Promise.reject(
+        new ProtonPlayerError('Clip was paused or disposed')
+      );
     }
 
     if (this._preBuffered || this._buffered) {
-      return Promise.reject(new Error('Clip is already pre-buffered'));
+      return Promise.resolve();
     }
+
+    this._shouldStopBuffering = false;
 
     if (this._preBuffering || this._buffering || !this._loader) {
       return new Promise((resolve, reject) => {
@@ -147,16 +150,18 @@ export default class Clip extends EventEmitter {
 
   buffer(bufferToCompletion = false, isRetrying = false) {
     if (isRetrying && this._shouldStopBuffering) {
-      return Promise.reject(new Error('Clip was paused or disposed'));
-    } else {
-      this._shouldStopBuffering = false;
+      return Promise.reject(
+        new ProtonPlayerError('Clip was paused or disposed')
+      );
     }
 
-    if (this._buffering || this._buffered) {
-      return Promise.reject(new Error('Clip is already buffering or buffered'));
+    if (this._buffered) {
+      return Promise.resolve();
     }
 
-    if (this._preBuffering || !this._loader) {
+    this._shouldStopBuffering = false;
+
+    if (this._preBuffering || this._buffering || !this._loader) {
       return new Promise((resolve, reject) => {
         setTimeout(
           () =>
@@ -217,7 +222,9 @@ export default class Clip extends EventEmitter {
       return;
     }
 
-    this.buffer();
+    this.buffer()
+      .then(_noop)
+      .catch(_noop);
 
     if (this._useMediaSource) {
       const self = this;
@@ -226,8 +233,7 @@ export default class Clip extends EventEmitter {
         self._sourceBuffer = this.addSourceBuffer('audio/mpeg');
         self._playUsingMediaSource();
       });
-      this._mediaSourceURL = URL.createObjectURL(this._mediaSource);
-      this._audioElement.src = this._mediaSourceURL;
+      this._audioElement.src = URL.createObjectURL(this._mediaSource);
     } else {
       this._gain = this.context.createGain();
       this._gain.connect(this.context.destination);
@@ -556,10 +562,9 @@ export default class Clip extends EventEmitter {
 
   _pauseUsingMediaSource() {
     clearTimeout(this._mediaSourceTimeout);
-    if (this._audioElement.src === this._mediaSourceURL) {
+    if (this.playing) {
       this._audioElement.pause();
       this._audioElement.volume = 0;
-      this._mediaSourceURL = null;
     }
   }
 
