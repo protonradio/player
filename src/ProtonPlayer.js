@@ -65,6 +65,7 @@ export default class ProtonPlayer {
       return this._getClip(url, fileSize, initialPosition).preBuffer();
     } catch (err) {
       this._onError(err);
+      return Promise.reject(err);
     }
   }
 
