@@ -42,7 +42,6 @@ export default class Clip extends EventEmitter {
     this._silenceChunks = silenceChunks;
     this._chunkIndex = 0;
     this._tickTimeout = null;
-    this._mediaSourceURL = null;
     this._mediaSourceTimeout = null;
 
     this._shouldStopBuffering = false;
@@ -234,8 +233,7 @@ export default class Clip extends EventEmitter {
         self._sourceBuffer = this.addSourceBuffer('audio/mpeg');
         self._playUsingMediaSource();
       });
-      this._mediaSourceURL = URL.createObjectURL(this._mediaSource);
-      this._audioElement.src = this._mediaSourceURL;
+      this._audioElement.src = URL.createObjectURL(this._mediaSource);
     } else {
       this._gain = this.context.createGain();
       this._gain.connect(this.context.destination);
@@ -564,10 +562,9 @@ export default class Clip extends EventEmitter {
 
   _pauseUsingMediaSource() {
     clearTimeout(this._mediaSourceTimeout);
-    if (this._audioElement.src === this._mediaSourceURL) {
+    if (this.playing) {
       this._audioElement.pause();
       this._audioElement.volume = 0;
-      this._mediaSourceURL = null;
     }
   }
 
