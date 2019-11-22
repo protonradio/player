@@ -252,12 +252,9 @@ export default class Clip extends EventEmitter {
     if (this._useMediaSource) {
       this._pauseUsingMediaSource();
     } else {
-      clearTimeout(this._tickTimeout);
-      this._gain.gain.value = 0;
-      this._gain.disconnect(this.context.destination);
-      this._gain = null;
-      this._currentTime =
+      const currentTime =
         this._startTime + (this.context.currentTime - this._contextTimeAtStart);
+      this._pauseUsingAudioContext(currentTime);
     }
 
     if (this._loader) {
@@ -278,11 +275,7 @@ export default class Clip extends EventEmitter {
     if (this._useMediaSource) {
       this._pauseUsingMediaSource();
     } else {
-      clearTimeout(this._tickTimeout);
-      this._gain.gain.value = 0;
-      this._gain.disconnect(this.context.destination);
-      this._gain = null;
-      this._currentTime = 0;
+      this._pauseUsingAudioContext(0);
     }
 
     const initialChunk = this._getChunkIndexByPosition(position);
@@ -565,6 +558,16 @@ export default class Clip extends EventEmitter {
     if (this.playing) {
       this._audioElement.pause();
       this._audioElement.volume = 0;
+    }
+  }
+
+  _pauseUsingAudioContext(currentTime) {
+    clearTimeout(this._tickTimeout);
+    if (this.playing) {
+      this._gain.gain.value = 0;
+      this._gain.disconnect(this.context.destination);
+      this._gain = null;
+      this._currentTime = currentTime;
     }
   }
 
