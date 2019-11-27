@@ -244,6 +244,7 @@ export default class Clip extends EventEmitter {
     this.volume = this._volume;
     this.playing = true;
     this.ended = false;
+    this._fire('play');
   }
 
   pause() {
@@ -264,19 +265,20 @@ export default class Clip extends EventEmitter {
     this._preBuffering = false;
     this._buffering = false;
     this.playing = false;
-
     this._fire('pause');
+
     return this;
   }
 
   setCurrentPosition(position = 0) {
-    this.playing = false;
-
     if (this._useMediaSource) {
       this._pauseUsingMediaSource();
     } else {
       this._pauseUsingAudioContext(0);
     }
+
+    this.playing = false;
+    this._fire('pause');
 
     const initialChunk = this._getChunkIndexByPosition(position);
     this._seekedChunk = initialChunk;
@@ -300,6 +302,7 @@ export default class Clip extends EventEmitter {
     this.volume = this._volume;
     this.playing = true;
     this.ended = false;
+    this._fire('play');
   }
 
   isPositionLoaded(position = 0) {
@@ -361,7 +364,6 @@ export default class Clip extends EventEmitter {
     let time = 0;
     this._startTime = this._currentTime;
     const timeOffset = this._currentTime - time;
-    this._fire('play');
     let playing = true;
 
     const pauseListener = this.on('pause', () => {
@@ -373,15 +375,13 @@ export default class Clip extends EventEmitter {
 
     let _playingSilence =
       this._chunks.length === 0 ||
-      this._chunks[0].ready !== true ||
-      Number.isNaN(this._chunks[0].duration) === true;
+      this._chunks[this._chunkIndex].ready !== true ||
+      Number.isNaN(this._chunks[this._chunkIndex].duration) === true;
 
     const _chunks = _playingSilence ? this._silenceChunks : this._chunks;
-    if (!_playingSilence) {
-      this._chunkIndex++;
-    }
+    const i = _playingSilence ? 0 : this._chunkIndex++ % _chunks.length;
 
-    let chunk = _chunks[0];
+    let chunk = _chunks[i];
     let previousSource;
     let currentSource;
     chunk.createSource(
