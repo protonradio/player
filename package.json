@@ -9,7 +9,7 @@
     "lodash": "^4.17.15"
   },
   "devDependencies": {
-    "rollup": "^1.27.5",
+    "rollup": "^1.27.8",
     "rollup-plugin-commonjs": "^10.1.0",
     "rollup-plugin-node-resolve": "^5.2.0"
   },
