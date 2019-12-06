@@ -1,4 +1,4 @@
-import _noop from 'lodash/noop';
+import noop from './utils/noop';
 
 export default class Fetcher {
   constructor(chunkSize, url, fileSize) {
@@ -28,10 +28,10 @@ export default class Fetcher {
   }) {
     this._totalLoaded = this._totalLoaded || initialByte;
     this._nextChunkStart = this._nextChunkStart || initialByte;
-    this._onProgress = onProgress || _noop;
-    this._onData = onData || _noop;
-    this._onLoad = onLoad || _noop;
-    this._onError = onError || _noop;
+    this._onProgress = onProgress || noop;
+    this._onData = onData || noop;
+    this._onLoad = onLoad || noop;
+    this._onError = onError || noop;
     this._cancelled = false;
     this._preLoad()
       .then(values => {

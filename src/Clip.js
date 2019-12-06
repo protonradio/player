@@ -1,9 +1,10 @@
-import _noop from 'lodash/noop';
 import Loader from './Loader';
 import EventEmitter from './EventEmitter';
 import ProtonPlayerError from './ProtonPlayerError';
 import getContext from './getContext';
+import noop from './utils/noop';
 import warn from './utils/warn';
+
 const CHUNK_SIZE = 64 * 1024;
 const OVERLAP = 0.2;
 
@@ -13,7 +14,6 @@ export default class Clip extends EventEmitter {
     fileSize,
     initialPosition = 0,
     silenceChunks = [],
-    loop = false,
     volume = 1,
     audioMetadata = {}
   }) {
@@ -36,11 +36,11 @@ export default class Clip extends EventEmitter {
     this._currentTime = 0;
     this.url = url;
     this.fileSize = fileSize;
-    this.loop = loop;
     this.volume = volume;
     this._chunks = [];
     this._silenceChunks = silenceChunks;
     this._chunkIndex = 0;
+    this._lastPlayedChunk = null;
     this._tickTimeout = null;
     this._mediaSourceTimeout = null;
 
@@ -223,8 +223,8 @@ export default class Clip extends EventEmitter {
     }
 
     this.buffer()
-      .then(_noop)
-      .catch(_noop);
+      .then(noop)
+      .catch(noop);
 
     if (this._useMediaSource) {
       const self = this;
@@ -366,10 +366,22 @@ export default class Clip extends EventEmitter {
     const timeOffset = this._currentTime - time;
     let playing = true;
 
+    const stopSources = () => {
+      try {
+        if (previousSource) previousSource.stop();
+        if (currentSource) currentSource.stop();
+      } catch (e) {
+        if (e.name === 'InvalidStateError') {
+          console.error(`Ignored error: ${e.toString()}`);
+        } else {
+          throw e;
+        }
+      }
+    };
+
     const pauseListener = this.on('pause', () => {
       playing = false;
-      if (previousSource) previousSource.stop();
-      if (currentSource) currentSource.stop();
+      stopSources();
       pauseListener.cancel();
     });
 
@@ -379,7 +391,7 @@ export default class Clip extends EventEmitter {
       Number.isNaN(this._chunks[this._chunkIndex].duration) === true;
 
     const _chunks = _playingSilence ? this._silenceChunks : this._chunks;
-    const i = _playingSilence ? 0 : this._chunkIndex++ % _chunks.length;
+    const i = _playingSilence ? 0 : this._chunkIndex;
 
     let chunk = _chunks[i];
     let previousSource;
@@ -401,11 +413,21 @@ export default class Clip extends EventEmitter {
         let nextStart =
           this._contextTimeAtStart + (chunk.duration - timeOffset);
 
-        const gain = this.context.createGain();
-        gain.connect(this._gain);
-        gain.gain.setValueAtTime(0, nextStart + OVERLAP);
-        source.connect(gain);
-        source.start(this.context.currentTime);
+        try {
+          const gain = this.context.createGain();
+          gain.connect(this._gain);
+          gain.gain.setValueAtTime(0, nextStart + OVERLAP);
+          source.connect(gain);
+          source.start(this.context.currentTime);
+        } catch (e) {
+          if (e.name === 'TypeError') {
+            console.error(`Ignored error: ${e.toString()}`);
+          } else {
+            throw e;
+          }
+        }
+
+        this._lastPlayedChunk = _playingSilence ? null : this._chunkIndex;
 
         const endGame = () => {
           if (this.context.currentTime >= nextStart) {
@@ -421,16 +443,12 @@ export default class Clip extends EventEmitter {
         const advance = () => {
           if (!playing) return;
 
-          _playingSilence =
-            this._chunks.length === 0 ||
-            this._chunkIndex >= this._chunks.length ||
-            this._chunks[this._chunkIndex].ready !== true ||
-            Number.isNaN(this._chunks[this._chunkIndex].duration) === true;
+          if (!_playingSilence && this._lastPlayedChunk !== null) {
+            this._chunkIndex += 1;
+          }
 
           const _chunks = _playingSilence ? this._silenceChunks : this._chunks;
-          let i = _playingSilence ? 0 : this._chunkIndex++ % _chunks.length;
-
-          if (this.loop || _playingSilence) i %= _chunks.length;
+          const i = _playingSilence ? 0 : this._chunkIndex;
 
           chunk = _chunks[i];
 
@@ -461,21 +479,34 @@ export default class Clip extends EventEmitter {
               if (_playingSilence) this._wasPlayingSilence = true;
               if (this._wasPlayingSilence && !_playingSilence) {
                 this._wasPlayingSilence = false;
+                stopSources();
                 this._contextTimeAtStart = this.context.currentTime;
                 nextStart = this.context.currentTime;
               }
 
               previousSource = currentSource;
               currentSource = source;
-              const gain = this.context.createGain();
-              gain.connect(this._gain);
-              gain.gain.setValueAtTime(0, nextStart);
-              gain.gain.setValueAtTime(1, nextStart + OVERLAP);
-              source.connect(gain);
-              source.start(nextStart);
-              lastStart = nextStart;
-              nextStart += chunk.duration;
-              gain.gain.setValueAtTime(0, nextStart + OVERLAP);
+
+              try {
+                const gain = this.context.createGain();
+                gain.connect(this._gain);
+                gain.gain.setValueAtTime(0, nextStart);
+                gain.gain.setValueAtTime(1, nextStart + OVERLAP);
+                source.connect(gain);
+                source.start(nextStart);
+                lastStart = nextStart;
+                nextStart += chunk.duration;
+                gain.gain.setValueAtTime(0, nextStart + OVERLAP);
+              } catch (e) {
+                if (e.name === 'TypeError') {
+                  console.error(`Ignored error: ${e.toString()}`);
+                } else {
+                  throw e;
+                }
+              }
+
+              this._lastPlayedChunk = _playingSilence ? null : this._chunkIndex;
+
               tick();
             },
             error => {
@@ -489,12 +520,23 @@ export default class Clip extends EventEmitter {
         const tick = () => {
           if (!this.playing) return;
 
+          const i =
+            this._lastPlayedChunk === this._chunkIndex
+              ? this._chunkIndex + 1
+              : this._chunkIndex;
+
+          _playingSilence =
+            this._chunks.length === 0 ||
+            i >= this._chunks.length ||
+            this._chunks[i].ready !== true ||
+            Number.isNaN(this._chunks[i].duration) === true;
+
           const shouldAdvance = _playingSilence
             ? this.context.currentTime > lastStart
             : this.context.currentTime > lastStart &&
-              this._chunks[this._chunkIndex] &&
-              this._chunks[this._chunkIndex].ready === true &&
-              Number.isNaN(this._chunks[this._chunkIndex].duration) === false;
+              this._chunks[i] &&
+              this._chunks[i].ready === true &&
+              Number.isNaN(this._chunks[i].duration) === false;
 
           if (shouldAdvance) {
             advance();
