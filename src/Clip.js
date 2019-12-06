@@ -372,7 +372,7 @@ export default class Clip extends EventEmitter {
         if (currentSource) currentSource.stop();
       } catch (e) {
         if (e.name === 'InvalidStateError') {
-          console.error(`Ignored error: ${e.toString()}`);
+          console.warn(`Ignored error: ${e.toString()}`);
         } else {
           throw e;
         }
@@ -421,7 +421,7 @@ export default class Clip extends EventEmitter {
           source.start(this.context.currentTime);
         } catch (e) {
           if (e.name === 'TypeError') {
-            console.error(`Ignored error: ${e.toString()}`);
+            console.warn(`Ignored error: ${e.toString()}`);
           } else {
             throw e;
           }
@@ -499,7 +499,7 @@ export default class Clip extends EventEmitter {
                 gain.gain.setValueAtTime(0, nextStart + OVERLAP);
               } catch (e) {
                 if (e.name === 'TypeError') {
-                  console.error(`Ignored error: ${e.toString()}`);
+                  console.warn(`Ignored error: ${e.toString()}`);
                 } else {
                   throw e;
                 }
