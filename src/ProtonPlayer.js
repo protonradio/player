@@ -23,7 +23,7 @@ export default class ProtonPlayer {
     this._playbackPositionInterval = null;
 
     if (typeof window.MediaSource !== 'undefined') {
-      let audioElement = document.createElement('audio');
+      const audioElement = document.createElement('audio');
       audioElement.autoplay = true;
 
       document.body.appendChild(audioElement);
@@ -34,6 +34,7 @@ export default class ProtonPlayer {
           this._clips[k].ended = true;
         });
       });
+
       setTimeout(() => {
         this._ready = true;
         this._onReady();
