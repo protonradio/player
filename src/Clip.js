@@ -385,10 +385,7 @@ export default class Clip extends EventEmitter {
       pauseListener.cancel();
     });
 
-    let _playingSilence =
-      this._chunks.length === 0 ||
-      this._chunks[this._chunkIndex].ready !== true ||
-      Number.isNaN(this._chunks[this._chunkIndex].duration) === true;
+    let _playingSilence = !this._isChunkReady(this._chunkIndex);
 
     const _chunks = _playingSilence ? this._silenceChunks : this._chunks;
     const i = _playingSilence ? 0 : this._chunkIndex;
@@ -525,20 +522,9 @@ export default class Clip extends EventEmitter {
               ? this._chunkIndex + 1
               : this._chunkIndex;
 
-          _playingSilence =
-            this._chunks.length === 0 ||
-            i >= this._chunks.length ||
-            this._chunks[i].ready !== true ||
-            Number.isNaN(this._chunks[i].duration) === true;
+          _playingSilence = !this._isChunkReady(i);
 
-          const shouldAdvance = _playingSilence
-            ? this.context.currentTime > lastStart
-            : this.context.currentTime > lastStart &&
-              this._chunks[i] &&
-              this._chunks[i].ready === true &&
-              Number.isNaN(this._chunks[i].duration) === false;
-
-          if (shouldAdvance) {
+          if (this.context.currentTime > lastStart) {
             advance();
           } else {
             this._tickTimeout = setTimeout(tick, 500);
@@ -570,13 +556,7 @@ export default class Clip extends EventEmitter {
       return;
     }
 
-    const shouldSkip =
-      this._chunks.length === 0 ||
-      this._chunkIndex >= this._chunks.length ||
-      this._chunks[this._chunkIndex].ready !== true ||
-      Number.isNaN(this._chunks[this._chunkIndex].duration) === true;
-
-    if (!shouldSkip) {
+    if (this._isChunkReady(this._chunkIndex)) {
       const chunk = this._chunks[this._chunkIndex];
       try {
         this._sourceBuffer.appendBuffer(chunk.raw);
@@ -618,5 +598,14 @@ export default class Clip extends EventEmitter {
     return initialChunk >= this._totalChunksCount
       ? this._totalChunksCount - 1
       : initialChunk;
+  }
+
+  _isChunkReady(index) {
+    return (
+      this._chunks.length > 0 &&
+      index < this._chunks.length &&
+      this._chunks[index].ready === true &&
+      Number.isNaN(this._chunks[index].duration) === false
+    );
   }
 }
