@@ -5,8 +5,7 @@
   "module": "dist/proton-player.esm.js",
   "browser": "dist/proton-player.umd.js",
   "dependencies": {
-    "bowser": "^2.7.0",
-    "lodash": "^4.17.15"
+    "bowser": "^2.7.0"
   },
   "devDependencies": {
     "rollup": "^1.27.8",

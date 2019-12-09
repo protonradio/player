@@ -1,5 +1,5 @@
 import getContext from './getContext';
-let inited;
+let inited = false;
 window.addEventListener('touchend', init, false);
 // https://paulbakaus.com/tutorials/html5/web-audio-on-ios/
 export default function init() {
