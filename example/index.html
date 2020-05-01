@@ -13,7 +13,15 @@
         class="btn"
         type="button"
         value="Stop"
-        style="background-color: #ff4e33; border: none; color: #000; padding: 16px 32px; text-decoration: none; margin: 4px 2px; cursor: pointer;"
+        style="
+          background-color: #ff4e33;
+          border: none;
+          color: #000;
+          padding: 16px 32px;
+          text-decoration: none;
+          margin: 4px 2px;
+          cursor: pointer;
+        "
         disabled
       />
       <input
@@ -21,19 +29,27 @@
         class="btn"
         type="button"
         value="Pause"
-        style="background-color: #ffe662; border: none; color: #000; padding: 16px 32px; text-decoration: none; margin: 4px 2px; cursor: pointer;"
+        style="
+          background-color: #ffe662;
+          border: none;
+          color: #000;
+          padding: 16px 32px;
+          text-decoration: none;
+          margin: 4px 2px;
+          cursor: pointer;
+        "
         disabled
       />
     </div>
     <h5>Buffered:</h5>
     <div
       id="buffer-display"
-      style="width:100%; height:10px; border:1px solid black;"
+      style="width: 100%; height: 10px; border: 1px solid black;"
     ></div>
     <h5>Playback Position (use it to seek!):</h5>
     <div
       id="playback-position-display"
-      style="width:100%; height:10px; border:1px solid black;"
+      style="width: 100%; height: 10px; border: 1px solid black;"
     ></div>
     <h5>Volume:</h5>
     <input id="volume-range" type="range" min="0" max="100" value="75" />
@@ -65,7 +81,7 @@
         }
       };
 
-      const onError = err => console.error(err);
+      const onError = (err) => console.error(err);
 
       const baseURL =
         'https://media-server-staging-dot-proton-assets.appspot.com';
@@ -74,7 +90,7 @@
         silenceURL: `${baseURL}/silence`,
         volume: getVolume(),
         onReady,
-        onError
+        onError,
       });
 
       const token =
@@ -90,7 +106,7 @@
             'urgwWw4oxEUp6NoCjDeunQ=='
           )}&player_id=1559854170445&token=${token}`,
           size: 7543327,
-          preLoad: false
+          preLoad: false,
         },
         {
           name: 'Track 2 | 128 kbps | La Alegria (Original Mix)',
@@ -100,7 +116,7 @@
             'z9C6QXJm4ux1BGsC0jEItw=='
           )}&player_id=1559854235788&token=${token}`,
           size: 3357465,
-          preLoadOnHover: false
+          preLoadOnHover: false,
         },
         {
           name: 'Track 3 | 128 kbps | Gnosis (Matt Black Remix)',
@@ -109,7 +125,7 @@
           )}&md5=${encodeURIComponent(
             '123slGyfBJ826Udcm1W6Lg=='
           )}&player_id=1559854500653&token=${token}`,
-          size: 7233200
+          size: 7233200,
         },
         {
           name: 'Mix 1 | Embliss - Mind Over Matter 127',
@@ -119,7 +135,7 @@
             'c/RGi+lC2DbxhYhe6dk8vA=='
           )}&player_id=1559854282509&token=${token}`,
           size: 86353292,
-          preLoad: false
+          preLoad: false,
         },
         {
           name: 'Mix 2 | Bedroom Bedlam (2019-09-28) Part 1 - Rohit Bangera',
@@ -129,7 +145,7 @@
             'Zz/o7fvoHU0IAUlnrnshXA=='
           )}&player_id=1559854370708&token=${token}`,
           size: 86387146,
-          preLoadOnHover: false
+          preLoadOnHover: false,
         },
         {
           name:
@@ -139,29 +155,29 @@
           )}&md5=${encodeURIComponent(
             'RNYFr9b5I5uRHu3U00owHQ=='
           )}&player_id=1559854549060&token=${token}`,
-          size: 83519528
-        }
+          size: 83519528,
+        },
       ];
 
       $stopBtn.onclick = () => stopAll();
 
       $pauseBtn.onclick = () => player.pauseAll();
 
-      $playbackPositionDisplay.onclick = event => {
+      $playbackPositionDisplay.onclick = (event) => {
         const percent =
           (event.pageX - event.currentTarget.offsetLeft) /
           event.currentTarget.offsetWidth;
         player.setPlaybackPosition(percent);
       };
 
-      $volumeRange.onchange = event => {
+      $volumeRange.onchange = (event) => {
         const volume = getVolume();
         player.setVolume(volume);
       };
 
       function stopAll(exceptUrls = []) {
         player.disposeAllExcept(exceptUrls);
-        audios.forEach(audio => {
+        audios.forEach((audio) => {
           if (exceptUrls.indexOf(audio.url) >= 0) return;
           audio.preloaded = false;
           audio.$btn.setAttribute('value', audio.name);
@@ -186,7 +202,7 @@
       }
 
       function init() {
-        audios.forEach(file => {
+        audios.forEach((file) => {
           const $btn = document.createElement('input');
           $btn.setAttribute('class', 'btn play-btn');
           $btn.setAttribute('type', 'button');
@@ -224,7 +240,7 @@
               )`;
             };
 
-            const onPlaybackProgress = progress => {
+            const onPlaybackProgress = (progress) => {
               const percent = Math.min(progress, 1) * 100;
               $playbackPositionDisplay.style.background = `linear-gradient(to right, #efe3af ${percent}%, #ffffff ${percent}%)`;
             };
