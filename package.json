@@ -5,10 +5,10 @@
   "module": "dist/proton-player.esm.js",
   "browser": "dist/proton-player.umd.js",
   "dependencies": {
-    "bowser": "^2.7.0"
+    "bowser": "^2.9.0"
   },
   "devDependencies": {
-    "rollup": "^1.27.9",
+    "rollup": "^2.7.6",
     "rollup-plugin-commonjs": "^10.1.0",
     "rollup-plugin-node-resolve": "^5.2.0"
   },
