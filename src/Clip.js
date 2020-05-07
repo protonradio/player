@@ -3,7 +3,6 @@ import EventEmitter from './EventEmitter';
 import ProtonPlayerError from './ProtonPlayerError';
 import getContext from './getContext';
 import noop from './utils/noop';
-import warn from './utils/warn';
 
 const CHUNK_SIZE = 64 * 1024;
 const OVERLAP = 0.2;
@@ -15,13 +14,18 @@ export default class Clip extends EventEmitter {
     initialPosition = 0,
     silenceChunks = [],
     volume = 1,
-    audioMetadata = {}
+    audioMetadata = {},
   }) {
     super();
 
     this._useMediaSource = typeof window.MediaSource !== 'undefined';
     if (this._useMediaSource) {
       this._audioElement = document.querySelector('audio');
+      this._audioElement.addEventListener('ended', () => {
+        if (this.ended) return;
+        this.ended = true;
+        this._fire('ended');
+      });
     } else {
       this.context = getContext();
       this._gain = this.context.createGain();
@@ -63,7 +67,7 @@ export default class Clip extends EventEmitter {
         CHUNK_SIZE, // load just 1 chunk
         []
       );
-      initialChunkLoader.on('loaderror', err => {
+      initialChunkLoader.on('loaderror', (err) => {
         this._preBuffering = false;
         this._fire('loaderror', err);
       });
@@ -97,13 +101,13 @@ export default class Clip extends EventEmitter {
         total,
         initialPosition: this._initialChunk / this._totalChunksCount,
         buffered: bufferedWithOffset,
-        progress: bufferedWithOffset / total
+        progress: bufferedWithOffset / total,
       });
     });
-    this._loader.on('playbackerror', error =>
+    this._loader.on('playbackerror', (error) =>
       this._fire('playbackerror', error)
     );
-    this._loader.on('loaderror', error => this._fire('loaderror', error));
+    this._loader.on('loaderror', (error) => this._fire('loaderror', error));
     this._loader.on('load', () => this._fire('load'));
   }
 
@@ -122,13 +126,7 @@ export default class Clip extends EventEmitter {
 
     if (this._preBuffering || this._buffering || !this._loader) {
       return new Promise((resolve, reject) => {
-        setTimeout(
-          () =>
-            this.preBuffer(true)
-              .then(resolve)
-              .catch(reject),
-          1
-        );
+        setTimeout(() => this.preBuffer(true).then(resolve).catch(reject), 1);
       });
     }
 
@@ -141,7 +139,7 @@ export default class Clip extends EventEmitter {
         this._preBuffering = false;
         this._preBuffered = true;
       })
-      .catch(err => {
+      .catch((err) => {
         this._preBuffering = false;
         this._preBuffered = false;
         throw err;
@@ -165,9 +163,7 @@ export default class Clip extends EventEmitter {
       return new Promise((resolve, reject) => {
         setTimeout(
           () =>
-            this.buffer(bufferToCompletion, true)
-              .then(resolve)
-              .catch(reject),
+            this.buffer(bufferToCompletion, true).then(resolve).catch(reject),
           1
         );
       });
@@ -181,7 +177,7 @@ export default class Clip extends EventEmitter {
         this._buffering = false;
         this._buffered = true;
       })
-      .catch(err => {
+      .catch((err) => {
         this._buffering = false;
         this._buffered = false;
         throw err;
@@ -216,20 +212,18 @@ export default class Clip extends EventEmitter {
 
   play() {
     if (this.playing) {
-      warn(
+      console.warn(
         `clip.play() was called on a clip that was already playing (${this.url})`
       );
       return;
     }
 
-    this.buffer()
-      .then(noop)
-      .catch(noop);
+    this.buffer().then(noop).catch(noop);
 
     if (this._useMediaSource) {
       const self = this;
       this._mediaSource = new MediaSource();
-      this._mediaSource.addEventListener('sourceopen', function() {
+      this._mediaSource.addEventListener('sourceopen', function () {
         self._sourceBuffer = this.addSourceBuffer('audio/mpeg');
         self._playUsingMediaSource();
       });
@@ -288,7 +282,7 @@ export default class Clip extends EventEmitter {
       this._mediaSource = new MediaSource();
       this._audioElement.src = URL.createObjectURL(this._mediaSource);
       const self = this;
-      this._mediaSource.addEventListener('sourceopen', function() {
+      this._mediaSource.addEventListener('sourceopen', function () {
         self._sourceBuffer = this.addSourceBuffer('audio/mpeg');
         self._playUsingMediaSource();
       });
@@ -395,7 +389,7 @@ export default class Clip extends EventEmitter {
     let currentSource;
     chunk.createSource(
       timeOffset,
-      source => {
+      (source) => {
         if (Number.isNaN(chunk.duration)) {
           this._fire(
             'playbackerror',
@@ -464,7 +458,7 @@ export default class Clip extends EventEmitter {
 
           chunk.createSource(
             0,
-            source => {
+            (source) => {
               if (Number.isNaN(chunk.duration)) {
                 this._fire(
                   'playbackerror',
@@ -506,7 +500,7 @@ export default class Clip extends EventEmitter {
 
               tick();
             },
-            error => {
+            (error) => {
               error.url = this.url;
               error.phonographCode = 'COULD_NOT_CREATE_SOURCE';
               this._fire('playbackerror', error);
@@ -540,7 +534,7 @@ export default class Clip extends EventEmitter {
         tick();
         frame();
       },
-      error => {
+      (error) => {
         error.url = this.url;
         error.phonographCode = 'COULD_NOT_START_PLAYBACK';
         this._fire('playbackerror', error);

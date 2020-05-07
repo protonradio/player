@@ -2,12 +2,15 @@ import Bowser from 'bowser';
 
 import ProtonPlayerError from './ProtonPlayerError';
 import noop from './utils/noop';
+import { debug } from './utils/logger';
 import Loader from './Loader';
 import Clip from './Clip';
 import _ from './init';
 
 export default class ProtonPlayer {
   constructor({ silenceURL, volume = 1, onReady = noop, onError = noop }) {
+    debug('ProtonPlayer#constructor');
+
     const browser = Bowser.getParser(window.navigator.userAgent);
     if (browser.getBrowser().name === 'Safari') {
       window.MediaSource = undefined;
@@ -29,7 +32,7 @@ export default class ProtonPlayer {
       document.body.appendChild(audioElement);
 
       audioElement.addEventListener('ended', () => {
-        Object.keys(this._clips).forEach(k => {
+        Object.keys(this._clips).forEach((k) => {
           this._clips[k].playing = false;
           this._clips[k].ended = true;
         });
@@ -52,7 +55,7 @@ export default class ProtonPlayer {
         silenceChunkSize,
         this._silenceChunks
       );
-      silenceLoader.on('loaderror', err => {
+      silenceLoader.on('loaderror', (err) => {
         this._ready = false;
         this._onError(err);
       });
@@ -65,6 +68,8 @@ export default class ProtonPlayer {
   }
 
   preLoad(url, fileSize, initialPosition = 0) {
+    debug('ProtonPlayer#preLoad');
+
     try {
       return this._getClip(url, fileSize, initialPosition).preBuffer();
     } catch (err) {
@@ -81,6 +86,8 @@ export default class ProtonPlayer {
     initialPosition = 0,
     audioMetadata = {}
   ) {
+    debug('ProtonPlayer#play');
+
     if (!this._ready) {
       console.warn('Player not ready');
       return;
@@ -99,7 +106,7 @@ export default class ProtonPlayer {
         url,
         fileSize,
         onBufferProgress,
-        onPlaybackProgress
+        onPlaybackProgress,
       };
 
       clip.on('loadprogress', ({ initialPosition, progress }) =>
@@ -111,6 +118,7 @@ export default class ProtonPlayer {
       this._playbackPositionInterval = setInterval(() => {
         if (clip.duration === 0) return;
         const progress = clip.currentTime / clip.duration;
+        if (progress >= 1) return;
         onPlaybackProgress(progress);
       }, 500);
 
@@ -121,15 +129,19 @@ export default class ProtonPlayer {
   }
 
   pauseAll() {
+    debug('ProtonPlayer#pauseAll');
+
     this._currentlyPlaying = null;
     this._clearIntervals();
-    Object.keys(this._clips).forEach(k => {
+    Object.keys(this._clips).forEach((k) => {
       this._clips[k].offAll('loadprogress');
       this._clips[k].pause();
     });
   }
 
   dispose(url) {
+    debug('ProtonPlayer#dispose');
+
     if (this._currentlyPlaying && this._currentlyPlaying.url === url) {
       this._currentlyPlaying = null;
       this._clearIntervals();
@@ -143,16 +155,22 @@ export default class ProtonPlayer {
   }
 
   disposeAll() {
+    debug('ProtonPlayer#disposeAll');
+
     this.disposeAllExcept();
   }
 
   disposeAllExcept(urls = []) {
+    debug('ProtonPlayer#disposeAllExcept');
+
     Object.keys(this._clips)
-      .filter(k => urls.indexOf(k) < 0)
-      .forEach(k => this.dispose(k));
+      .filter((k) => urls.indexOf(k) < 0)
+      .forEach((k) => this.dispose(k));
   }
 
   setPlaybackPosition(percent) {
+    debug('ProtonPlayer#setPlaybackPosition');
+
     if (!this._currentlyPlaying || percent > 1) {
       return;
     }
@@ -161,7 +179,7 @@ export default class ProtonPlayer {
       url,
       fileSize,
       onBufferProgress,
-      onPlaybackProgress
+      onPlaybackProgress,
     } = this._currentlyPlaying;
 
     const clip = this._clips[url];
@@ -185,8 +203,10 @@ export default class ProtonPlayer {
   }
 
   setVolume(volume = 1) {
+    debug('ProtonPlayer#setVolume');
+
     this._volume = volume;
-    Object.keys(this._clips).forEach(k => {
+    Object.keys(this._clips).forEach((k) => {
       this._clips[k].volume = this._volume;
     });
   }
@@ -210,14 +230,14 @@ export default class ProtonPlayer {
       initialPosition,
       silenceChunks: this._silenceChunks,
       volume: this._volume,
-      audioMetadata
+      audioMetadata,
     });
 
-    clip.on('loaderror', err => {
+    clip.on('loaderror', (err) => {
       console.error('Clip failed to load', err);
     });
 
-    clip.on('playbackerror', err => {
+    clip.on('playbackerror', (err) => {
       console.error('Something went wrong during playback', err);
     });
 

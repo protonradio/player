@@ -10,9 +10,9 @@ export default [
       name: 'ProtonPlayer',
       file: pkg.browser,
       format: 'umd',
-      sourcemap: true
+      sourcemap: true,
     },
-    plugins: [resolve(), commonjs()]
+    plugins: [resolve(), commonjs()],
   },
 
   // CommonJS (for Node) and ES module (for bundlers) build.
@@ -26,7 +26,7 @@ export default [
     external: ['bowser'],
     output: [
       { file: pkg.main, format: 'cjs' },
-      { file: pkg.module, format: 'es' }
-    ]
-  }
+      { file: pkg.module, format: 'es' },
+    ],
+  },
 ];
