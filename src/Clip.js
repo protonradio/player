@@ -21,11 +21,6 @@ export default class Clip extends EventEmitter {
     this._useMediaSource = typeof window.MediaSource !== 'undefined';
     if (this._useMediaSource) {
       this._audioElement = document.querySelector('audio');
-      this._audioElement.addEventListener('ended', () => {
-        if (this.ended) return;
-        this.ended = true;
-        this._fire('ended');
-      });
     } else {
       this.context = getContext();
       this._gain = this.context.createGain();
@@ -262,6 +257,14 @@ export default class Clip extends EventEmitter {
     this._fire('pause');
 
     return this;
+  }
+
+  playbackEnded() {
+    if (this.playing) {
+      this.playing = false;
+      this.ended = true;
+      this._fire('ended');
+    }
   }
 
   setCurrentPosition(position = 0) {

@@ -33,8 +33,7 @@ export default class ProtonPlayer {
 
       audioElement.addEventListener('ended', () => {
         Object.keys(this._clips).forEach((k) => {
-          this._clips[k].playing = false;
-          this._clips[k].ended = true;
+          this._clips[k].playbackEnded();
         });
       });
 
@@ -118,7 +117,7 @@ export default class ProtonPlayer {
       this._playbackPositionInterval = setInterval(() => {
         if (clip.duration === 0) return;
         const progress = clip.currentTime / clip.duration;
-        if (progress >= 1) return;
+        if (progress > 1) return;
         onPlaybackProgress(progress);
       }, 500);
 
