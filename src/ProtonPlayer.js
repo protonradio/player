@@ -112,12 +112,15 @@ export default class ProtonPlayer {
         onBufferProgress(initialPosition, progress)
       );
 
-      clip.on('ended', () => this.pauseAll());
+      clip.on('ended', () => {
+        this.pauseAll();
+        onPlaybackProgress(1);
+      });
 
       this._playbackPositionInterval = setInterval(() => {
         if (clip.duration === 0) return;
         const progress = clip.currentTime / clip.duration;
-        if (progress > 1) return;
+        if (progress > 1) return; // Prevent playback progress from exceeding 1 (100%)
         onPlaybackProgress(progress);
       }, 500);
 
