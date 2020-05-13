@@ -15,7 +15,7 @@ export default class Chunk {
 
     const decode = (callback, errback) => {
       const buffer = slice(raw, this._firstByte, raw.length).buffer;
-      this.context.decodeAudioData(buffer, callback, err => {
+      this.context.decodeAudioData(buffer, callback, (err) => {
         if (err) return errback(err);
         this._firstByte += 1;
         // filthy hack taken from http://stackoverflow.com/questions/10365335/decodeaudiodata-returning-a-null-error
@@ -63,7 +63,7 @@ export default class Chunk {
 
     this.context.decodeAudioData(
       slice(this.extended, 0, this.extended.length).buffer,
-      decoded => {
+      (decoded) => {
         if (timeOffset) {
           const sampleOffset = ~~(timeOffset * decoded.sampleRate);
           const numChannels = decoded.numberOfChannels;

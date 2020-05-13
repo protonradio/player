@@ -22,7 +22,7 @@ export default class Loader extends EventEmitter {
   get audioMetadata() {
     return {
       referenceHeader: this._referenceHeader,
-      metadata: this.metadata
+      metadata: this.metadata,
     };
   }
 
@@ -75,7 +75,7 @@ export default class Loader extends EventEmitter {
           clip: {
             context: this.context,
             metadata: this.metadata,
-            _referenceHeader: this._referenceHeader
+            _referenceHeader: this._referenceHeader,
           },
           raw: slice(tempBuffer, firstByte, p),
           onready: () => {
@@ -86,12 +86,12 @@ export default class Loader extends EventEmitter {
               this.firstChunkDuration = chunk.duration;
             }
           },
-          onerror: error => {
+          onerror: (error) => {
             error.url = this.url;
             error.phonographCode = 'COULD_NOT_DECODE';
             this._fire('playbackerror', error);
             this.cancel();
-          }
+          },
         });
         const lastChunk = this._chunks[this._chunks.length - 1];
         if (lastChunk) lastChunk.attach(chunk);
@@ -107,7 +107,7 @@ export default class Loader extends EventEmitter {
           this.length = total;
           this._fire('loadprogress', { buffered: this.buffered, total });
         },
-        onData: uint8Array => {
+        onData: (uint8Array) => {
           if (
             !this.metadata ||
             !this._referenceHeader ||
@@ -125,7 +125,7 @@ export default class Loader extends EventEmitter {
                   mpegVersion: uint8Array[i + 1] & 0b00001000,
                   mpegLayer: uint8Array[i + 1] & 0b00000110,
                   sampleRate: uint8Array[i + 2] & 0b00001100,
-                  channelMode: uint8Array[i + 3] & 0b11000000
+                  channelMode: uint8Array[i + 3] & 0b11000000,
                 };
                 this.metadata = parseMetadata(this._referenceHeader);
                 break;
@@ -159,12 +159,12 @@ export default class Loader extends EventEmitter {
             this._fire('load');
           });
         },
-        onError: error => {
+        onError: (error) => {
           error.url = this.url;
           error.phonographCode = 'COULD_NOT_LOAD';
           this._fire('loaderror', error);
           this._loadStarted = false;
-        }
+        },
       });
     }
     return new Promise((fulfil, reject) => {

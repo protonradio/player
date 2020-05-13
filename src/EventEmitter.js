@@ -21,12 +21,12 @@ export default class EventEmitter {
       this.callbacks[eventName] || (this.callbacks[eventName] = []);
     callbacks.push(cb);
     return {
-      cancel: () => this.off(eventName, cb)
+      cancel: () => this.off(eventName, cb),
     };
   }
 
   once(eventName, cb) {
-    const _cb = data => {
+    const _cb = (data) => {
       cb(data);
       this.off(eventName, _cb);
     };
@@ -36,6 +36,6 @@ export default class EventEmitter {
   _fire(eventName, data) {
     const callbacks = this.callbacks[eventName];
     if (!callbacks) return;
-    callbacks.slice().forEach(cb => cb(data));
+    callbacks.slice().forEach((cb) => cb(data));
   }
 }

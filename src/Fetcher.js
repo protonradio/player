@@ -24,7 +24,7 @@ export default class Fetcher {
     onProgress,
     onData,
     onLoad,
-    onError
+    onError,
   }) {
     this._totalLoaded = this._totalLoaded || initialByte;
     this._nextChunkStart = this._nextChunkStart || initialByte;
@@ -34,8 +34,8 @@ export default class Fetcher {
     this._onError = onError || noop;
     this._cancelled = false;
     this._preLoad()
-      .then(values => {
-        values.forEach(uint8Array => this._handleChunk(uint8Array));
+      .then((values) => {
+        values.forEach((uint8Array) => this._handleChunk(uint8Array));
         if (this._fullyLoaded || preloadOnly) return;
         this._load();
       })
@@ -71,12 +71,12 @@ export default class Fetcher {
     }
 
     return Promise.all(promises)
-      .then(values => {
+      .then((values) => {
         this._preloaded = true;
         this._preloading = false;
         return values;
       })
-      .catch(err => {
+      .catch((err) => {
         this._preloaded = false;
         this._preloading = false;
         throw err;
@@ -86,7 +86,7 @@ export default class Fetcher {
   _load() {
     this._advanceEnd();
     this._loadFragment()
-      .then(uint8Array => {
+      .then((uint8Array) => {
         if (this._cancelled) return;
         this._handleChunk(uint8Array);
         if (!this._fullyLoaded) {
@@ -100,19 +100,16 @@ export default class Fetcher {
   _loadFragment() {
     const options = {
       headers: {
-        range: `${this._nextChunkStart}-${this._nextChunkEnd}`
-      }
+        range: `${this._nextChunkStart}-${this._nextChunkEnd}`,
+      },
     };
-    return fetch(this.url, options).then(response => {
+    return fetch(this.url, options).then((response) => {
       if (this._cancelled) return null;
 
       if (response.status === 429) {
         return new Promise((resolve, reject) => {
           setTimeout(
-            () =>
-              this._loadFragment()
-                .then(resolve)
-                .catch(reject),
+            () => this._loadFragment().then(resolve).catch(reject),
             10 * 1000
           );
         });
@@ -128,7 +125,7 @@ export default class Fetcher {
         throw new Error('Bad response body');
       }
 
-      return response.arrayBuffer().then(arrayBuffer => {
+      return response.arrayBuffer().then((arrayBuffer) => {
         if (this._cancelled) return null;
         return new Uint8Array(arrayBuffer);
       });
