@@ -17,8 +17,7 @@ export default class EventEmitter {
   }
 
   on(eventName, cb) {
-    const callbacks =
-      this.callbacks[eventName] || (this.callbacks[eventName] = []);
+    const callbacks = this.callbacks[eventName] || (this.callbacks[eventName] = []);
     callbacks.push(cb);
     return {
       cancel: () => this.off(eventName, cb),

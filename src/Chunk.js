@@ -55,9 +55,7 @@ export default class Chunk {
 
   createSource(timeOffset, callback, errback) {
     if (!this.ready) {
-      console.error(
-        'Something went wrong! Chunk was not ready in time for playback'
-      );
+      console.error('Something went wrong! Chunk was not ready in time for playback');
       return;
     }
 
@@ -68,8 +66,7 @@ export default class Chunk {
           const sampleOffset = ~~(timeOffset * decoded.sampleRate);
           const numChannels = decoded.numberOfChannels;
           const lengthWithOffset = decoded.length - sampleOffset;
-          const length =
-            lengthWithOffset >= 0 ? lengthWithOffset : decoded.length;
+          const length = lengthWithOffset >= 0 ? lengthWithOffset : decoded.length;
           const offset = this.context.createBuffer(
             numChannels,
             length,

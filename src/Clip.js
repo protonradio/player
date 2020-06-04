@@ -99,18 +99,14 @@ export default class Clip extends EventEmitter {
         progress: bufferedWithOffset / total,
       });
     });
-    this._loader.on('playbackerror', (error) =>
-      this._fire('playbackerror', error)
-    );
+    this._loader.on('playbackerror', (error) => this._fire('playbackerror', error));
     this._loader.on('loaderror', (error) => this._fire('loaderror', error));
     this._loader.on('load', () => this._fire('load'));
   }
 
   preBuffer(isRetrying = false) {
     if (isRetrying && this._shouldStopBuffering) {
-      return Promise.reject(
-        new ProtonPlayerError('Clip was paused or disposed')
-      );
+      return Promise.reject(new ProtonPlayerError('Clip was paused or disposed'));
     }
 
     if (this._preBuffered || this._buffered) {
@@ -143,9 +139,7 @@ export default class Clip extends EventEmitter {
 
   buffer(bufferToCompletion = false, isRetrying = false) {
     if (isRetrying && this._shouldStopBuffering) {
-      return Promise.reject(
-        new ProtonPlayerError('Clip was paused or disposed')
-      );
+      return Promise.reject(new ProtonPlayerError('Clip was paused or disposed'));
     }
 
     if (this._buffered) {
@@ -157,8 +151,7 @@ export default class Clip extends EventEmitter {
     if (this._preBuffering || this._buffering || !this._loader) {
       return new Promise((resolve, reject) => {
         setTimeout(
-          () =>
-            this.buffer(bufferToCompletion, true).then(resolve).catch(reject),
+          () => this.buffer(bufferToCompletion, true).then(resolve).catch(reject),
           1
         );
       });
@@ -323,9 +316,7 @@ export default class Clip extends EventEmitter {
     }
 
     return (
-      offset +
-      this._startTime +
-      (this.context.currentTime - this._contextTimeAtStart)
+      offset + this._startTime + (this.context.currentTime - this._contextTimeAtStart)
     );
   }
 
@@ -404,8 +395,7 @@ export default class Clip extends EventEmitter {
         currentSource = source;
         this._contextTimeAtStart = this.context.currentTime;
         let lastStart = this._contextTimeAtStart;
-        let nextStart =
-          this._contextTimeAtStart + (chunk.duration - timeOffset);
+        let nextStart = this._contextTimeAtStart + (chunk.duration - timeOffset);
 
         try {
           const gain = this.context.createGain();
@@ -566,10 +556,7 @@ export default class Clip extends EventEmitter {
       }
     }
 
-    this._mediaSourceTimeout = setTimeout(
-      this._playUsingMediaSource.bind(this),
-      500
-    );
+    this._mediaSourceTimeout = setTimeout(this._playUsingMediaSource.bind(this), 500);
   }
 
   _pauseUsingMediaSource() {

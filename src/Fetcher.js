@@ -18,14 +18,7 @@ export default class Fetcher {
     this._cancelled = true;
   }
 
-  load({
-    preloadOnly = false,
-    initialByte = 0,
-    onProgress,
-    onData,
-    onLoad,
-    onError,
-  }) {
+  load({ preloadOnly = false, initialByte = 0, onProgress, onData, onLoad, onError }) {
     this._totalLoaded = this._totalLoaded || initialByte;
     this._nextChunkStart = this._nextChunkStart || initialByte;
     this._onProgress = onProgress || noop;
@@ -55,8 +48,7 @@ export default class Fetcher {
   }
 
   _preLoad() {
-    if (this._preloading || this._preloaded)
-      return Promise.resolve(new Uint8Array([]));
+    if (this._preloading || this._preloaded) return Promise.resolve(new Uint8Array([]));
 
     this._preloading = true;
 
@@ -108,17 +100,12 @@ export default class Fetcher {
 
       if (response.status === 429) {
         return new Promise((resolve, reject) => {
-          setTimeout(
-            () => this._loadFragment().then(resolve).catch(reject),
-            10 * 1000
-          );
+          setTimeout(() => this._loadFragment().then(resolve).catch(reject), 10 * 1000);
         });
       }
 
       if (!response.ok) {
-        throw new Error(
-          `Bad response (${response.status} – ${response.statusText})`
-        );
+        throw new Error(`Bad response (${response.status} – ${response.statusText})`);
       }
 
       if (!response.body) {
