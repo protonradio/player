@@ -106,6 +106,7 @@ export default class ProtonPlayer {
         fileSize,
         onBufferProgress,
         onPlaybackProgress,
+        lastReportedProgress: initialPosition,
       };
 
       clip.on('loadprogress', ({ initialPosition, progress }) =>
@@ -120,7 +121,15 @@ export default class ProtonPlayer {
       this._playbackPositionInterval = setInterval(() => {
         if (clip.duration === 0) return;
         const progress = clip.currentTime / clip.duration;
-        if (progress > 1) return; // Prevent playback progress from exceeding 1 (100%)
+
+        if (
+          progress > 1 || // Prevent playback progress from exceeding 1 (100%)
+          progress < this._currentlyPlaying.lastReportedProgress // Prevent playback progress from going backwards
+        ) {
+          return;
+        }
+
+        this._currentlyPlaying.lastReportedProgress = progress;
         onPlaybackProgress(progress);
       }, 500);
 
@@ -176,6 +185,8 @@ export default class ProtonPlayer {
     if (!this._currentlyPlaying || percent > 1) {
       return;
     }
+
+    this._currentlyPlaying.lastReportedProgress = percent;
 
     const {
       url,
