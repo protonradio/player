@@ -1,16 +1,18 @@
 {
   "name": "rollup-starter-lib",
   "version": "1.0.0",
-  "main": "dist/proton-player.cjs.js",
+  "commonjs": "dist/proton-player.cjs.js",
   "module": "dist/proton-player.esm.js",
   "browser": "dist/proton-player.umd.js",
   "dependencies": {
     "bowser": "^2.9.0"
   },
   "devDependencies": {
+    "@rollup/plugin-node-resolve": "^8.0.1",
+    "@rollup/plugin-typescript": "^4.1.2",
     "rollup": "^2.13.1",
-    "rollup-plugin-commonjs": "^10.1.0",
-    "rollup-plugin-node-resolve": "^5.2.0"
+    "tslib": "^2.0.0",
+    "typescript": "^3.9.5"
   },
   "scripts": {
     "build": "rollup -c",
