@@ -12,7 +12,11 @@ export default class ProtonPlayer {
     debug('ProtonPlayer#constructor');
 
     const browser = Bowser.getParser(window.navigator.userAgent);
-    if (browser.getBrowser().name === 'Safari') {
+    const browserName = browser.getBrowser().name;
+    if (browserName === 'Firefox') {
+      throw new ProtonPlayerError(`${browserName} is not supported.`);
+    }
+    if (browserName === 'Safari') {
       window.MediaSource = undefined;
     }
 
