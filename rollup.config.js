@@ -1,5 +1,5 @@
-import typescript from '@rollup/plugin-typescript';
-import resolve from '@rollup/plugin-node-resolve';
+import resolve from 'rollup-plugin-node-resolve';
+import commonjs from 'rollup-plugin-commonjs';
 import pkg from './package.json';
 
 export default [
@@ -12,16 +12,21 @@ export default [
       format: 'umd',
       sourcemap: true,
     },
-    plugins: [typescript(), resolve()],
+    plugins: [resolve(), commonjs()],
   },
-  // CommonJS (for Node) and ES module (for bundlers) build
+
+  // CommonJS (for Node) and ES module (for bundlers) build.
+  // (We could have three entries in the configuration array
+  // instead of two, but it's quicker to generate multiple
+  // builds from a single configuration where possible, using
+  // an array for the `output` option, where we can specify
+  // `file` and `format` for each target)
   {
     input: 'src/ProtonPlayer.js',
     external: ['bowser'],
     output: [
-      { format: 'es', file: pkg.module },
-      { format: 'cjs', file: pkg.commonjs },
+      { file: pkg.main, format: 'cjs' },
+      { file: pkg.module, format: 'es' },
     ],
-    plugins: [typescript()],
   },
 ];

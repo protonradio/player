@@ -83,7 +83,8 @@
 
       const onError = (err) => console.error(err);
 
-      const baseURL = 'https://media-server-staging-dot-proton-assets.appspot.com';
+      const baseURL =
+        'https://media-server-staging-dot-proton-assets.appspot.com';
 
       const player = new ProtonPlayer({
         silenceURL: `${baseURL}/silence`,
@@ -97,7 +98,8 @@
 
       const audios = [
         {
-          name: 'Track 1 | 96 kbps | Skyscrapers Praveen Achary (Extended Dub Edition)',
+          name:
+            'Track 1 | 96 kbps | Skyscrapers Praveen Achary (Extended Dub Edition)',
           url: `${baseURL}/single?fn=${encodeURIComponent(
             'mp3-96/1144331_322956_Skyscrapers_Praveen_Achary_Extended_Dub_Edition_96k.mp3'
           )}&md5=${encodeURIComponent(
@@ -146,7 +148,8 @@
           preLoadOnHover: false,
         },
         {
-          name: 'Mix 3 | Drumcode Live (2019-09-29) Part 1 - Adam Beyer - DRCD 478',
+          name:
+            'Mix 3 | Drumcode Live (2019-09-29) Part 1 - Adam Beyer - DRCD 478',
           url: `${baseURL}/stream?fn=${encodeURIComponent(
             '1143927_Drumcode_Live_(2019-09-29)_Part_1_-_Adam_Beyer_-_DRCD_478_Live__Connect.mp3'
           )}&md5=${encodeURIComponent(

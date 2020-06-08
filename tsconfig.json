@@ -1,6 +1,0 @@
-{
-  "compilerOptions": {
-    "allowJs": true,
-    "target": "es5"
-  }
-}
