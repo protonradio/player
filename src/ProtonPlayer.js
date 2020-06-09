@@ -21,6 +21,12 @@ export default class ProtonPlayer {
       window.MediaSource = undefined;
     }
 
+    if (window.MediaSource && !window.MediaSource.isTypeSupported('audio/mpeg')) {
+      throw new ProtonPlayerError(
+        `${browserName} does not have decoders for 'audio/mpeg'.`
+      );
+    }
+
     try {
       getContext();
     } catch (e) {
