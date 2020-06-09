@@ -3,6 +3,7 @@ import Bowser from 'bowser';
 import ProtonPlayerError from './ProtonPlayerError';
 import noop from './utils/noop';
 import { debug } from './utils/logger';
+import getContext from './getContext';
 import Loader from './Loader';
 import Clip from './Clip';
 import _ from './init';
@@ -18,6 +19,14 @@ export default class ProtonPlayer {
     }
     if (browserName === 'Safari') {
       window.MediaSource = undefined;
+    }
+
+    try {
+      getContext();
+    } catch (e) {
+      throw new ProtonPlayerError(
+        `${browserName} does not support the AudioContext API.`
+      );
     }
 
     this._onReady = onReady;
