@@ -14,19 +14,26 @@ export default class ProtonPlayer {
 
     const browser = Bowser.getParser(window.navigator.userAgent);
     const browserName = browser.getBrowser().name;
+
+    // Firefox is not supported because it cannot decode MP3 files.
     if (browserName === 'Firefox') {
       throw new ProtonPlayerError(`${browserName} is not supported.`);
     }
+
+    // Safari detects some delay between the user click and the audio playback start with the MediaSource API.
+    // That's why we force Safari to use the AudioContext API.
     if (browserName === 'Safari') {
       window.MediaSource = undefined;
     }
 
+    // Check if the MediaSource API supports decoding MP3s.
     if (window.MediaSource && !window.MediaSource.isTypeSupported('audio/mpeg')) {
       throw new ProtonPlayerError(
         `${browserName} does not have decoders for 'audio/mpeg'.`
       );
     }
 
+    // Check if the AudioContext API can be instantiated.
     try {
       getContext();
     } catch (e) {
