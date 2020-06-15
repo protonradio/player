@@ -200,13 +200,13 @@ export default class Clip extends EventEmitter {
 
   play() {
     if (this.playing) {
-      console.warn(
-        `clip.play() was called on a clip that was already playing (${this.url})`
-      );
-      return;
+      const message = `clip.play() was called on a clip that was already playing (${this.url})`;
+      console.warn(message);
+      return Promise.reject(message);
     }
 
     this.buffer().then(noop).catch(noop);
+    let promise;
 
     if (this._useMediaSource) {
       const self = this;
@@ -216,17 +216,20 @@ export default class Clip extends EventEmitter {
         self._playUsingMediaSource();
       });
       this._audioElement.src = URL.createObjectURL(this._mediaSource);
+      promise = this._audioElement.play();
     } else {
       this._gain = this.context.createGain();
       this._gain.connect(this.context.destination);
       this.context.resume();
       this._playUsingAudioContext();
+      promise = Promise.resolve();
     }
 
     this.volume = this._volume;
     this.playing = true;
     this.ended = false;
     this._fire('play');
+    return promise;
   }
 
   pause() {
@@ -273,10 +276,12 @@ export default class Clip extends EventEmitter {
     const initialChunk = this._getChunkIndexByPosition(position);
     this._seekedChunk = initialChunk;
     this._chunkIndex = initialChunk - this._initialChunk;
+    let promise;
 
     if (this._useMediaSource) {
       this._mediaSource = new MediaSource();
       this._audioElement.src = URL.createObjectURL(this._mediaSource);
+      promise = this._audioElement.play();
       const self = this;
       this._mediaSource.addEventListener('sourceopen', function () {
         self._sourceBuffer = this.addSourceBuffer('audio/mpeg');
@@ -287,12 +292,14 @@ export default class Clip extends EventEmitter {
       this._gain.connect(this.context.destination);
       this.context.resume();
       this._playUsingAudioContext();
+      promise = Promise.resolve();
     }
 
     this.volume = this._volume;
     this.playing = true;
     this.ended = false;
     this._fire('play');
+    return promise;
   }
 
   isPositionLoaded(position = 0) {

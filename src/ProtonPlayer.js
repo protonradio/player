@@ -53,7 +53,7 @@ export default class ProtonPlayer {
 
     if (typeof window.MediaSource !== 'undefined') {
       const audioElement = document.createElement('audio');
-      audioElement.autoplay = true;
+      audioElement.autoplay = false;
 
       document.body.appendChild(audioElement);
 
@@ -114,8 +114,9 @@ export default class ProtonPlayer {
     debug('ProtonPlayer#play');
 
     if (!this._ready) {
-      console.warn('Player not ready');
-      return;
+      const message = 'Player not ready';
+      console.warn(message);
+      return Promise.reject(message);
     }
 
     onBufferProgress(0, 0);
@@ -159,9 +160,10 @@ export default class ProtonPlayer {
         onPlaybackProgress(progress);
       }, 500);
 
-      clip.play();
+      return clip.play() || Promise.resolve();
     } catch (err) {
       this._onError(err);
+      return Promise.reject(err.toString());
     }
   }
 
@@ -224,14 +226,14 @@ export default class ProtonPlayer {
     const clip = this._clips[url];
 
     if (clip && clip.isPositionLoaded(percent)) {
-      clip.setCurrentPosition(percent);
-      return;
+      return clip.setCurrentPosition(percent) || Promise.resolve();
     }
 
     const audioMetadata = clip && clip.audioMetadata;
 
     this.dispose(url);
-    this.play(
+
+    return this.play(
       url,
       fileSize,
       onBufferProgress,
