@@ -8,7 +8,7 @@
     "bowser": "^2.9.0"
   },
   "devDependencies": {
-    "rollup": "^2.15.0",
+    "rollup": "^2.16.1",
     "rollup-plugin-commonjs": "^10.1.0",
     "rollup-plugin-node-resolve": "^5.2.0"
   },
