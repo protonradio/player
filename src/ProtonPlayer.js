@@ -22,25 +22,26 @@ export default class ProtonPlayer {
 
     // Safari detects some delay between the user click and the audio playback start with the MediaSource API.
     // That's why we force Safari to use the AudioContext API.
-    if (browserName === 'Safari') {
-      window.MediaSource = undefined;
-    }
+    // if (browserName === 'Safari') {
+    //   window.MediaSource = undefined;
+    // }
 
     // Check if the MediaSource API supports decoding MP3s.
-    if (window.MediaSource && !window.MediaSource.isTypeSupported('audio/mpeg')) {
-      throw new ProtonPlayerError(
-        `${browserName} does not have decoders for 'audio/mpeg'.`
-      );
-    }
+    // if (window.MediaSource && !window.MediaSource.isTypeSupported('audio/mpeg')) {
+    //   throw new ProtonPlayerError(
+    //     `${browserName} does not have decoders for 'audio/mpeg'.`
+    //   );
+    // }
 
     // Check if the AudioContext API can be instantiated.
-    try {
-      getContext();
-    } catch (e) {
-      throw new ProtonPlayerError(
-        `${browserName} does not support the AudioContext API.`
-      );
-    }
+    console.log('// Check if the AudioContext API can be instantiated. 2');
+    // try {
+    //   getContext();
+    // } catch (e) {
+    //   throw new ProtonPlayerError(
+    //     `${browserName} does not support the AudioContext API.`
+    //   );
+    // }
 
     this._onReady = onReady;
     this._onError = onError;
@@ -279,7 +280,7 @@ export default class ProtonPlayer {
     });
 
     clip.on('playbackerror', (err) => {
-      console.error('Something went wrong during playback', err);
+      console.error('Something went wrong during playback: ' + err.toString());
     });
 
     this._clips[url] = clip;

@@ -4,6 +4,7 @@ window.addEventListener('touchend', init, false);
 // https://paulbakaus.com/tutorials/html5/web-audio-on-ios/
 export default function init() {
   if (inited) return;
+  console.log('INIT!');
   const context = getContext();
   // create a short empty buffer
   const buffer = context.createBuffer(1, 1, 22050);

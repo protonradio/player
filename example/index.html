@@ -83,23 +83,22 @@
 
       const onError = (err) => console.error(err);
 
-      const baseURL =
-        'https://media-server-staging-dot-proton-assets.appspot.com';
+      const baseURL = 'https://media-server-staging-dot-proton-assets.appspot.com';
 
       const player = new ProtonPlayer({
-        silenceURL: `${baseURL}/silence`,
+        // silenceURL: `${baseURL}/silence`,
+        silenceURL: `https://media-server-staging-dot-proton-assets.appspot.com/single?fn=mp3-96%2F1144331_322956_Skyscrapers_Praveen_Achary_Extended_Dub_Edition_96k.mp3&md5=urgwWw4oxEUp6NoCjDeunQ%3D%3D&player_id=1559854170445&token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjozMDMyMjIsInBocGJiX3VzZXIiOnsidXNlcl9hY3RpdmUiOnRydWUsInVzZXJuYW1lIjoiY2hhcmxlc25hdmkiLCJhdXRoZW50aWNhdGlvbl90b2tlbiI6IkJ6WWZpUU53SzdVY0g5TDNGaHBFIiwicHJvdG9uX3N1YnNjcmliZSI6dHJ1ZX0sInVzZXIiOnsiaWQiOjI4NjY4LCJhY2Nlc3NsZXZlbCI6M30sImV4cCI6MTU5NDE1MjcxMywiaWF0IjoxNTk0MDY2MzEzfQ.3-wdTrtRLmAfVIr0OD-OYDCeVpmBtTQAw05PRd5lPXw`,
         volume: getVolume(),
         onReady,
         onError,
       });
 
       const token =
-        'eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjozMDMyMjIsInBocGJiX3VzZXIiOnsidXNlcm5hbWUiOiJjaGFybGVzbmF2aSIsInVzZXJfYWN0aXZlIjp0cnVlLCJhdXRoZW50aWNhdGlvbl90b2tlbiI6IkJ6WWZpUU53SzdVY0g5TDNGaHBFIiwicHJvdG9uX3N1YnNjcmliZSI6dHJ1ZX0sInVzZXIiOnsiaWQiOjI4NjY4LCJhY2Nlc3NsZXZlbCI6M30sImV4cCI6MTU3NDI4NzEzNywiaWF0IjoxNTc0MjAwNzM3fQ.Q8uwslPTqfQV0w2_K13s3k58cj_2zyxzu9ra8gL6yfQ';
+        'eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjozMDMyMjIsInBocGJiX3VzZXIiOnsidXNlcl9hY3RpdmUiOnRydWUsInVzZXJuYW1lIjoiY2hhcmxlc25hdmkiLCJhdXRoZW50aWNhdGlvbl90b2tlbiI6IkJ6WWZpUU53SzdVY0g5TDNGaHBFIiwicHJvdG9uX3N1YnNjcmliZSI6dHJ1ZX0sInVzZXIiOnsiaWQiOjI4NjY4LCJhY2Nlc3NsZXZlbCI6M30sImV4cCI6MTU5NDE1MjcxMywiaWF0IjoxNTk0MDY2MzEzfQ.3-wdTrtRLmAfVIr0OD-OYDCeVpmBtTQAw05PRd5lPXw';
 
       const audios = [
         {
-          name:
-            'Track 1 | 96 kbps | Skyscrapers Praveen Achary (Extended Dub Edition)',
+          name: 'Track 1 | 96 kbps | Skyscrapers Praveen Achary (Extended Dub Edition)',
           url: `${baseURL}/single?fn=${encodeURIComponent(
             'mp3-96/1144331_322956_Skyscrapers_Praveen_Achary_Extended_Dub_Edition_96k.mp3'
           )}&md5=${encodeURIComponent(
@@ -148,8 +147,7 @@
           preLoadOnHover: false,
         },
         {
-          name:
-            'Mix 3 | Drumcode Live (2019-09-29) Part 1 - Adam Beyer - DRCD 478',
+          name: 'Mix 3 | Drumcode Live (2019-09-29) Part 1 - Adam Beyer - DRCD 478',
           url: `${baseURL}/stream?fn=${encodeURIComponent(
             '1143927_Drumcode_Live_(2019-09-29)_Part_1_-_Adam_Beyer_-_DRCD_478_Live__Connect.mp3'
           )}&md5=${encodeURIComponent(
@@ -247,13 +245,13 @@
 
             stopAll([file.url]);
 
-            preLoadAudio(file).then(async () => {
-              for (let i = 0; i < audios.length; i++) {
-                const audio = audios[i];
-                if (audio.url === url) continue;
-                await preLoadAudio(audio);
-              }
-            });
+            // preLoadAudio(file).then(async () => {
+            //   for (let i = 0; i < audios.length; i++) {
+            //     const audio = audios[i];
+            //     if (audio.url === url) continue;
+            //     await preLoadAudio(audio);
+            //   }
+            // });
 
             player.play(url, size, onBufferProgress, onPlaybackProgress, 0);
           };

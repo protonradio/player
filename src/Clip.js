@@ -24,6 +24,8 @@ export default class Clip extends EventEmitter {
     } else {
       this.context = getContext();
       this._gain = this.context.createGain();
+      this._gain.gain.value = 1;
+      console.log('(1) this._gain.gain.value = 1;');
       this._gain.connect(this.context.destination);
     }
 
@@ -219,6 +221,8 @@ export default class Clip extends EventEmitter {
       promise = this._audioElement.play();
     } else {
       this._gain = this.context.createGain();
+      this._gain.gain.value = 1;
+      console.log('(2) this._gain.gain.value = 1;');
       this._gain.connect(this.context.destination);
       this.context.resume();
       this._playUsingAudioContext();
@@ -289,6 +293,8 @@ export default class Clip extends EventEmitter {
       });
     } else {
       this._gain = this.context.createGain();
+      this._gain.gain.value = 1;
+      console.log('(3) this._gain.gain.value = 1;');
       this._gain.connect(this.context.destination);
       this.context.resume();
       this._playUsingAudioContext();
@@ -346,7 +352,9 @@ export default class Clip extends EventEmitter {
     if (this._useMediaSource && this._audioElement) {
       this._audioElement.volume = this._volume;
     } else if (this._gain && this._gain.gain) {
-      this._gain.gain.value = this._volume;
+      // this._gain.gain.value = this._volume;
+      this._gain.gain.value = 1;
+      console.log('(4) this._gain.gain.value = 1;');
     }
   }
 
@@ -381,6 +389,7 @@ export default class Clip extends EventEmitter {
     });
 
     let _playingSilence = !this._isChunkReady(this._chunkIndex);
+    //console.log(`_playingSilence ${_playingSilence}`);
 
     const _chunks = _playingSilence ? this._silenceChunks : this._chunks;
     const i = _playingSilence ? 0 : this._chunkIndex;
@@ -517,6 +526,7 @@ export default class Clip extends EventEmitter {
               : this._chunkIndex;
 
           _playingSilence = !this._isChunkReady(i);
+          //console.log(`(2) _playingSilence ${_playingSilence}`);
 
           if (this.context.currentTime > lastStart) {
             advance();

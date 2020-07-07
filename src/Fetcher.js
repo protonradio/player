@@ -96,7 +96,9 @@ export default class Fetcher {
       },
     };
     return fetch(this.url, options).then((response) => {
+      // return fetchPolyfill(this.url, options).then((response) => {
       if (this._cancelled) return null;
+      // console.log('response.status: ' + response.status);
 
       if (response.status === 429) {
         return new Promise((resolve, reject) => {
@@ -105,6 +107,7 @@ export default class Fetcher {
       }
 
       if (!response.ok) {
+        console.error('RESPONSE ERROR', response.statusText);
         throw new Error(`Bad response (${response.status} – ${response.statusText})`);
       }
 
