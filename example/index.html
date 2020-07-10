@@ -83,11 +83,12 @@
 
       const onError = (err) => console.error(err);
 
-      const baseURL = 'https://media-server-staging-dot-proton-assets.appspot.com';
+      // const baseURL = 'https://proton-assets.appspot.com'; // production
+      const baseURL = 'https://media-server-staging-dot-proton-assets.appspot.com'; // staging
+      // const baseURL = 'http://127.0.0.1:3003'; // development
 
       const player = new ProtonPlayer({
-        // silenceURL: `${baseURL}/silence`,
-        silenceURL: `https://media-server-staging-dot-proton-assets.appspot.com/single?fn=mp3-96%2F1144331_322956_Skyscrapers_Praveen_Achary_Extended_Dub_Edition_96k.mp3&md5=urgwWw4oxEUp6NoCjDeunQ%3D%3D&player_id=1559854170445&token=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjozMDMyMjIsInBocGJiX3VzZXIiOnsidXNlcl9hY3RpdmUiOnRydWUsInVzZXJuYW1lIjoiY2hhcmxlc25hdmkiLCJhdXRoZW50aWNhdGlvbl90b2tlbiI6IkJ6WWZpUU53SzdVY0g5TDNGaHBFIiwicHJvdG9uX3N1YnNjcmliZSI6dHJ1ZX0sInVzZXIiOnsiaWQiOjI4NjY4LCJhY2Nlc3NsZXZlbCI6M30sImV4cCI6MTU5NDE1MjcxMywiaWF0IjoxNTk0MDY2MzEzfQ.3-wdTrtRLmAfVIr0OD-OYDCeVpmBtTQAw05PRd5lPXw`,
+        silenceURL: `${baseURL}/silence`,
         volume: getVolume(),
         onReady,
         onError,
