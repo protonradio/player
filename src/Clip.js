@@ -19,13 +19,12 @@ export default class Clip extends EventEmitter {
     super();
 
     this._useMediaSource = typeof window.MediaSource !== 'undefined';
+
     if (this._useMediaSource) {
       this._audioElement = document.querySelector('audio');
     } else {
       this.context = getContext();
       this._gain = this.context.createGain();
-      this._gain.gain.value = 1;
-      console.log('(1) this._gain.gain.value = 1;');
       this._gain.connect(this.context.destination);
     }
 
@@ -44,6 +43,7 @@ export default class Clip extends EventEmitter {
     this._lastPlayedChunk = null;
     this._tickTimeout = null;
     this._mediaSourceTimeout = null;
+    this._timePlayingSilence = 0;
 
     this._shouldStopBuffering = false;
     this._preBuffering = false;
@@ -84,7 +84,8 @@ export default class Clip extends EventEmitter {
       this.url,
       this.fileSize,
       this._chunks,
-      audioMetadata
+      audioMetadata,
+      this._useMediaSource ? 1 : 4
     );
     this._loader.on('canplaythrough', () => {
       if (this._buffering && !this._preBuffering) {
@@ -221,8 +222,6 @@ export default class Clip extends EventEmitter {
       promise = this._audioElement.play();
     } else {
       this._gain = this.context.createGain();
-      this._gain.gain.value = 1;
-      console.log('(2) this._gain.gain.value = 1;');
       this._gain.connect(this.context.destination);
       this.context.resume();
       this._playUsingAudioContext();
@@ -293,8 +292,6 @@ export default class Clip extends EventEmitter {
       });
     } else {
       this._gain = this.context.createGain();
-      this._gain.gain.value = 1;
-      console.log('(3) this._gain.gain.value = 1;');
       this._gain.connect(this.context.destination);
       this.context.resume();
       this._playUsingAudioContext();
@@ -329,7 +326,10 @@ export default class Clip extends EventEmitter {
     }
 
     return (
-      offset + this._startTime + (this.context.currentTime - this._contextTimeAtStart)
+      offset +
+      this._startTime +
+      (this.context.currentTime - this._contextTimeAtStart) -
+      this._timePlayingSilence
     );
   }
 
@@ -352,9 +352,7 @@ export default class Clip extends EventEmitter {
     if (this._useMediaSource && this._audioElement) {
       this._audioElement.volume = this._volume;
     } else if (this._gain && this._gain.gain) {
-      // this._gain.gain.value = this._volume;
-      this._gain.gain.value = 1;
-      console.log('(4) this._gain.gain.value = 1;');
+      this._gain.gain.value = this._volume;
     }
   }
 
@@ -389,12 +387,13 @@ export default class Clip extends EventEmitter {
     });
 
     let _playingSilence = !this._isChunkReady(this._chunkIndex);
-    //console.log(`_playingSilence ${_playingSilence}`);
 
     const _chunks = _playingSilence ? this._silenceChunks : this._chunks;
     const i = _playingSilence ? 0 : this._chunkIndex;
 
     let chunk = _chunks[i];
+    chunk.isSilence = _playingSilence;
+
     let previousSource;
     let currentSource;
     chunk.createSource(
@@ -406,6 +405,10 @@ export default class Clip extends EventEmitter {
             'Error playing initial chunk because duration is NaN'
           );
           return;
+        }
+
+        if (chunk.isSilence) {
+          this._timePlayingSilence += chunk.duration;
         }
 
         currentSource = source;
@@ -427,9 +430,11 @@ export default class Clip extends EventEmitter {
           }
         }
 
-        this._lastPlayedChunk = _playingSilence ? null : this._chunkIndex;
+        this._lastPlayedChunk =
+          _playingSilence && this._chunkIndex === 0 ? null : this._chunkIndex;
 
         const endGame = () => {
+          if (this.ended) return;
           if (this.context.currentTime >= nextStart) {
             this.pause();
             this._currentTime = 0;
@@ -443,14 +448,24 @@ export default class Clip extends EventEmitter {
         const advance = () => {
           if (!playing) return;
 
-          if (!_playingSilence && this._lastPlayedChunk !== null) {
+          if (!_playingSilence && this._lastPlayedChunk === this._chunkIndex) {
             this._chunkIndex += 1;
+          }
+
+          if (
+            _playingSilence &&
+            this._lastPlayedChunk === this._chunkIndex &&
+            this._chunkIndex + this._initialChunk === this._totalChunksCount - 1
+          ) {
+            endGame();
+            return;
           }
 
           const _chunks = _playingSilence ? this._silenceChunks : this._chunks;
           const i = _playingSilence ? 0 : this._chunkIndex;
 
           chunk = _chunks[i];
+          chunk.isSilence = _playingSilence;
 
           if (!_playingSilence && this._chunkIndex >= this._chunks.length) {
             chunk = null;
@@ -474,6 +489,10 @@ export default class Clip extends EventEmitter {
                   'Error playing chunk because duration is NaN'
                 );
                 return;
+              }
+
+              if (chunk.isSilence) {
+                this._timePlayingSilence += chunk.duration;
               }
 
               if (_playingSilence) this._wasPlayingSilence = true;
@@ -505,7 +524,8 @@ export default class Clip extends EventEmitter {
                 }
               }
 
-              this._lastPlayedChunk = _playingSilence ? null : this._chunkIndex;
+              this._lastPlayedChunk =
+                _playingSilence && this._chunkIndex === 0 ? null : this._chunkIndex;
 
               tick();
             },
@@ -526,7 +546,6 @@ export default class Clip extends EventEmitter {
               : this._chunkIndex;
 
           _playingSilence = !this._isChunkReady(i);
-          //console.log(`(2) _playingSilence ${_playingSilence}`);
 
           if (this.context.currentTime > lastStart) {
             advance();

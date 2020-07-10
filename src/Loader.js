@@ -6,13 +6,13 @@ import parseMetadata from './utils/parseMetadata';
 import getContext from './getContext';
 
 export default class Loader extends EventEmitter {
-  constructor(chunkSize, url, fileSize, chunks, audioMetadata = {}) {
+  constructor(chunkSize, url, fileSize, chunks, audioMetadata = {}, loadBatchSize = 1) {
     super();
     this._chunkSize = chunkSize;
     this._chunks = chunks;
     this._referenceHeader = audioMetadata.referenceHeader;
     this.metadata = audioMetadata.metadata;
-    this._fetcher = new Fetcher(chunkSize, url, fileSize);
+    this._fetcher = new Fetcher(chunkSize, url, fileSize, loadBatchSize);
     this._loadStarted = false;
     this.context = getContext();
     this.buffered = 0;
@@ -37,34 +37,18 @@ export default class Loader extends EventEmitter {
 
       let tempBuffer = new Uint8Array(this._chunkSize * 2);
       let p = 0;
-      // let loadStartTime = Date.now();
-      // let totalLoadedBytes = 0;
+
       const checkCanplaythrough = () => {
         if (this.canplaythrough || !this.length) return;
-        let duration = 0;
-        let bytes = 0;
+
+        let loadedChunksCount = 0;
         for (let chunk of this._chunks) {
-          // if (!chunk.duration) break;
           if (!chunk.duration) continue;
-          duration += chunk.duration;
-          bytes += chunk.raw.length;
-        }
-        if (!duration) return;
-        const scale = this.length / bytes;
-        const estimatedDuration = duration * scale;
-        // const timeNow = Date.now();
-        // const elapsed = timeNow - loadStartTime;
-        // const bitrate = totalLoadedBytes / elapsed;
-        // const estimatedTimeToDownload =
-        //   (1.5 * (this.length - totalLoadedBytes)) / bitrate / 1e3;
-        const estimatedTimeToDownload = 4; // TODO: ???
-        // if we have enough audio that we can start playing now
-        // and finish downloading before we run out, we've
-        // reached canplaythrough
-        const availableAudio = (bytes / this.length) * estimatedDuration;
-        if (availableAudio > estimatedTimeToDownload) {
-          this.canplaythrough = true;
-          this._fire('canplaythrough');
+          if (++loadedChunksCount >= this._fetcher.PRELOAD_BATCH_SIZE) {
+            this.canplaythrough = true;
+            this._fire('canplaythrough');
+            break;
+          }
         }
       };
 
@@ -141,13 +125,11 @@ export default class Loader extends EventEmitter {
             // write new data to buffer
             tempBuffer[p++] = uint8Array[i];
           }
-          // totalLoadedBytes += uint8Array.length;
         },
         onLoad: () => {
           if (p) {
             const lastChunk = drainBuffer();
             lastChunk.attach(null);
-            // totalLoadedBytes += p;
           }
           const firstChunk = this._chunks[0];
           firstChunk.onready(() => {
@@ -159,7 +141,7 @@ export default class Loader extends EventEmitter {
             this._fire('load');
           });
         },
-        onError: (error) => {
+        onError: (error = {}) => {
           error.url = this.url;
           error.phonographCode = 'COULD_NOT_LOAD';
           this._fire('loaderror', error);

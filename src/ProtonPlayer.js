@@ -13,7 +13,8 @@ export default class ProtonPlayer {
     debug('ProtonPlayer#constructor');
 
     const browser = Bowser.getParser(window.navigator.userAgent);
-    const browserName = browser.getBrowser().name;
+    const browserName = browser.getBrowserName();
+    const osName = browser.getOSName(true);
 
     // Firefox is not supported because it cannot decode MP3 files.
     if (browserName === 'Firefox') {
@@ -22,26 +23,25 @@ export default class ProtonPlayer {
 
     // Safari detects some delay between the user click and the audio playback start with the MediaSource API.
     // That's why we force Safari to use the AudioContext API.
-    // if (browserName === 'Safari') {
-    //   window.MediaSource = undefined;
-    // }
+    if (browserName === 'Safari' || osName === 'ios') {
+      window.MediaSource = undefined;
+    }
 
     // Check if the MediaSource API supports decoding MP3s.
-    // if (window.MediaSource && !window.MediaSource.isTypeSupported('audio/mpeg')) {
-    //   throw new ProtonPlayerError(
-    //     `${browserName} does not have decoders for 'audio/mpeg'.`
-    //   );
-    // }
+    if (window.MediaSource && !window.MediaSource.isTypeSupported('audio/mpeg')) {
+      throw new ProtonPlayerError(
+        `${browserName} does not have decoders for 'audio/mpeg'.`
+      );
+    }
 
     // Check if the AudioContext API can be instantiated.
-    console.log('// Check if the AudioContext API can be instantiated. 2');
-    // try {
-    //   getContext();
-    // } catch (e) {
-    //   throw new ProtonPlayerError(
-    //     `${browserName} does not support the AudioContext API.`
-    //   );
-    // }
+    try {
+      getContext();
+    } catch (e) {
+      throw new ProtonPlayerError(
+        `${browserName} does not support the AudioContext API.`
+      );
+    }
 
     this._onReady = onReady;
     this._onError = onError;
