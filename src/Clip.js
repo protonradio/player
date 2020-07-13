@@ -2,6 +2,7 @@ import Loader from './Loader';
 import EventEmitter from './EventEmitter';
 import ProtonPlayerError from './ProtonPlayerError';
 import getContext from './getContext';
+import { warn } from './utils/logger';
 import noop from './utils/noop';
 
 const CHUNK_SIZE = 64 * 1024;
@@ -205,7 +206,7 @@ export default class Clip extends EventEmitter {
   play() {
     if (this.playing) {
       const message = `clip.play() was called on a clip that was already playing (${this.url})`;
-      console.warn(message);
+      warn(message);
       return Promise.reject(message);
     }
 
@@ -374,7 +375,7 @@ export default class Clip extends EventEmitter {
         if (currentSource) currentSource.stop();
       } catch (e) {
         if (e.name === 'InvalidStateError') {
-          console.warn(`Ignored error: ${e.toString()}`);
+          warn(`Ignored error: ${e.toString()}`);
         } else {
           throw e;
         }
@@ -425,7 +426,7 @@ export default class Clip extends EventEmitter {
           source.start(this.context.currentTime);
         } catch (e) {
           if (e.name === 'TypeError') {
-            console.warn(`Ignored error: ${e.toString()}`);
+            warn(`Ignored error: ${e.toString()}`);
           } else {
             throw e;
           }
@@ -519,7 +520,7 @@ export default class Clip extends EventEmitter {
                 gain.gain.setValueAtTime(0, nextStart + OVERLAP);
               } catch (e) {
                 if (e.name === 'TypeError') {
-                  console.warn(`Ignored error: ${e.toString()}`);
+                  warn(`Ignored error: ${e.toString()}`);
                 } else {
                   throw e;
                 }

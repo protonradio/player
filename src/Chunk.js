@@ -1,6 +1,7 @@
-import { slice } from './utils/buffer.js';
-import isFrameHeader from './utils/isFrameHeader.js';
-import getFrameLength from './utils/getFrameLength.js';
+import { error } from './utils/logger';
+import { slice } from './utils/buffer';
+import isFrameHeader from './utils/isFrameHeader';
+import getFrameLength from './utils/getFrameLength';
 
 export default class Chunk {
   constructor({ clip, raw, onready, onerror }) {
@@ -55,7 +56,7 @@ export default class Chunk {
 
   createSource(timeOffset, callback, errback) {
     if (!this.ready) {
-      console.error('Something went wrong! Chunk was not ready in time for playback');
+      error('Something went wrong! Chunk was not ready in time for playback');
       return;
     }
 

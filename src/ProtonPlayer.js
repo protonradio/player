@@ -1,8 +1,8 @@
 import Bowser from 'bowser';
 
 import ProtonPlayerError from './ProtonPlayerError';
+import { debug, warn, error } from './utils/logger';
 import noop from './utils/noop';
-import { debug } from './utils/logger';
 import getContext from './getContext';
 import Loader from './Loader';
 import Clip from './Clip';
@@ -116,7 +116,7 @@ export default class ProtonPlayer {
 
     if (!this._ready) {
       const message = 'Player not ready';
-      console.warn(message);
+      warn(message);
       return Promise.reject(message);
     }
 
@@ -276,11 +276,11 @@ export default class ProtonPlayer {
     });
 
     clip.on('loaderror', (err) => {
-      console.error('Clip failed to load', err);
+      error('Clip failed to load', err);
     });
 
     clip.on('playbackerror', (err) => {
-      console.error('Something went wrong during playback: ' + err.toString());
+      error('Something went wrong during playback: ' + err.toString());
     });
 
     this._clips[url] = clip;
