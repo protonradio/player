@@ -101,8 +101,7 @@ export default class Fetcher {
   }
 
   _loadFragment(retryCount = 0) {
-    const chunkNumber = Math.round(this._nextChunkEnd / this.chunkSize);
-    debug(`Fetching chunk ${chunkNumber}...`);
+    debug(`Fetching chunk...`);
     const options = {
       headers: {
         range: `${this._nextChunkStart}-${this._nextChunkEnd}`,
@@ -130,8 +129,8 @@ export default class Fetcher {
             throw new Error(`Chunk fetch failed after ${retryCount} retries`);
           }
           const message = timedOut
-            ? `Timed out fetching chunk ${chunkNumber}`
-            : `Too many requests when fetching chunk ${chunkNumber}`;
+            ? `Timed out fetching chunk`
+            : `Too many requests when fetching chunk`;
           debug(`${message}. Retrying...`);
           const timeout = timedOut ? this._seconds(retryCount) : this._seconds(10); // TODO: use `X-RateLimit-Reset` header if error was "tooManyRequests"
           return this._sleep(timeout)
@@ -141,7 +140,7 @@ export default class Fetcher {
             });
         }
 
-        debug(`Unexpected error when fetching chunk ${chunkNumber}`);
+        debug(`Unexpected error when fetching chunk`);
         throw error;
       });
   }
