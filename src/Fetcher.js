@@ -75,12 +75,12 @@ export default class Fetcher {
   }
 
   _load() {
-    const startTime = Date.now();
     const promises = this._loadBatch(this.loadBatchSize);
-
     if (promises.length === 0) {
       return Promise.resolve();
     }
+
+    const startTime = Date.now();
 
     return Promise.all(promises)
       .then((values) => {
