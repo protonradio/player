@@ -16,9 +16,13 @@ export default class Clip extends EventEmitter {
     silenceChunks = [],
     volume = 1,
     audioMetadata = {},
+    osName,
+    browserName,
   }) {
     super();
 
+    this.osName = osName;
+    this.browserName = browserName;
     this._useMediaSource = typeof window.MediaSource !== 'undefined';
 
     if (this._useMediaSource) {
@@ -211,6 +215,7 @@ export default class Clip extends EventEmitter {
     }
 
     this.buffer().then(noop).catch(noop);
+    this._timePlayingSilence = 0;
     let promise;
 
     if (this._useMediaSource) {
@@ -269,6 +274,8 @@ export default class Clip extends EventEmitter {
   }
 
   setCurrentPosition(position = 0) {
+    this._timePlayingSilence = 0;
+
     if (this._useMediaSource) {
       this._pauseUsingMediaSource();
     } else {
@@ -324,7 +331,7 @@ export default class Clip extends EventEmitter {
       (this._loader ? this._loader.firstChunkDuration : 0);
 
     if (this._useMediaSource) {
-      return this._audioElement.currentTime + offset;
+      return this._audioElement.currentTime + offset - this._timePlayingSilence;
     }
 
     return (
@@ -503,6 +510,7 @@ export default class Clip extends EventEmitter {
                 stopSources();
                 this._contextTimeAtStart = this.context.currentTime;
                 nextStart = this.context.currentTime;
+                // TODO: should `this._timePlayingSilence = 0;` here?
               }
 
               previousSource = currentSource;
@@ -573,7 +581,7 @@ export default class Clip extends EventEmitter {
     );
   }
 
-  _playUsingMediaSource() {
+  _playUsingMediaSource(scheduledAt = 0, scheduledTimeout = 0) {
     if (!this.playing) return;
 
     if (this._chunkIndex + this._initialChunk >= this._totalChunksCount) {
@@ -581,11 +589,23 @@ export default class Clip extends EventEmitter {
       return;
     }
 
-    if (this._isChunkReady(this._chunkIndex)) {
-      const chunk = this._chunks[this._chunkIndex];
+    const isChunkReady = this._isChunkReady(this._chunkIndex);
+
+    const useSilence =
+      !isChunkReady && (this.browserName === 'safari' || this.osName === 'ios');
+
+    const chunk = useSilence
+      ? this._silenceChunks[0]
+      : isChunkReady && this._chunks[this._chunkIndex];
+
+    if (chunk) {
       try {
         this._sourceBuffer.appendBuffer(chunk.raw);
-        this._chunkIndex += 1;
+        if (useSilence) {
+          this._timePlayingSilence += chunk.duration;
+        } else if (isChunkReady) {
+          this._chunkIndex += 1;
+        }
       } catch (e) {
         // SourceBuffer might be full, remove segments that have already been played.
         if (!this._sourceBuffer.updating) {
@@ -594,7 +614,20 @@ export default class Clip extends EventEmitter {
       }
     }
 
-    this._mediaSourceTimeout = setTimeout(this._playUsingMediaSource.bind(this), 500);
+    const timeoutDiff =
+      scheduledAt >= 0 && scheduledTimeout >= 0
+        ? Math.max(Date.now() - scheduledAt - scheduledTimeout, 0)
+        : 0;
+
+    const timeout =
+      chunk && typeof chunk.duration === 'number' && chunk.duration > 0
+        ? Math.max(chunk.duration * 1000 - 50 - timeoutDiff, 0)
+        : 500;
+
+    this._mediaSourceTimeout = setTimeout(
+      this._playUsingMediaSource.bind(this, Date.now(), timeout),
+      timeout
+    );
   }
 
   _pauseUsingMediaSource() {

@@ -13,24 +13,18 @@ export default class ProtonPlayer {
     debug('ProtonPlayer#constructor');
 
     const browser = Bowser.getParser(window.navigator.userAgent);
-    const browserName = browser.getBrowserName();
-    const osName = browser.getOSName(true);
+    this.browserName = browser.getBrowserName().toLowerCase();
+    this.osName = browser.getOSName().toLowerCase();
 
     // Firefox is not supported because it cannot decode MP3 files.
-    if (browserName === 'Firefox') {
-      throw new ProtonPlayerError(`${browserName} is not supported.`);
-    }
-
-    // Safari detects some delay between the user click and the audio playback start with the MediaSource API.
-    // That's why we force Safari to use the AudioContext API.
-    if (browserName === 'Safari' || osName === 'ios') {
-      window.MediaSource = undefined;
+    if (this.browserName === 'firefox') {
+      throw new ProtonPlayerError(`${this.browserName} is not supported.`);
     }
 
     // Check if the MediaSource API supports decoding MP3s.
     if (window.MediaSource && !window.MediaSource.isTypeSupported('audio/mpeg')) {
       throw new ProtonPlayerError(
-        `${browserName} does not have decoders for 'audio/mpeg'.`
+        `${this.browserName} does not have decoders for 'audio/mpeg'.`
       );
     }
 
@@ -39,7 +33,7 @@ export default class ProtonPlayer {
       getContext();
     } catch (e) {
       throw new ProtonPlayerError(
-        `${browserName} does not support the AudioContext API.`
+        `${this.browserName} does not support the AudioContext API.`
       );
     }
 
@@ -63,38 +57,33 @@ export default class ProtonPlayer {
           this._clips[k].playbackEnded();
         });
       });
-
-      setTimeout(() => {
-        this._ready = true;
-        this._onReady();
-      });
-    } else {
-      if (!silenceURL) {
-        throw new Error(
-          'The `silenceURL` argument is required for using the AudioContext API backend'
-        );
-      }
-      const silenceChunkSize = 64 * 64;
-      const silenceLoader = new Loader(
-        silenceChunkSize,
-        silenceURL,
-        silenceChunkSize,
-        this._silenceChunks
-      );
-      silenceLoader.on('loaderror', (err) => {
-        this._ready = false;
-        this._onError(err);
-      });
-      silenceLoader.on('load', () => {
-        this._ready = true;
-        this._onReady();
-      });
-      silenceLoader.buffer(true);
     }
+
+    if (!silenceURL) {
+      throw new Error(
+        'The `silenceURL` argument is required for using the AudioContext API backend'
+      );
+    }
+    const silenceChunkSize = 64 * 64;
+    const silenceLoader = new Loader(
+      silenceChunkSize,
+      silenceURL,
+      silenceChunkSize,
+      this._silenceChunks
+    );
+    silenceLoader.on('loaderror', (err) => {
+      this._ready = false;
+      this._onError(err);
+    });
+    silenceLoader.on('load', () => {
+      this._ready = true;
+      this._onReady();
+    });
+    silenceLoader.buffer(true);
   }
 
   preLoad(url, fileSize, initialPosition = 0) {
-    debug('ProtonPlayer#preLoad');
+    debug('ProtonPlayer#preLoad', url);
 
     try {
       return this._getClip(url, fileSize, initialPosition).preBuffer();
@@ -112,7 +101,7 @@ export default class ProtonPlayer {
     initialPosition = 0,
     audioMetadata = {}
   ) {
-    debug('ProtonPlayer#play');
+    debug('ProtonPlayer#play', url);
 
     if (!this._ready) {
       const message = 'Player not ready';
@@ -159,7 +148,7 @@ export default class ProtonPlayer {
 
         this._currentlyPlaying.lastReportedProgress = progress;
         onPlaybackProgress(progress);
-      }, 500);
+      }, 250);
 
       return clip.play() || Promise.resolve();
     } catch (err) {
@@ -180,7 +169,7 @@ export default class ProtonPlayer {
   }
 
   dispose(url) {
-    debug('ProtonPlayer#dispose');
+    debug('ProtonPlayer#dispose', url);
 
     if (this._currentlyPlaying && this._currentlyPlaying.url === url) {
       this._currentlyPlaying = null;
@@ -201,7 +190,7 @@ export default class ProtonPlayer {
   }
 
   disposeAllExcept(urls = []) {
-    debug('ProtonPlayer#disposeAllExcept');
+    debug('ProtonPlayer#disposeAllExcept', urls);
 
     Object.keys(this._clips)
       .filter((k) => urls.indexOf(k) < 0)
@@ -209,7 +198,7 @@ export default class ProtonPlayer {
   }
 
   setPlaybackPosition(percent) {
-    debug('ProtonPlayer#setPlaybackPosition');
+    debug('ProtonPlayer#setPlaybackPosition', percent);
 
     if (!this._currentlyPlaying || percent > 1) {
       return;
@@ -245,7 +234,7 @@ export default class ProtonPlayer {
   }
 
   setVolume(volume = 1) {
-    debug('ProtonPlayer#setVolume');
+    debug('ProtonPlayer#setVolume', volume);
 
     this._volume = volume;
     Object.keys(this._clips).forEach((k) => {
@@ -270,9 +259,11 @@ export default class ProtonPlayer {
       url,
       fileSize,
       initialPosition,
+      audioMetadata,
       silenceChunks: this._silenceChunks,
       volume: this._volume,
-      audioMetadata,
+      osName: this.osName,
+      browserName: this.browserName,
     });
 
     clip.on('loaderror', (err) => {
