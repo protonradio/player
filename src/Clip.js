@@ -2,11 +2,12 @@ import Loader from './Loader';
 import EventEmitter from './EventEmitter';
 import ProtonPlayerError from './ProtonPlayerError';
 import getContext from './getContext';
-import { warn } from './utils/logger';
+import { debug, error, warn } from './utils/logger';
 import noop from './utils/noop';
 
 const CHUNK_SIZE = 64 * 1024;
 const OVERLAP = 0.2;
+const TIMEOUT_SAFE_OFFSET = 50;
 
 export default class Clip extends EventEmitter {
   constructor({
@@ -35,7 +36,6 @@ export default class Clip extends EventEmitter {
 
     this.length = 0;
     this.loaded = false;
-    this.canplaythrough = false;
     this.playing = false;
     this.ended = false;
     this._currentTime = 0;
@@ -201,7 +201,6 @@ export default class Clip extends EventEmitter {
     this._buffering = false;
     this._buffered = false;
     this.loaded = false;
-    this.canplaythrough = false;
     this._currentTime = 0;
     this._chunks = [];
     this._fire('dispose');
@@ -371,9 +370,8 @@ export default class Clip extends EventEmitter {
   }
 
   _playUsingAudioContext() {
-    let time = 0;
     this._startTime = this._currentTime;
-    const timeOffset = this._currentTime - time;
+    const timeOffset = this._currentTime;
     let playing = true;
 
     const stopSources = () => {
@@ -395,7 +393,8 @@ export default class Clip extends EventEmitter {
       pauseListener.cancel();
     });
 
-    let _playingSilence = !this._isChunkReady(this._chunkIndex);
+    let _playingSilence =
+      !this._isChunkReady(this._chunkIndex) || !this._loader.canPlayThrough;
 
     const _chunks = _playingSilence ? this._silenceChunks : this._chunks;
     const i = _playingSilence ? 0 : this._chunkIndex;
@@ -405,6 +404,7 @@ export default class Clip extends EventEmitter {
 
     let previousSource;
     let currentSource;
+
     chunk.createSource(
       timeOffset,
       (source) => {
@@ -416,21 +416,25 @@ export default class Clip extends EventEmitter {
           return;
         }
 
-        if (chunk.isSilence) {
-          this._timePlayingSilence += chunk.duration;
-        }
+        // if (chunk.isSilence) {
+        //   this._timePlayingSilence += chunk.duration;
+        // }
+
+        source.loop = chunk.isSilence;
 
         currentSource = source;
-        this._contextTimeAtStart = this.context.currentTime;
-        let lastStart = this._contextTimeAtStart;
-        let nextStart = this._contextTimeAtStart + (chunk.duration - timeOffset);
+        let nextStart;
 
         try {
           const gain = this.context.createGain();
           gain.connect(this._gain);
+
+          this._contextTimeAtStart = this.context.currentTime;
+          nextStart = this._contextTimeAtStart + (chunk.duration - timeOffset);
+
           gain.gain.setValueAtTime(0, nextStart + OVERLAP);
           source.connect(gain);
-          source.start(this.context.currentTime);
+          source.start(this._contextTimeAtStart);
         } catch (e) {
           if (e.name === 'TypeError') {
             warn(`Ignored error: ${e.toString()}`);
@@ -500,17 +504,19 @@ export default class Clip extends EventEmitter {
                 return;
               }
 
-              if (chunk.isSilence) {
-                this._timePlayingSilence += chunk.duration;
-              }
+              // if (chunk.isSilence) {
+              //   this._timePlayingSilence += chunk.duration;
+              // }
 
-              if (_playingSilence) this._wasPlayingSilence = true;
+              source.loop = chunk.isSilence;
+
               if (this._wasPlayingSilence && !_playingSilence) {
                 this._wasPlayingSilence = false;
                 stopSources();
+                this._timePlayingSilence =
+                  this.context.currentTime - this._contextTimeAtStart;
                 this._contextTimeAtStart = this.context.currentTime;
                 nextStart = this.context.currentTime;
-                // TODO: should `this._timePlayingSilence = 0;` here?
               }
 
               previousSource = currentSource;
@@ -523,7 +529,6 @@ export default class Clip extends EventEmitter {
                 gain.gain.setValueAtTime(1, nextStart + OVERLAP);
                 source.connect(gain);
                 source.start(nextStart);
-                lastStart = nextStart;
                 nextStart += chunk.duration;
                 gain.gain.setValueAtTime(0, nextStart + OVERLAP);
               } catch (e) {
@@ -536,8 +541,6 @@ export default class Clip extends EventEmitter {
 
               this._lastPlayedChunk =
                 _playingSilence && this._chunkIndex === 0 ? null : this._chunkIndex;
-
-              tick();
             },
             (error) => {
               error.url = this.url;
@@ -547,7 +550,7 @@ export default class Clip extends EventEmitter {
           );
         };
 
-        const tick = () => {
+        const tick = (scheduledAt = 0, scheduledTimeout = 0) => {
           if (!this.playing) return;
 
           const i =
@@ -555,13 +558,20 @@ export default class Clip extends EventEmitter {
               ? this._chunkIndex + 1
               : this._chunkIndex;
 
-          _playingSilence = !this._isChunkReady(i);
+          _playingSilence = !this._isChunkReady(i) || !this._loader.canPlayThrough;
 
-          if (this.context.currentTime > lastStart) {
-            advance();
+          if (_playingSilence) {
+            this._wasPlayingSilence = true;
+            this._timePlayingSilence =
+              this.context.currentTime - this._contextTimeAtStart;
           } else {
-            this._tickTimeout = setTimeout(tick, 500);
+            advance();
           }
+
+          const timeout = _playingSilence
+            ? 100
+            : this._calculateNextChunkTimeout(i, scheduledAt, scheduledTimeout);
+          this._tickTimeout = setTimeout(tick.bind(this, Date.now(), timeout), timeout);
         };
 
         const frame = () => {
@@ -608,21 +618,22 @@ export default class Clip extends EventEmitter {
         }
       } catch (e) {
         // SourceBuffer might be full, remove segments that have already been played.
-        if (!this._sourceBuffer.updating) {
-          this._sourceBuffer.remove(0, this._audioElement.currentTime);
+        error('Exception when running SourceBuffer#appendBuffer', e);
+        try {
+          if (!this._sourceBuffer.updating) {
+            this._sourceBuffer.remove(0, this._audioElement.currentTime);
+          }
+        } catch (e) {
+          error('Exception when running SourceBuffer#remove', e);
         }
       }
     }
 
-    const timeoutDiff =
-      scheduledAt >= 0 && scheduledTimeout >= 0
-        ? Math.max(Date.now() - scheduledAt - scheduledTimeout, 0)
-        : 0;
-
-    const timeout =
-      chunk && typeof chunk.duration === 'number' && chunk.duration > 0
-        ? Math.max(chunk.duration * 1000 - 50 - timeoutDiff, 0)
-        : 500;
+    const timeout = this._calculateNextChunkTimeout(
+      this._chunkIndex,
+      scheduledAt,
+      scheduledTimeout
+    );
 
     this._mediaSourceTimeout = setTimeout(
       this._playUsingMediaSource.bind(this, Date.now(), timeout),
@@ -661,6 +672,25 @@ export default class Clip extends EventEmitter {
       index < this._chunks.length &&
       this._chunks[index].ready === true &&
       Number.isNaN(this._chunks[index].duration) === false
+    );
+  }
+
+  _calculateNextChunkTimeout(chunkIndex = 0, scheduledAt = 0, scheduledTimeout = 0) {
+    const playingSilence = !this._isChunkReady(chunkIndex);
+    const chunk = playingSilence ? this._silenceChunks[0] : this._chunks[chunkIndex];
+    const timeoutDiff = this._calculateTimeoutDiff(scheduledAt, scheduledTimeout);
+    return chunk && typeof chunk.duration === 'number' && chunk.duration > 0
+      ? Math.max(chunk.duration * 1000 - TIMEOUT_SAFE_OFFSET - timeoutDiff, 0)
+      : 500;
+  }
+
+  _calculateTimeoutDiff(scheduledAt = 0, scheduledTimeout = 0) {
+    if (scheduledAt === 0 && scheduledTimeout === 0) {
+      return TIMEOUT_SAFE_OFFSET;
+    }
+    return Math.max(
+      Date.now() - Math.max(scheduledAt, 0) - Math.max(scheduledTimeout, 0),
+      0
     );
   }
 }

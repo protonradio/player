@@ -2,6 +2,7 @@ import Chunk from './Chunk';
 import EventEmitter from './EventEmitter';
 import Fetcher from './Fetcher';
 import { slice } from './utils/buffer';
+import { debug } from './utils/logger';
 import parseMetadata from './utils/parseMetadata';
 import getContext from './getContext';
 
@@ -14,6 +15,7 @@ export default class Loader extends EventEmitter {
     this.metadata = audioMetadata.metadata;
     this._fetcher = new Fetcher(chunkSize, url, fileSize, loadBatchSize);
     this._loadStarted = false;
+    this._canPlayThrough = false;
     this.context = getContext();
     this.buffered = 0;
     this.firstChunkDuration = 0;
@@ -26,6 +28,10 @@ export default class Loader extends EventEmitter {
     };
   }
 
+  get canPlayThrough() {
+    return this._canPlayThrough;
+  }
+
   cancel() {
     this._fetcher.cancel();
     this._loadStarted = false;
@@ -34,36 +40,33 @@ export default class Loader extends EventEmitter {
   buffer(bufferToCompletion = false, preloadOnly = false, initialByte = 0) {
     if (!this._loadStarted) {
       this._loadStarted = !preloadOnly;
-
-      let tempBuffer = new Uint8Array(this._chunkSize * 2);
-      let p = 0;
+      this._canPlayThrough = false;
 
       const checkCanplaythrough = () => {
-        if (this.canplaythrough || !this.length) return;
+        if (this._canPlayThrough || !this.length) return;
 
         let loadedChunksCount = 0;
         for (let chunk of this._chunks) {
-          if (!chunk.duration) continue;
+          if (!chunk.duration) break;
           if (++loadedChunksCount >= this._fetcher.PRELOAD_BATCH_SIZE) {
-            this.canplaythrough = true;
+            this._canPlayThrough = true;
             this._fire('canplaythrough');
+            debug('Can play through');
             break;
           }
         }
       };
 
-      const drainBuffer = () => {
-        const isFirstChunk = this._chunks.length === 0;
-        const firstByte = isFirstChunk ? 32 : 0;
+      const drainBuffer = (uint8Array) => {
         const chunk = new Chunk({
           clip: {
             context: this.context,
             metadata: this.metadata,
             _referenceHeader: this._referenceHeader,
           },
-          raw: slice(tempBuffer, firstByte, p),
+          raw: slice(uint8Array, 0, uint8Array.length),
           onready: () => {
-            if (!this.canplaythrough) {
+            if (!this._canPlayThrough) {
               checkCanplaythrough();
             }
             if (!this.firstChunkDuration) {
@@ -80,9 +83,9 @@ export default class Loader extends EventEmitter {
         const lastChunk = this._chunks[this._chunks.length - 1];
         if (lastChunk) lastChunk.attach(chunk);
         this._chunks.push(chunk);
-        p = 0;
         return chunk;
       };
+
       this._fetcher.load({
         preloadOnly,
         initialByte,
@@ -116,25 +119,17 @@ export default class Loader extends EventEmitter {
               }
             }
           }
-          for (let i = 0; i < uint8Array.length; i += 1) {
-            // once the buffer is large enough, wait for
-            // the next frame header then drain it
-            if (p >= this._chunkSize) {
-              drainBuffer();
-            }
-            // write new data to buffer
-            tempBuffer[p++] = uint8Array[i];
-          }
+          drainBuffer(uint8Array);
         },
-        onLoad: () => {
-          if (p) {
-            const lastChunk = drainBuffer();
+        onLoad: (uint8Array) => {
+          if (uint8Array.length > 0) {
+            const lastChunk = drainBuffer(uint8Array);
             lastChunk.attach(null);
           }
           const firstChunk = this._chunks[0];
           firstChunk.onready(() => {
-            if (!this.canplaythrough) {
-              this.canplaythrough = true;
+            if (!this._canPlayThrough) {
+              this._canPlayThrough = true;
               this._fire('canplaythrough');
             }
             this.loaded = true;
@@ -150,7 +145,7 @@ export default class Loader extends EventEmitter {
       });
     }
     return new Promise((fulfil, reject) => {
-      const ready = preloadOnly ? this.canplaythrough : this.loaded;
+      const ready = preloadOnly ? this._canPlayThrough : this.loaded;
       if (ready) {
         fulfil();
       } else {

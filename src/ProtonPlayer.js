@@ -37,6 +37,11 @@ export default class ProtonPlayer {
       );
     }
 
+    // window.MediaSource = undefined; // TODO: delete
+    const usingMediaSource =
+      window.MediaSource && window.MediaSource.isTypeSupported('audio/mpeg');
+    debug(`Using ${usingMediaSource ? 'MediaSource' : 'AudioContext'} API`);
+
     this._onReady = onReady;
     this._onError = onError;
     this._volume = volume;

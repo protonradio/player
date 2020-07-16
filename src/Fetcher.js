@@ -51,7 +51,7 @@ export default class Fetcher {
     this._onProgress(uint8Array.length, this.fileSize);
     this._fullyLoaded = this._totalLoaded >= this.fileSize;
     if (this._fullyLoaded) {
-      this._onLoad();
+      this._onLoad(uint8Array);
     }
   }
 
