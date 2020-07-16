@@ -1,13 +1,13 @@
 import axios, { CancelToken, Cancel } from 'axios';
 import { debug } from './utils/logger';
 import noop from './utils/noop';
+import DecodingError from './DecodingError';
+
+const SLEEP_CANCELLED = 'SLEEP_CANCELLED';
+const PRELOAD_BATCH_SIZE = 4;
 
 export default class Fetcher {
   constructor(chunkSize, url, fileSize, loadBatchSize = 1) {
-    // TODO: the following 2 properties should be static (need to configure translation to ES5 for UMD build)
-    this.SLEEP_CANCELLED = 'SLEEP_CANCELLED';
-    this.PRELOAD_BATCH_SIZE = 4;
-
     this.chunkSize = chunkSize;
     this.url = url;
     this.fileSize = fileSize;
@@ -26,46 +26,56 @@ export default class Fetcher {
     this._sleepOnCancel && this._sleepOnCancel();
   }
 
-  load({ preloadOnly = false, initialByte = 0, onProgress, onData, onLoad, onError }) {
+  load({
+    preloadOnly = false,
+    initialByte = 0,
+    onProgress,
+    onData,
+    onLoad,
+    onError,
+    createChunk,
+  }) {
     this._totalLoaded = this._totalLoaded || initialByte;
     this._nextChunkStart = this._nextChunkStart || initialByte;
     this._onProgress = onProgress || noop;
     this._onData = onData || noop;
     this._onLoad = onLoad || noop;
     this._onError = onError || noop;
+    this._createChunk = createChunk || noop;
     this._cancelled = false;
     this._preLoad()
-      .then((values) => {
-        values.forEach((uint8Array) => this._handleChunk(uint8Array));
+      .then((chunks) => {
+        chunks.forEach((chunk) => this._handleChunk(chunk));
         if (this._fullyLoaded || preloadOnly) return;
         this._load();
       })
       .catch(this._onError);
   }
 
-  _handleChunk(uint8Array) {
+  _handleChunk(chunk) {
+    const uint8Array = chunk.raw;
     if (!uint8Array || uint8Array.length === 0) return;
 
     this._totalLoaded += uint8Array.length;
-    this._onData(uint8Array);
+    this._onData(chunk);
     this._onProgress(uint8Array.length, this.fileSize);
     this._fullyLoaded = this._totalLoaded >= this.fileSize;
     if (this._fullyLoaded) {
-      this._onLoad(uint8Array);
+      this._onLoad(chunk);
     }
   }
 
   _preLoad() {
-    if (this._preloading || this._preloaded) return Promise.resolve(new Uint8Array([]));
+    if (this._preloading || this._preloaded) return Promise.resolve([]);
 
     this._preloading = true;
-    const promises = this._loadBatch(this.PRELOAD_BATCH_SIZE);
+    const promises = this._loadBatch(PRELOAD_BATCH_SIZE);
 
     return Promise.all(promises)
-      .then((values) => {
+      .then((chunks) => {
         this._preloaded = true;
         this._preloading = false;
-        return values;
+        return chunks;
       })
       .catch((err) => {
         this._preloaded = false;
@@ -83,9 +93,9 @@ export default class Fetcher {
     const startTime = Date.now();
 
     return Promise.all(promises)
-      .then((values) => {
+      .then((chunks) => {
         if (this._cancelled) return;
-        values.forEach((uint8Array) => this._handleChunk(uint8Array));
+        chunks.forEach((chunk) => this._handleChunk(chunk));
         if (!this._fullyLoaded) {
           this._advanceStart();
           const timeout =
@@ -93,18 +103,18 @@ export default class Fetcher {
           return this._sleep(timeout)
             .then(() => this._load())
             .catch((err) => {
-              if (err !== this.SLEEP_CANCELLED) throw err;
+              if (err !== SLEEP_CANCELLED) throw err;
             });
         }
       })
       .catch(this._onError);
   }
 
-  _loadFragment(retryCount = 0) {
+  _loadFragment(start, end, retryCount = 0) {
     debug(`Fetching chunk...`);
     const options = {
       headers: {
-        range: `${this._nextChunkStart}-${this._nextChunkEnd}`,
+        range: `${start}-${end}`,
       },
       timeout: this._seconds(5),
       responseType: 'arraybuffer',
@@ -117,26 +127,30 @@ export default class Fetcher {
         if (!(response.data instanceof ArrayBuffer)) {
           throw new Error('Bad response body');
         }
-        return new Uint8Array(response.data);
+        const uint8Array = new Uint8Array(response.data);
+        return this._createChunk(uint8Array);
       })
       .catch((error) => {
         if (error instanceof Cancel) return;
 
         const timedOut = error.code === 'ECONNABORTED';
+        const decodingError = error instanceof DecodingError;
         const tooManyRequests = error.response && error.response.status === 429;
-        if (timedOut || tooManyRequests) {
+        if (timedOut || decodingError || tooManyRequests) {
           if (retryCount >= 10) {
-            throw new Error(`Chunk fetch failed after ${retryCount} retries`);
+            throw new Error(`Chunk fetch/decode failed after ${retryCount} retries`);
           }
           const message = timedOut
             ? `Timed out fetching chunk`
+            : decodingError
+            ? `Decoding error when creating chunk`
             : `Too many requests when fetching chunk`;
           debug(`${message}. Retrying...`);
-          const timeout = timedOut ? this._seconds(retryCount) : this._seconds(10); // TODO: use `X-RateLimit-Reset` header if error was "tooManyRequests"
+          const timeout = tooManyRequests ? this._seconds(10) : this._seconds(retryCount); // TODO: use `X-RateLimit-Reset` header if error was "tooManyRequests"
           return this._sleep(timeout)
-            .then(() => this._loadFragment(retryCount + 1))
+            .then(() => this._loadFragment(start, end, retryCount + 1))
             .catch((err) => {
-              if (err !== this.SLEEP_CANCELLED) throw err;
+              if (err !== SLEEP_CANCELLED) throw err;
             });
         }
 
@@ -153,7 +167,7 @@ export default class Fetcher {
         break;
       }
       this._advanceEnd();
-      promises.push(this._loadFragment());
+      promises.push(this._loadFragment(this._nextChunkStart, this._nextChunkEnd));
       this._advanceStart();
     }
     return promises;
@@ -181,7 +195,7 @@ export default class Fetcher {
       debug(`Sleeping for ${timeout}ms...`);
       const sleepTimeout = setTimeout(resolve, timeout);
       this._sleepOnCancel = () => {
-        reject(this.SLEEP_CANCELLED);
+        reject(SLEEP_CANCELLED);
         clearTimeout(sleepTimeout);
       };
     });

@@ -393,8 +393,7 @@ export default class Clip extends EventEmitter {
       pauseListener.cancel();
     });
 
-    let _playingSilence =
-      !this._isChunkReady(this._chunkIndex) || !this._loader.canPlayThrough;
+    let _playingSilence = !this._isChunkReady(this._chunkIndex);
 
     const _chunks = _playingSilence ? this._silenceChunks : this._chunks;
     const i = _playingSilence ? 0 : this._chunkIndex;
@@ -513,8 +512,8 @@ export default class Clip extends EventEmitter {
               if (this._wasPlayingSilence && !_playingSilence) {
                 this._wasPlayingSilence = false;
                 stopSources();
-                this._timePlayingSilence =
-                  this.context.currentTime - this._contextTimeAtStart;
+                // this._timePlayingSilence =
+                //   this.context.currentTime - this._contextTimeAtStart;
                 this._contextTimeAtStart = this.context.currentTime;
                 nextStart = this.context.currentTime;
               }
@@ -558,12 +557,12 @@ export default class Clip extends EventEmitter {
               ? this._chunkIndex + 1
               : this._chunkIndex;
 
-          _playingSilence = !this._isChunkReady(i) || !this._loader.canPlayThrough;
+          _playingSilence = !this._isChunkReady(i);
 
           if (_playingSilence) {
             this._wasPlayingSilence = true;
-            this._timePlayingSilence =
-              this.context.currentTime - this._contextTimeAtStart;
+            // this._timePlayingSilence =
+            //   this.context.currentTime - this._contextTimeAtStart;
           } else {
             advance();
           }
@@ -612,7 +611,7 @@ export default class Clip extends EventEmitter {
       try {
         this._sourceBuffer.appendBuffer(chunk.raw);
         if (useSilence) {
-          this._timePlayingSilence += chunk.duration;
+          // this._timePlayingSilence += chunk.duration;
         } else if (isChunkReady) {
           this._chunkIndex += 1;
         }

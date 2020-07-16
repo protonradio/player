@@ -28,10 +28,6 @@ export default class Loader extends EventEmitter {
     };
   }
 
-  get canPlayThrough() {
-    return this._canPlayThrough;
-  }
-
   cancel() {
     this._fetcher.cancel();
     this._loadStarted = false;
@@ -44,7 +40,6 @@ export default class Loader extends EventEmitter {
 
       const checkCanplaythrough = () => {
         if (this._canPlayThrough || !this.length) return;
-
         let loadedChunksCount = 0;
         for (let chunk of this._chunks) {
           if (!chunk.duration) break;
@@ -57,74 +52,72 @@ export default class Loader extends EventEmitter {
         }
       };
 
-      const drainBuffer = (uint8Array) => {
-        const chunk = new Chunk({
-          clip: {
-            context: this.context,
-            metadata: this.metadata,
-            _referenceHeader: this._referenceHeader,
-          },
-          raw: slice(uint8Array, 0, uint8Array.length),
-          onready: () => {
-            if (!this._canPlayThrough) {
-              checkCanplaythrough();
+      const calculateMetadata = (uint8Array) => {
+        if (
+          !this.metadata ||
+          !this._referenceHeader ||
+          Object.keys(this.metadata).length === 0 ||
+          Object.keys(this._referenceHeader).length === 0
+        ) {
+          for (let i = 0; i < uint8Array.length; i += 1) {
+            // determine some facts about this mp3 file from the initial header
+            if (
+              uint8Array[i] === 0b11111111 &&
+              (uint8Array[i + 1] & 0b11110000) === 0b11110000
+            ) {
+              // http://www.datavoyage.com/mpgscript/mpeghdr.htm
+              this._referenceHeader = {
+                mpegVersion: uint8Array[i + 1] & 0b00001000,
+                mpegLayer: uint8Array[i + 1] & 0b00000110,
+                sampleRate: uint8Array[i + 2] & 0b00001100,
+                channelMode: uint8Array[i + 3] & 0b11000000,
+              };
+              this.metadata = parseMetadata(this._referenceHeader);
+              break;
             }
-            if (!this.firstChunkDuration) {
-              this.firstChunkDuration = chunk.duration;
-            }
-          },
-          onerror: (error) => {
-            error.url = this.url;
-            error.phonographCode = 'COULD_NOT_DECODE';
-            this._fire('playbackerror', error);
-            this.cancel();
-          },
+          }
+        }
+      };
+
+      const createChunk = (uint8Array) => {
+        calculateMetadata(uint8Array);
+        return new Promise((resolve, reject) => {
+          const chunk = new Chunk({
+            clip: {
+              context: this.context,
+              metadata: this.metadata,
+              _referenceHeader: this._referenceHeader,
+            },
+            raw: slice(uint8Array, 0, uint8Array.length),
+            onready: () => resolve(chunk),
+            onerror: (error) => reject(error),
+          });
         });
-        const lastChunk = this._chunks[this._chunks.length - 1];
-        if (lastChunk) lastChunk.attach(chunk);
-        this._chunks.push(chunk);
-        return chunk;
       };
 
       this._fetcher.load({
         preloadOnly,
         initialByte,
+        createChunk,
         onProgress: (chunkLength, total) => {
           this.buffered += chunkLength;
           this.length = total;
           this._fire('loadprogress', { buffered: this.buffered, total });
         },
-        onData: (uint8Array) => {
-          if (
-            !this.metadata ||
-            !this._referenceHeader ||
-            Object.keys(this.metadata).length === 0 ||
-            Object.keys(this._referenceHeader).length === 0
-          ) {
-            for (let i = 0; i < uint8Array.length; i += 1) {
-              // determine some facts about this mp3 file from the initial header
-              if (
-                uint8Array[i] === 0b11111111 &&
-                (uint8Array[i + 1] & 0b11110000) === 0b11110000
-              ) {
-                // http://www.datavoyage.com/mpgscript/mpeghdr.htm
-                this._referenceHeader = {
-                  mpegVersion: uint8Array[i + 1] & 0b00001000,
-                  mpegLayer: uint8Array[i + 1] & 0b00000110,
-                  sampleRate: uint8Array[i + 2] & 0b00001100,
-                  channelMode: uint8Array[i + 3] & 0b11000000,
-                };
-                this.metadata = parseMetadata(this._referenceHeader);
-                break;
-              }
-            }
+        onData: (chunk) => {
+          const lastChunk = this._chunks[this._chunks.length - 1];
+          if (lastChunk) lastChunk.attach(chunk);
+          this._chunks.push(chunk);
+          if (!this._canPlayThrough) {
+            checkCanplaythrough();
           }
-          drainBuffer(uint8Array);
+          if (!this.firstChunkDuration) {
+            this.firstChunkDuration = chunk.duration;
+          }
         },
-        onLoad: (uint8Array) => {
-          if (uint8Array.length > 0) {
-            const lastChunk = drainBuffer(uint8Array);
-            lastChunk.attach(null);
+        onLoad: (chunk) => {
+          if (chunk.raw.length > 0) {
+            chunk.attach(null);
           }
           const firstChunk = this._chunks[0];
           firstChunk.onready(() => {

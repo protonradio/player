@@ -2,6 +2,7 @@ import { error } from './utils/logger';
 import { slice } from './utils/buffer';
 import isFrameHeader from './utils/isFrameHeader';
 import getFrameLength from './utils/getFrameLength';
+import DecodingError from './DecodingError';
 
 export default class Chunk {
   constructor({ clip, raw, onready, onerror }) {
@@ -10,25 +11,32 @@ export default class Chunk {
     this.extended = null;
     this.duration = null;
     this.ready = false;
+    this._decoded = false;
     this._attached = false;
     this._callback = onready;
     this._firstByte = 0;
 
     const decode = (callback, errback) => {
       const buffer = slice(raw, this._firstByte, raw.length).buffer;
-      this.context.decodeAudioData(buffer, callback, (err) => {
-        if (err) return errback(err);
-        this._firstByte += 1;
-        // filthy hack taken from http://stackoverflow.com/questions/10365335/decodeaudiodata-returning-a-null-error
-        // Thanks Safari developers, you absolute numpties
-        for (; this._firstByte < raw.length - 1; this._firstByte += 1) {
-          if (isFrameHeader(raw, this._firstByte, clip._referenceHeader)) {
-            return decode(callback, errback);
+      this.context.decodeAudioData(
+        buffer,
+        () => callback(),
+        (err) => {
+          if (err) return errback(err);
+          this._firstByte += 1;
+          // filthy hack taken from http://stackoverflow.com/questions/10365335/decodeaudiodata-returning-a-null-error
+          // Thanks Safari developers, you absolute numpties
+          for (; this._firstByte < raw.length - 1; this._firstByte += 1) {
+            if (isFrameHeader(raw, this._firstByte, clip._referenceHeader)) {
+              return decode(callback, errback);
+            }
           }
+          errback(new DecodingError('Could not decode audio buffer'));
         }
-        errback(new Error(`Could not decode audio buffer`));
-      });
+      );
     };
+
+    if (this._decoded) return;
 
     decode(() => {
       let numFrames = 0;
@@ -41,9 +49,13 @@ export default class Chunk {
       }
       this.duration = (numFrames * 1152) / clip.metadata.sampleRate;
       if (this.duration > 0) {
-        this._ready();
+        this._decoded = true;
+        if (this._callback) {
+          this._callback();
+          this._callback = null;
+        }
       } else {
-        onerror(new Error(`Got 0 frames when decoding audio buffer`));
+        onerror(new DecodingError('Got 0 frames when decoding audio buffer'));
       }
     }, onerror);
   }
@@ -56,7 +68,9 @@ export default class Chunk {
 
   createSource(timeOffset, callback, errback) {
     if (!this.ready) {
-      error('Something went wrong! Chunk was not ready in time for playback');
+      const message = 'Something went wrong! Chunk was not ready in time for playback';
+      error(message);
+      errback(new Error(message));
       return;
     }
 
@@ -102,25 +116,19 @@ export default class Chunk {
     if (this.ready) return;
     if (!this._attached || this.duration === null) return;
 
-    this.ready = true;
+    const currentChunkBytes =
+      this._firstByte > 0 ? slice(this.raw, this._firstByte, this.raw.length) : this.raw;
 
     if (this.next) {
-      const rawLen = this.raw.length;
-      const nextLen = this.next.raw.length >> 1; // we don't need the whole thing
-      this.extended = new Uint8Array(rawLen + nextLen);
-      let p = 0;
-      for (let i = this._firstByte; i < rawLen; i += 1) {
-        this.extended[p++] = this.raw[i];
-      }
-      for (let i = 0; i < nextLen; i += 1) {
-        this.extended[p++] = this.next.raw[i];
-      }
+      const rawLen = currentChunkBytes.length;
+      this.extended = new Uint8Array(rawLen + this.next.raw.length);
+      this.extended.set(currentChunkBytes);
+      this.extended.set(this.next.raw, rawLen);
     } else {
-      this.extended =
-        this._firstByte > 0
-          ? slice(this.raw, this._firstByte, this.raw.length)
-          : this.raw;
+      this.extended = currentChunkBytes;
     }
+
+    this.ready = true;
 
     if (this._callback) {
       this._callback();
