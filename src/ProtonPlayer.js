@@ -88,6 +88,10 @@ export default class ProtonPlayer {
   }
 
   preLoad(url, fileSize, initialPosition = 0) {
+    if (this.osName === 'ios') {
+      return Promise.resolve();
+    }
+
     debug('ProtonPlayer#preLoad', url);
 
     try {

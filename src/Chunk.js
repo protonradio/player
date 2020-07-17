@@ -17,7 +17,10 @@ export default class Chunk {
     this._firstByte = 0;
 
     const decode = (callback, errback) => {
-      const buffer = slice(raw, this._firstByte, raw.length).buffer;
+      if (this._firstByte >= raw.length) {
+        return errback(new DecodingError('Could not decode audio buffer'));
+      }
+      const { buffer } = slice(raw, this._firstByte, raw.length);
       this.context.decodeAudioData(
         buffer,
         () => callback(),
@@ -74,8 +77,9 @@ export default class Chunk {
       return;
     }
 
+    const { buffer } = slice(this.extended, 0, this.extended.length);
     this.context.decodeAudioData(
-      slice(this.extended, 0, this.extended.length).buffer,
+      buffer,
       (decoded) => {
         if (timeOffset) {
           const sampleOffset = ~~(timeOffset * decoded.sampleRate);

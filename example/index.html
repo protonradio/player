@@ -54,10 +54,28 @@
     <h5>Volume:</h5>
     <input id="volume-range" type="range" min="0" max="100" value="75" />
     <h5 id="audio-engine-text" style="width: 100%; text-align: center;"></h5>
+    <p id="console"></p>
     <audio autoplay>
       Your browser doesn't support HTML audio element.
     </audio>
     <script>
+      const $console = document.getElementById('console');
+      window.console = ((nativeConsole) => {
+        if (navigator.platform !== 'iPhone') {
+          return nativeConsole;
+        }
+        const overload = (nativeFunc, ...args) => {
+          nativeFunc(...args);
+          $console.innerHTML = args.join(' ') + '<br/>' + $console.innerHTML;
+        };
+        return {
+          log: overload.bind(window, nativeConsole.log),
+          info: overload.bind(window, nativeConsole.info),
+          warn: overload.bind(window, nativeConsole.warn),
+          error: overload.bind(window, nativeConsole.error),
+        };
+      })(window.console);
+
       const $container = document.getElementById('container');
       const $stopBtn = document.getElementById('stop-btn');
       const $pauseBtn = document.getElementById('pause-btn');
@@ -126,6 +144,24 @@
             '123slGyfBJ826Udcm1W6Lg=='
           )}&player_id=1559854500653&token=${token}`,
           size: 7233200,
+        },
+        {
+          name: 'Track 4 | 192 kbps | Gated Echos (Original Mix)',
+          url: `${baseURL}/single?fn=${encodeURIComponent(
+            'TEST_Hxtc_-_Gated_Echos_192k.mp3'
+          )}&md5=${encodeURIComponent(
+            'QKBk2H7/wmib9Hbg2oZxQA=='
+          )}&player_id=1559818900653&token=${token}`,
+          size: 8548936,
+        },
+        {
+          name: 'Track 5 | 320 kbps | Song for Eliae (Frezel Remix)',
+          url: `${baseURL}/single?fn=${encodeURIComponent(
+            'mp3-320/1358200_371875_Song_for_Eliae_Frezel_Remix_320k.mp3'
+          )}&md5=${encodeURIComponent(
+            'KAHIjeIXwvMDggM7bii4DQ=='
+          )}&player_id=1559818900653&token=${token}`,
+          size: 18891754,
         },
         {
           name: 'Mix 1 | Embliss - Mind Over Matter 127',
