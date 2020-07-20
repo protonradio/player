@@ -5,7 +5,7 @@ import DecodingError from './DecodingError';
 
 const SLEEP_CANCELLED = 'SLEEP_CANCELLED';
 const LOAD_BATCH_SIZE = 2;
-const PRELOAD_BATCH_SIZE = 4;
+export const PRELOAD_BATCH_SIZE = 4;
 
 export default class Fetcher {
   constructor(chunkSize, url, fileSize) {

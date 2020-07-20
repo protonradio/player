@@ -1,6 +1,6 @@
 import Chunk from './Chunk';
 import EventEmitter from './EventEmitter';
-import Fetcher from './Fetcher';
+import Fetcher, { PRELOAD_BATCH_SIZE } from './Fetcher';
 import { slice } from './utils/buffer';
 import { debug } from './utils/logger';
 import parseMetadata from './utils/parseMetadata';
@@ -43,10 +43,10 @@ export default class Loader extends EventEmitter {
         let loadedChunksCount = 0;
         for (let chunk of this._chunks) {
           if (!chunk.duration) break;
-          if (++loadedChunksCount >= this._fetcher.PRELOAD_BATCH_SIZE) {
+          if (++loadedChunksCount >= PRELOAD_BATCH_SIZE) {
             this._canPlayThrough = true;
-            this._fire('canplaythrough');
-            debug('Can play through');
+            this._fire('canPlayThrough');
+            debug('Can play through 1');
             break;
           }
         }
@@ -119,15 +119,16 @@ export default class Loader extends EventEmitter {
             this.firstChunkDuration = chunk.duration;
           }
         },
-        onLoad: (chunk) => {
-          if (chunk.raw.length > 0) {
-            chunk.attach(null);
+        onLoad: (lastChunk) => {
+          if (lastChunk) {
+            lastChunk.attach(null);
           }
           const firstChunk = this._chunks[0];
           firstChunk.onready(() => {
             if (!this._canPlayThrough) {
               this._canPlayThrough = true;
-              this._fire('canplaythrough');
+              this._fire('canPlayThrough');
+              debug('Can play through 2');
             }
             this.loaded = true;
             this._fire('load');
@@ -141,12 +142,12 @@ export default class Loader extends EventEmitter {
         },
       });
     }
-    return new Promise((fulfil, reject) => {
+    return new Promise((resolve, reject) => {
       const ready = preloadOnly ? this._canPlayThrough : this.loaded;
       if (ready) {
-        fulfil();
+        resolve();
       } else {
-        this.once(preloadOnly ? 'canplaythrough' : 'load', fulfil);
+        this.once(preloadOnly ? 'canPlayThrough' : 'load', resolve);
         this.once('loaderror', reject);
       }
     });

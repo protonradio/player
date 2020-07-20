@@ -91,11 +91,11 @@ export default class Clip extends EventEmitter {
       this._chunks,
       audioMetadata
     );
-    this._loader.on('canplaythrough', () => {
+    this._loader.on('canPlayThrough', () => {
       if (this._buffering && !this._preBuffering) {
         this._preBuffered = true;
       }
-      this._fire('canplaythrough');
+      this._fire('canPlayThrough');
     });
     this._loader.on('loadprogress', ({ buffered, total }) => {
       const bufferedWithOffset = buffered + this._initialByte;
