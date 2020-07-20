@@ -402,190 +402,185 @@ export default class Clip extends EventEmitter {
     let previousSource;
     let currentSource;
 
-    chunk.createSource(
-      timeOffset,
-      (source) => {
-        if (Number.isNaN(chunk.duration)) {
-          this._fire(
-            'playbackerror',
-            'Error playing initial chunk because duration is NaN'
-          );
+    chunk.createSource(timeOffset, (err, source) => {
+      if (err) {
+        err.url = this.url;
+        err.phonographCode = 'COULD_NOT_START_PLAYBACK';
+        this._fire('playbackerror', err);
+        return;
+      }
+
+      if (Number.isNaN(chunk.duration)) {
+        this._fire(
+          'playbackerror',
+          'Error playing initial chunk because duration is NaN'
+        );
+        return;
+      }
+
+      // if (chunk.isSilence) {
+      //   this._timePlayingSilence += chunk.duration;
+      // }
+
+      source.loop = chunk.isSilence;
+
+      currentSource = source;
+      let nextStart;
+
+      try {
+        const gain = this.context.createGain();
+        gain.connect(this._gain);
+
+        this._contextTimeAtStart = this.context.currentTime;
+        nextStart = this._contextTimeAtStart + (chunk.duration - timeOffset);
+
+        gain.gain.setValueAtTime(0, nextStart + OVERLAP);
+        source.connect(gain);
+        source.start(this._contextTimeAtStart);
+      } catch (e) {
+        if (e.name === 'TypeError') {
+          warn(`Ignored error: ${e.toString()}`);
+        } else {
+          throw e;
+        }
+      }
+
+      this._lastPlayedChunk =
+        _playingSilence && this._chunkIndex === 0 ? null : this._chunkIndex;
+
+      const endGame = () => {
+        if (this.ended) return;
+        if (this.context.currentTime >= nextStart) {
+          this.pause();
+          this._currentTime = 0;
+          this.ended = true;
+          this._fire('ended');
+        } else {
+          requestAnimationFrame(endGame);
+        }
+      };
+
+      const advance = () => {
+        if (!playing) return;
+
+        if (!_playingSilence && this._lastPlayedChunk === this._chunkIndex) {
+          this._chunkIndex += 1;
+        }
+
+        if (
+          _playingSilence &&
+          this._lastPlayedChunk === this._chunkIndex &&
+          this._chunkIndex + this._initialChunk === this._totalChunksCount - 1
+        ) {
+          endGame();
           return;
         }
 
-        // if (chunk.isSilence) {
-        //   this._timePlayingSilence += chunk.duration;
-        // }
+        const _chunks = _playingSilence ? this._silenceChunks : this._chunks;
+        const i = _playingSilence ? 0 : this._chunkIndex;
 
-        source.loop = chunk.isSilence;
+        chunk = _chunks[i];
+        chunk.isSilence = _playingSilence;
 
-        currentSource = source;
-        let nextStart;
-
-        try {
-          const gain = this.context.createGain();
-          gain.connect(this._gain);
-
-          this._contextTimeAtStart = this.context.currentTime;
-          nextStart = this._contextTimeAtStart + (chunk.duration - timeOffset);
-
-          gain.gain.setValueAtTime(0, nextStart + OVERLAP);
-          source.connect(gain);
-          source.start(this._contextTimeAtStart);
-        } catch (e) {
-          if (e.name === 'TypeError') {
-            warn(`Ignored error: ${e.toString()}`);
-          } else {
-            throw e;
-          }
+        if (!_playingSilence && this._chunkIndex >= this._chunks.length) {
+          chunk = null;
         }
 
-        this._lastPlayedChunk =
-          _playingSilence && this._chunkIndex === 0 ? null : this._chunkIndex;
+        if (!chunk) {
+          endGame();
+          return;
+        }
 
-        const endGame = () => {
-          if (this.ended) return;
-          if (this.context.currentTime >= nextStart) {
-            this.pause();
-            this._currentTime = 0;
-            this.ended = true;
-            this._fire('ended');
-          } else {
-            requestAnimationFrame(endGame);
-          }
-        };
+        if (!chunk.ready) {
+          return;
+        }
 
-        const advance = () => {
-          if (!playing) return;
-
-          if (!_playingSilence && this._lastPlayedChunk === this._chunkIndex) {
-            this._chunkIndex += 1;
-          }
-
-          if (
-            _playingSilence &&
-            this._lastPlayedChunk === this._chunkIndex &&
-            this._chunkIndex + this._initialChunk === this._totalChunksCount - 1
-          ) {
-            endGame();
+        chunk.createSource(0, (err, source) => {
+          if (err) {
+            err.url = this.url;
+            err.phonographCode = 'COULD_NOT_CREATE_SOURCE';
+            this._fire('playbackerror', err);
             return;
           }
 
-          const _chunks = _playingSilence ? this._silenceChunks : this._chunks;
-          const i = _playingSilence ? 0 : this._chunkIndex;
-
-          chunk = _chunks[i];
-          chunk.isSilence = _playingSilence;
-
-          if (!_playingSilence && this._chunkIndex >= this._chunks.length) {
-            chunk = null;
-          }
-
-          if (!chunk) {
-            endGame();
+          if (Number.isNaN(chunk.duration)) {
+            this._fire('playbackerror', 'Error playing chunk because duration is NaN');
             return;
           }
 
-          if (!chunk.ready) {
-            return;
-          }
+          // if (chunk.isSilence) {
+          //   this._timePlayingSilence += chunk.duration;
+          // }
 
-          chunk.createSource(
-            0,
-            (source) => {
-              if (Number.isNaN(chunk.duration)) {
-                this._fire(
-                  'playbackerror',
-                  'Error playing chunk because duration is NaN'
-                );
-                return;
-              }
+          source.loop = chunk.isSilence;
 
-              // if (chunk.isSilence) {
-              //   this._timePlayingSilence += chunk.duration;
-              // }
-
-              source.loop = chunk.isSilence;
-
-              if (this._wasPlayingSilence && !_playingSilence) {
-                this._wasPlayingSilence = false;
-                stopSources();
-                // this._timePlayingSilence =
-                //   this.context.currentTime - this._contextTimeAtStart;
-                this._contextTimeAtStart = this.context.currentTime;
-                nextStart = this.context.currentTime;
-              }
-
-              previousSource = currentSource;
-              currentSource = source;
-
-              try {
-                const gain = this.context.createGain();
-                gain.connect(this._gain);
-                gain.gain.setValueAtTime(0, nextStart);
-                gain.gain.setValueAtTime(1, nextStart + OVERLAP);
-                source.connect(gain);
-                source.start(nextStart);
-                nextStart += chunk.duration;
-                gain.gain.setValueAtTime(0, nextStart + OVERLAP);
-              } catch (e) {
-                if (e.name === 'TypeError') {
-                  warn(`Ignored error: ${e.toString()}`);
-                } else {
-                  throw e;
-                }
-              }
-
-              this._lastPlayedChunk =
-                _playingSilence && this._chunkIndex === 0 ? null : this._chunkIndex;
-            },
-            (error) => {
-              error.url = this.url;
-              error.phonographCode = 'COULD_NOT_CREATE_SOURCE';
-              this._fire('playbackerror', error);
-            }
-          );
-        };
-
-        const tick = (scheduledAt = 0, scheduledTimeout = 0) => {
-          if (!this.playing) return;
-
-          const i =
-            this._lastPlayedChunk === this._chunkIndex
-              ? this._chunkIndex + 1
-              : this._chunkIndex;
-
-          _playingSilence = !this._isChunkReady(i);
-
-          if (_playingSilence) {
-            this._wasPlayingSilence = true;
+          if (this._wasPlayingSilence && !_playingSilence) {
+            this._wasPlayingSilence = false;
+            stopSources();
             // this._timePlayingSilence =
             //   this.context.currentTime - this._contextTimeAtStart;
-          } else {
-            advance();
+            this._contextTimeAtStart = this.context.currentTime;
+            nextStart = this.context.currentTime;
           }
 
-          const timeout = _playingSilence
-            ? 100
-            : this._calculateNextChunkTimeout(i, scheduledAt, scheduledTimeout);
-          this._tickTimeout = setTimeout(tick.bind(this, Date.now(), timeout), timeout);
-        };
+          previousSource = currentSource;
+          currentSource = source;
 
-        const frame = () => {
-          if (!playing) return;
-          requestAnimationFrame(frame);
-          this._fire('progress');
-        };
+          try {
+            const gain = this.context.createGain();
+            gain.connect(this._gain);
+            gain.gain.setValueAtTime(0, nextStart);
+            gain.gain.setValueAtTime(1, nextStart + OVERLAP);
+            source.connect(gain);
+            source.start(nextStart);
+            nextStart += chunk.duration;
+            gain.gain.setValueAtTime(0, nextStart + OVERLAP);
+          } catch (e) {
+            if (e.name === 'TypeError') {
+              warn(`Ignored error: ${e.toString()}`);
+            } else {
+              throw e;
+            }
+          }
 
-        tick();
-        frame();
-      },
-      (error) => {
-        error.url = this.url;
-        error.phonographCode = 'COULD_NOT_START_PLAYBACK';
-        this._fire('playbackerror', error);
-      }
-    );
+          this._lastPlayedChunk =
+            _playingSilence && this._chunkIndex === 0 ? null : this._chunkIndex;
+        });
+      };
+
+      const tick = (scheduledAt = 0, scheduledTimeout = 0) => {
+        if (!this.playing) return;
+
+        const i =
+          this._lastPlayedChunk === this._chunkIndex
+            ? this._chunkIndex + 1
+            : this._chunkIndex;
+
+        _playingSilence = !this._isChunkReady(i);
+
+        if (_playingSilence) {
+          this._wasPlayingSilence = true;
+          // this._timePlayingSilence =
+          //   this.context.currentTime - this._contextTimeAtStart;
+        } else {
+          advance();
+        }
+
+        const timeout = _playingSilence
+          ? 100
+          : this._calculateNextChunkTimeout(i, scheduledAt, scheduledTimeout);
+        this._tickTimeout = setTimeout(tick.bind(this, Date.now(), timeout), timeout);
+      };
+
+      const frame = () => {
+        if (!playing) return;
+        requestAnimationFrame(frame);
+        this._fire('progress');
+      };
+
+      tick();
+      frame();
+    });
   }
 
   _playUsingMediaSource(scheduledAt = 0, scheduledTimeout = 0) {

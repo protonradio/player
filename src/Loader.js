@@ -7,13 +7,13 @@ import parseMetadata from './utils/parseMetadata';
 import getContext from './getContext';
 
 export default class Loader extends EventEmitter {
-  constructor(chunkSize, url, fileSize, chunks, audioMetadata = {}, loadBatchSize = 1) {
+  constructor(chunkSize, url, fileSize, chunks, audioMetadata = {}) {
     super();
     this._chunkSize = chunkSize;
     this._chunks = chunks;
     this._referenceHeader = audioMetadata.referenceHeader;
     this.metadata = audioMetadata.metadata;
-    this._fetcher = new Fetcher(chunkSize, url, fileSize, loadBatchSize);
+    this._fetcher = new Fetcher(chunkSize, url, fileSize);
     this._loadStarted = false;
     this._canPlayThrough = false;
     this.context = getContext();
@@ -89,8 +89,12 @@ export default class Loader extends EventEmitter {
               _referenceHeader: this._referenceHeader,
             },
             raw: slice(uint8Array, 0, uint8Array.length),
-            onready: () => resolve(chunk),
-            onerror: (error) => reject(error),
+            callback: (err) => {
+              if (err) {
+                return reject(err);
+              }
+              resolve(chunk);
+            },
           });
         });
       };

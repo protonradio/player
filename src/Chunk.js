@@ -1,3 +1,4 @@
+import noop from './utils/noop';
 import { error } from './utils/logger';
 import { slice } from './utils/buffer';
 import isFrameHeader from './utils/isFrameHeader';
@@ -5,7 +6,7 @@ import getFrameLength from './utils/getFrameLength';
 import DecodingError from './DecodingError';
 
 export default class Chunk {
-  constructor({ clip, raw, onready, onerror }) {
+  constructor({ clip, raw, callback }) {
     this.context = clip.context;
     this.raw = raw;
     this.extended = null;
@@ -13,35 +14,41 @@ export default class Chunk {
     this.ready = false;
     this._decoded = false;
     this._attached = false;
-    this._callback = onready;
+    this._callback = callback || noop;
+    this._onReady = noop;
     this._firstByte = 0;
 
-    const decode = (callback, errback) => {
+    const decode = (callback) => {
       if (this._firstByte >= raw.length) {
-        return errback(new DecodingError('Could not decode audio buffer'));
+        return callback(new DecodingError('Could not decode audio buffer'));
       }
       const { buffer } = slice(raw, this._firstByte, raw.length);
       this.context.decodeAudioData(
         buffer,
         () => callback(),
         (err) => {
-          if (err) return errback(err);
+          if (err) {
+            return callback(err);
+          }
           this._firstByte += 1;
           // filthy hack taken from http://stackoverflow.com/questions/10365335/decodeaudiodata-returning-a-null-error
           // Thanks Safari developers, you absolute numpties
           for (; this._firstByte < raw.length - 1; this._firstByte += 1) {
             if (isFrameHeader(raw, this._firstByte, clip._referenceHeader)) {
-              return decode(callback, errback);
+              return decode(callback);
             }
           }
-          errback(new DecodingError('Could not decode audio buffer'));
+          callback(new DecodingError('Could not decode audio buffer'));
         }
       );
     };
 
     if (this._decoded) return;
 
-    decode(() => {
+    decode((err) => {
+      if (err) {
+        return this._callback(err);
+      }
       let numFrames = 0;
       for (let i = this._firstByte; i < this.raw.length; i += 1) {
         if (isFrameHeader(this.raw, i, clip._referenceHeader)) {
@@ -53,14 +60,11 @@ export default class Chunk {
       this.duration = (numFrames * 1152) / clip.metadata.sampleRate;
       if (this.duration > 0) {
         this._decoded = true;
-        if (this._callback) {
-          this._callback();
-          this._callback = null;
-        }
+        this._callback();
       } else {
-        onerror(new DecodingError('Got 0 frames when decoding audio buffer'));
+        this._callback(new DecodingError('Got 0 frames when decoding audio buffer'));
       }
-    }, onerror);
+    });
   }
 
   attach(nextChunk) {
@@ -69,11 +73,11 @@ export default class Chunk {
     this._ready();
   }
 
-  createSource(timeOffset, callback, errback) {
+  createSource(timeOffset, callback) {
     if (!this.ready) {
       const message = 'Something went wrong! Chunk was not ready in time for playback';
       error(message);
-      errback(new Error(message));
+      callback(new Error(message));
       return;
     }
 
@@ -102,9 +106,12 @@ export default class Chunk {
         }
         const source = this.context.createBufferSource();
         source.buffer = decoded;
-        callback(source);
+        callback(null, source);
       },
-      errback
+      (err) => {
+        err = err || {}; // Safari might error out without an error object
+        callback(err);
+      }
     );
   }
 
@@ -112,7 +119,7 @@ export default class Chunk {
     if (this.ready) {
       setTimeout(callback);
     } else {
-      this._callback = callback;
+      this._onReady = callback || noop;
     }
   }
 
@@ -133,10 +140,6 @@ export default class Chunk {
     }
 
     this.ready = true;
-
-    if (this._callback) {
-      this._callback();
-      this._callback = null;
-    }
+    this._onReady();
   }
 }
