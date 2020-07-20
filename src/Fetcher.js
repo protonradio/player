@@ -53,12 +53,11 @@ export default class Fetcher {
   }
 
   _handleChunk(chunk) {
-    const uint8Array = chunk.raw;
-    if (!uint8Array || uint8Array.length === 0) return;
+    if (!chunk || !chunk.raw || chunk.raw.length === 0) return;
 
-    this._totalLoaded += uint8Array.length;
+    this._totalLoaded += chunk.raw.length;
     this._onData(chunk);
-    this._onProgress(uint8Array.length, this.fileSize);
+    this._onProgress(chunk.raw.length, this.fileSize);
     this._fullyLoaded = this._totalLoaded >= this.fileSize;
     if (this._fullyLoaded) {
       this._onLoad(chunk);

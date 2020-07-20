@@ -12,16 +12,12 @@ export default class Chunk {
     this.extended = null;
     this.duration = null;
     this.ready = false;
-    this._decoded = false;
     this._attached = false;
     this._callback = callback || noop;
     this._onReady = noop;
     this._firstByte = 0;
 
     const decode = (callback) => {
-      if (this._firstByte >= raw.length) {
-        return callback(new DecodingError('Could not decode audio buffer'));
-      }
       const { buffer } = slice(raw, this._firstByte, raw.length);
       this.context.decodeAudioData(
         buffer,
@@ -43,8 +39,6 @@ export default class Chunk {
       );
     };
 
-    if (this._decoded) return;
-
     decode((err) => {
       if (err) {
         return this._callback(err);
@@ -59,7 +53,6 @@ export default class Chunk {
       }
       this.duration = (numFrames * 1152) / clip.metadata.sampleRate;
       if (this.duration > 0) {
-        this._decoded = true;
         this._callback();
       } else {
         this._callback(new DecodingError('Got 0 frames when decoding audio buffer'));

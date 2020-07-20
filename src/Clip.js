@@ -392,15 +392,14 @@ export default class Clip extends EventEmitter {
     });
 
     let _playingSilence = !this._isChunkReady(this._chunkIndex);
-
     const _chunks = _playingSilence ? this._silenceChunks : this._chunks;
     const i = _playingSilence ? 0 : this._chunkIndex;
 
-    let chunk = _chunks[i];
-    chunk.isSilence = _playingSilence;
-
     let previousSource;
     let currentSource;
+
+    let chunk = _chunks[i];
+    chunk.isSilence = _playingSilence;
 
     chunk.createSource(timeOffset, (err, source) => {
       if (err) {
@@ -423,8 +422,8 @@ export default class Clip extends EventEmitter {
       // }
 
       source.loop = chunk.isSilence;
-
       currentSource = source;
+
       let nextStart;
 
       try {
@@ -481,15 +480,6 @@ export default class Clip extends EventEmitter {
 
         chunk = _chunks[i];
         chunk.isSilence = _playingSilence;
-
-        if (!_playingSilence && this._chunkIndex >= this._chunks.length) {
-          chunk = null;
-        }
-
-        if (!chunk) {
-          endGame();
-          return;
-        }
 
         if (!chunk.ready) {
           return;
@@ -566,6 +556,7 @@ export default class Clip extends EventEmitter {
           advance();
         }
 
+        // TODO: tick "on chunk ready" instead?
         const timeout = _playingSilence
           ? 100
           : this._calculateNextChunkTimeout(i, scheduledAt, scheduledTimeout);

@@ -73,7 +73,12 @@ export default class Loader extends EventEmitter {
                 channelMode: uint8Array[i + 3] & 0b11000000,
               };
               this.metadata = parseMetadata(this._referenceHeader);
-              break;
+              // TODO: do the following checks based on arguments to the library?
+              if (
+                this.metadata.sampleRate === 44100 &&
+                this.metadata.channelMode === 'stereo'
+              )
+                break;
             }
           }
         }
