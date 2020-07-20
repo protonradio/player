@@ -84,14 +84,12 @@ export default class Clip extends EventEmitter {
   }
 
   _initLoader(audioMetadata) {
-    const loadBatchSize = this.osName === 'ios' ? 4 : 1;
     this._loader = new Loader(
       CHUNK_SIZE,
       this.url,
       this.fileSize,
       this._chunks,
-      audioMetadata,
-      loadBatchSize
+      audioMetadata
     );
     this._loader.on('canplaythrough', () => {
       if (this._buffering && !this._preBuffering) {

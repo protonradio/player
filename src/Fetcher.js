@@ -4,14 +4,14 @@ import noop from './utils/noop';
 import DecodingError from './DecodingError';
 
 const SLEEP_CANCELLED = 'SLEEP_CANCELLED';
+const LOAD_BATCH_SIZE = 2;
 const PRELOAD_BATCH_SIZE = 4;
 
 export default class Fetcher {
-  constructor(chunkSize, url, fileSize, loadBatchSize = 1) {
+  constructor(chunkSize, url, fileSize) {
     this.chunkSize = chunkSize;
     this.url = url;
     this.fileSize = fileSize;
-    this.loadBatchSize = loadBatchSize;
     this._totalLoaded = 0;
     this._nextChunkStart = 0;
     this._nextChunkEnd = 0;
@@ -85,7 +85,7 @@ export default class Fetcher {
   }
 
   _load() {
-    const promises = this._loadBatch(this.loadBatchSize);
+    const promises = this._loadBatch(LOAD_BATCH_SIZE);
     if (promises.length === 0) {
       return Promise.resolve();
     }
@@ -99,7 +99,7 @@ export default class Fetcher {
         if (!this._fullyLoaded) {
           this._advanceStart();
           const timeout =
-            this.loadBatchSize * (this._seconds(1) / 2) - (Date.now() - startTime);
+            LOAD_BATCH_SIZE * (this._seconds(1) / 2) - (Date.now() - startTime);
           return this._sleep(timeout)
             .then(() => this._load())
             .catch((err) => {
