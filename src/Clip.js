@@ -48,7 +48,6 @@ export default class Clip extends EventEmitter {
     this._lastPlayedChunk = null;
     this._tickTimeout = null;
     this._mediaSourceTimeout = null;
-    this._timePlayingSilence = 0;
 
     this._shouldStopBuffering = false;
     this._preBuffering = false;
@@ -212,7 +211,7 @@ export default class Clip extends EventEmitter {
     }
 
     this.buffer().then(noop).catch(noop);
-    this._timePlayingSilence = 0;
+
     let promise;
 
     if (this._useMediaSource) {
@@ -271,8 +270,6 @@ export default class Clip extends EventEmitter {
   }
 
   setCurrentPosition(position = 0) {
-    this._timePlayingSilence = 0;
-
     if (this._useMediaSource) {
       this._pauseUsingMediaSource();
     } else {
@@ -328,14 +325,13 @@ export default class Clip extends EventEmitter {
       (this._loader ? this._loader.firstChunkDuration : 0);
 
     if (this._useMediaSource) {
-      return this._audioElement.currentTime + offset - this._timePlayingSilence;
+      return this._audioElement.currentTime + offset;
     }
 
     return (
       offset +
       this._startTime +
-      (this.context.currentTime - this._contextTimeAtStart) -
-      this._timePlayingSilence
+      (this.context.currentTime - this._contextTimeAtStart)
     );
   }
 
@@ -417,10 +413,6 @@ export default class Clip extends EventEmitter {
         return;
       }
 
-      // if (chunk.isSilence) {
-      //   this._timePlayingSilence += chunk.duration;
-      // }
-
       source.loop = chunk.isSilence;
       currentSource = source;
 
@@ -498,17 +490,11 @@ export default class Clip extends EventEmitter {
             return;
           }
 
-          // if (chunk.isSilence) {
-          //   this._timePlayingSilence += chunk.duration;
-          // }
-
           source.loop = chunk.isSilence;
 
           if (this._wasPlayingSilence && !_playingSilence) {
             this._wasPlayingSilence = false;
             stopSources();
-            // this._timePlayingSilence =
-            //   this.context.currentTime - this._contextTimeAtStart;
             this._contextTimeAtStart = this.context.currentTime;
             nextStart = this.context.currentTime;
           }
@@ -550,16 +536,14 @@ export default class Clip extends EventEmitter {
 
         if (_playingSilence) {
           this._wasPlayingSilence = true;
-          // this._timePlayingSilence =
-          //   this.context.currentTime - this._contextTimeAtStart;
         } else {
           advance();
         }
 
-        // TODO: tick "on chunk ready" instead?
         const timeout = _playingSilence
           ? 100
           : this._calculateNextChunkTimeout(i, scheduledAt, scheduledTimeout);
+
         this._tickTimeout = setTimeout(tick.bind(this, Date.now(), timeout), timeout);
       };
 
@@ -594,9 +578,7 @@ export default class Clip extends EventEmitter {
     if (chunk) {
       try {
         this._sourceBuffer.appendBuffer(chunk.raw);
-        if (useSilence) {
-          // this._timePlayingSilence += chunk.duration;
-        } else if (isChunkReady) {
+        if (!useSilence && isChunkReady) {
           this._chunkIndex += 1;
         }
       } catch (e) {
