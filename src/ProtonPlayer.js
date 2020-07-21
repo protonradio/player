@@ -21,13 +21,6 @@ export default class ProtonPlayer {
       throw new ProtonPlayerError(`${this.browserName} is not supported.`);
     }
 
-    // Check if the MediaSource API supports decoding MP3s.
-    if (window.MediaSource && !window.MediaSource.isTypeSupported('audio/mpeg')) {
-      throw new ProtonPlayerError(
-        `${this.browserName} does not have decoders for 'audio/mpeg'.`
-      );
-    }
-
     // Check if the AudioContext API can be instantiated.
     try {
       getContext();
@@ -36,11 +29,6 @@ export default class ProtonPlayer {
         `${this.browserName} does not support the AudioContext API.`
       );
     }
-
-    // window.MediaSource = undefined; // TODO: delete
-    const usingMediaSource =
-      window.MediaSource && window.MediaSource.isTypeSupported('audio/mpeg');
-    debug(`Using ${usingMediaSource ? 'MediaSource' : 'AudioContext'} API`);
 
     this._onReady = onReady;
     this._onError = onError;
@@ -88,6 +76,7 @@ export default class ProtonPlayer {
   }
 
   preLoad(url, fileSize, initialPosition = 0) {
+    // TODO: allow preloading on iOS by making preloading more efficient (aka: load and process 1 chunk at a time when preloading)
     if (this.osName === 'ios') {
       return Promise.resolve();
     }

@@ -27,8 +27,7 @@ export default class Chunk {
             return callback(err);
           }
           this._firstByte += 1;
-          // filthy hack taken from http://stackoverflow.com/questions/10365335/decodeaudiodata-returning-a-null-error
-          // Thanks Safari developers, you absolute numpties
+          // Hack for Safari/iOS taken from http://stackoverflow.com/questions/10365335/decodeaudiodata-returning-a-null-error
           for (; this._firstByte < raw.length - 1; this._firstByte += 1) {
             if (isFrameHeader(raw, this._firstByte, clip._referenceHeader)) {
               return decode(callback);

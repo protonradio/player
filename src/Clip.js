@@ -24,7 +24,10 @@ export default class Clip extends EventEmitter {
 
     this.osName = osName;
     this.browserName = browserName;
-    this._useMediaSource = typeof window.MediaSource !== 'undefined';
+    this._useMediaSource =
+      typeof window.MediaSource !== 'undefined' &&
+      typeof window.MediaSource.isTypeSupported === 'function' &&
+      window.MediaSource.isTypeSupported('audio/mpeg');
 
     if (this._useMediaSource) {
       this._audioElement = document.querySelector('audio');
@@ -329,9 +332,7 @@ export default class Clip extends EventEmitter {
     }
 
     return (
-      offset +
-      this._startTime +
-      (this.context.currentTime - this._contextTimeAtStart)
+      offset + this._startTime + (this.context.currentTime - this._contextTimeAtStart)
     );
   }
 
