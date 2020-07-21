@@ -269,7 +269,7 @@ export default class ProtonPlayer {
     });
 
     clip.on('playbackerror', (err) => {
-      error('Something went wrong during playback: ' + err.toString());
+      error('Something went wrong during playback', err);
     });
 
     this._clips[url] = clip;
