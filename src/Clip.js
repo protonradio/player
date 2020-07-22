@@ -559,7 +559,7 @@ export default class Clip extends EventEmitter {
     });
   }
 
-  _playUsingMediaSource(scheduledAt = 0, scheduledTimeout = 0) {
+  _playUsingMediaSource() {
     if (!this.playing) return;
 
     if (this._chunkIndex + this._initialChunk >= this._totalChunksCount) {
@@ -570,7 +570,10 @@ export default class Clip extends EventEmitter {
     const isChunkReady = this._isChunkReady(this._chunkIndex);
 
     const useSilence =
-      !isChunkReady && (this.browserName === 'safari' || this.osName === 'ios');
+      !isChunkReady &&
+      this._chunkIndex === 0 &&
+      !this._wasPlayingSilence &&
+      (this.browserName === 'safari' || this.osName === 'ios');
 
     const chunk = useSilence
       ? this._silenceChunks[0]
@@ -579,32 +582,25 @@ export default class Clip extends EventEmitter {
     if (chunk) {
       try {
         this._sourceBuffer.appendBuffer(chunk.raw);
-        if (!useSilence && isChunkReady) {
+        if (isChunkReady) {
           this._chunkIndex += 1;
+          this._wasPlayingSilence = false;
+        } else if (useSilence) {
+          this._wasPlayingSilence = true;
         }
       } catch (e) {
         // SourceBuffer might be full, remove segments that have already been played.
         error('Exception when running SourceBuffer#appendBuffer', e);
         try {
-          if (!this._sourceBuffer.updating) {
-            this._sourceBuffer.remove(0, this._audioElement.currentTime);
-          }
+          this._sourceBuffer.remove(0, this._audioElement.currentTime);
         } catch (e) {
           error('Exception when running SourceBuffer#remove', e);
         }
       }
     }
 
-    const timeout = this._calculateNextChunkTimeout(
-      this._chunkIndex,
-      scheduledAt,
-      scheduledTimeout
-    );
-
-    this._mediaSourceTimeout = setTimeout(
-      this._playUsingMediaSource.bind(this, Date.now(), timeout),
-      timeout
-    );
+    const timeout = isChunkReady ? Math.min(500, chunk.duration * 1000) : 100;
+    this._mediaSourceTimeout = setTimeout(this._playUsingMediaSource.bind(this), timeout);
   }
 
   _pauseUsingMediaSource() {
