@@ -541,10 +541,7 @@ export default class Clip extends EventEmitter {
           advance();
         }
 
-        const timeout = _playingSilence
-          ? 100
-          : this._calculateNextChunkTimeout(i, scheduledAt, scheduledTimeout);
-
+        const timeout = this._calculateNextChunkTimeout(i, scheduledAt, scheduledTimeout);
         this._tickTimeout = setTimeout(tick.bind(this, Date.now(), timeout), timeout);
       };
 
@@ -639,8 +636,11 @@ export default class Clip extends EventEmitter {
 
   _calculateNextChunkTimeout(chunkIndex = 0, scheduledAt = 0, scheduledTimeout = 0) {
     const playingSilence = !this._isChunkReady(chunkIndex);
-    const chunk = playingSilence ? this._silenceChunks[0] : this._chunks[chunkIndex];
+    if (playingSilence) {
+      return 100;
+    }
     const timeoutDiff = this._calculateTimeoutDiff(scheduledAt, scheduledTimeout);
+    const chunk = this._chunks[chunkIndex];
     return chunk && typeof chunk.duration === 'number' && chunk.duration > 0
       ? Math.max(chunk.duration * 1000 - TIMEOUT_SAFE_OFFSET - timeoutDiff, 0)
       : 500;
