@@ -51,6 +51,7 @@ export default class Clip extends EventEmitter {
     this._lastPlayedChunk = null;
     this._tickTimeout = null;
     this._mediaSourceTimeout = null;
+    this._scheduledEndTime = null;
 
     this._shouldStopBuffering = false;
     this._preBuffering = false;
@@ -323,12 +324,27 @@ export default class Clip extends EventEmitter {
       return this._currentTime;
     }
 
-    const offset =
-      (this._seekedChunk || this._initialChunk) *
-      (this._loader ? this._loader.firstChunkDuration : 0);
+    const averageChunkDuration = this._loader ? this._loader.averageChunkDuration : 0;
+    const offset = averageChunkDuration * (this._seekedChunk || this._initialChunk);
 
     if (this._useMediaSource) {
-      return this._audioElement.currentTime + offset;
+      return offset + this._audioElement.currentTime;
+    }
+
+    if (
+      this._scheduledEndTime == null ||
+      this._scheduledEndTime < this.context.currentTime
+    ) {
+      if (this._chunkIndex + this._initialChunk >= this._totalChunksCount - 1) {
+        // Playback has finished.
+        this.playbackEnded();
+        return averageChunkDuration * this._totalChunksCount;
+      }
+
+      // Player is buffering.
+      return offset + this._scheduledEndTime == null
+        ? 0
+        : this._scheduledEndTime - this._contextTimeAtStart;
     }
 
     return (
@@ -338,7 +354,7 @@ export default class Clip extends EventEmitter {
 
   get duration() {
     if (!this._loader) return 0;
-    return (this.fileSize / CHUNK_SIZE) * this._loader.firstChunkDuration;
+    return (this.fileSize / CHUNK_SIZE) * this._loader.averageChunkDuration;
   }
 
   get paused() {
@@ -425,6 +441,9 @@ export default class Clip extends EventEmitter {
 
         this._contextTimeAtStart = this.context.currentTime;
         nextStart = this._contextTimeAtStart + (chunk.duration - timeOffset);
+        if (!chunk.isSilence) {
+          this._scheduledEndTime = nextStart;
+        }
 
         gain.gain.setValueAtTime(0, nextStart + OVERLAP);
         source.connect(gain);
@@ -440,32 +459,11 @@ export default class Clip extends EventEmitter {
       this._lastPlayedChunk =
         _playingSilence && this._chunkIndex === 0 ? null : this._chunkIndex;
 
-      const endGame = () => {
-        if (this.ended) return;
-        if (this.context.currentTime >= nextStart) {
-          this.pause();
-          this._currentTime = 0;
-          this.ended = true;
-          this._fire('ended');
-        } else {
-          requestAnimationFrame(endGame);
-        }
-      };
-
       const advance = () => {
         if (!playing) return;
 
         if (!_playingSilence && this._lastPlayedChunk === this._chunkIndex) {
           this._chunkIndex += 1;
-        }
-
-        if (
-          _playingSilence &&
-          this._lastPlayedChunk === this._chunkIndex &&
-          this._chunkIndex + this._initialChunk === this._totalChunksCount - 1
-        ) {
-          endGame();
-          return;
         }
 
         const _chunks = _playingSilence ? this._silenceChunks : this._chunks;
@@ -511,6 +509,9 @@ export default class Clip extends EventEmitter {
             source.connect(gain);
             source.start(nextStart);
             nextStart += chunk.duration;
+            if (!chunk.isSilence) {
+              this._scheduledEndTime = nextStart;
+            }
             gain.gain.setValueAtTime(0, nextStart + OVERLAP);
           } catch (e) {
             if (e.name === 'TypeError') {

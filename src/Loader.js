@@ -18,7 +18,8 @@ export default class Loader extends EventEmitter {
     this._canPlayThrough = false;
     this.context = getContext();
     this.buffered = 0;
-    this.firstChunkDuration = 0;
+    this._chunksDuration = 0;
+    this._chunksCount = 0;
   }
 
   get audioMetadata() {
@@ -26,6 +27,10 @@ export default class Loader extends EventEmitter {
       referenceHeader: this._referenceHeader,
       metadata: this.metadata,
     };
+  }
+
+  get averageChunkDuration() {
+    return this._chunksCount > 0 ? this._chunksDuration / this._chunksCount : 0;
   }
 
   cancel() {
@@ -120,8 +125,9 @@ export default class Loader extends EventEmitter {
           if (!this._canPlayThrough) {
             checkCanplaythrough();
           }
-          if (!this.firstChunkDuration) {
-            this.firstChunkDuration = chunk.duration;
+          if (chunk.raw.length === this._chunkSize + 1) {
+            this._chunksDuration += chunk.duration;
+            this._chunksCount += 1;
           }
         },
         onLoad: (lastChunk) => {

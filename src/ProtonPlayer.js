@@ -135,10 +135,16 @@ export default class ProtonPlayer {
 
       this._playbackPositionInterval = setInterval(() => {
         if (clip.duration === 0) return;
-        const progress = clip.currentTime / clip.duration;
+        let progress = clip.currentTime / clip.duration;
+
+        if (progress < 0) {
+          progress = 0;
+        } else if (progress > 1) {
+          progress = 1; // Prevent playback progress from exceeding 1 (100%)
+        }
 
         if (
-          progress > 1 || // Prevent playback progress from exceeding 1 (100%)
+          !this._currentlyPlaying ||
           progress < this._currentlyPlaying.lastReportedProgress // Prevent playback progress from going backwards
         ) {
           return;
