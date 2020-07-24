@@ -236,6 +236,7 @@ export default class Clip extends EventEmitter {
       this._audioElement.src = URL.createObjectURL(this._mediaSource);
       promise = this._audioElement.play();
     } else {
+      this._bufferingOffset = 0;
       this._gain = this.context.createGain();
       this._gain.connect(this.context.destination);
       this.context.resume();
@@ -267,6 +268,7 @@ export default class Clip extends EventEmitter {
     if (this._useMediaSource) {
       this._pauseUsingMediaSource();
     } else {
+      this._bufferingOffset = this._playbackProgress;
       this._stopUsingAudioContext();
     }
     this._playbackState = PLAYBACK_STATE.PAUSED;
