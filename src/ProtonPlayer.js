@@ -97,7 +97,8 @@ export default class ProtonPlayer {
     onBufferProgress = noop,
     onPlaybackProgress = noop,
     initialPosition = 0,
-    audioMetadata = {}
+    audioMetadata = {},
+    fromSetPlaybackPosition = false
   ) {
     debug('ProtonPlayer#play', url);
 
@@ -107,10 +108,23 @@ export default class ProtonPlayer {
       return Promise.reject(message);
     }
 
+    // TODO: make the Client not call `play` when playback is paused and waveform is clicked. It should just call `setPlaybackPosition`.
+    debug(`fromSetPlaybackPosition: ${fromSetPlaybackPosition}`);
+
+    if (
+      this._currentlyPlaying &&
+      this._currentlyPlaying.clip &&
+      this._currentlyPlaying.url === url &&
+      fromSetPlaybackPosition === false
+    ) {
+      debug('ProtonPlayer#play -> resume');
+      return this._currentlyPlaying.clip.resume() || Promise.resolve();
+    }
+
     onBufferProgress(0, 0);
     onPlaybackProgress(initialPosition);
 
-    this.pauseAll();
+    this.stopAll();
 
     try {
       const clip = this._getClip(url, fileSize, initialPosition, audioMetadata);
@@ -129,7 +143,7 @@ export default class ProtonPlayer {
       );
 
       clip.on('ended', () => {
-        this.pauseAll();
+        this.stopAll();
         onPlaybackProgress(1);
       });
 
@@ -164,11 +178,19 @@ export default class ProtonPlayer {
   pauseAll() {
     debug('ProtonPlayer#pauseAll');
 
+    if (this._currentlyPlaying && this._currentlyPlaying.clip) {
+      this._currentlyPlaying.clip.pause();
+    }
+  }
+
+  stopAll() {
+    debug('ProtonPlayer#stopAll');
+
     this._currentlyPlaying = null;
     this._clearIntervals();
     Object.keys(this._clips).forEach((k) => {
       this._clips[k].offAll('loadprogress');
-      this._clips[k].pause();
+      this._clips[k].stop();
     });
   }
 
@@ -233,7 +255,8 @@ export default class ProtonPlayer {
       onBufferProgress,
       onPlaybackProgress,
       percent,
-      audioMetadata
+      audioMetadata,
+      true
     );
   }
 

@@ -9,6 +9,12 @@ const CHUNK_SIZE = 64 * 1024;
 const OVERLAP = 0.2;
 const TIMEOUT_SAFE_OFFSET = 50;
 
+const PLAYBACK_STATE = {
+  STOPPED: 'STOPPED',
+  PLAYING: 'PLAYING',
+  PAUSED: 'PAUSED',
+};
+
 export default class Clip extends EventEmitter {
   constructor({
     url,
@@ -39,9 +45,8 @@ export default class Clip extends EventEmitter {
 
     this.length = 0;
     this.loaded = false;
-    this.playing = false;
+    this._playbackState = PLAYBACK_STATE.STOPPED;
     this.ended = false;
-    this._currentTime = 0;
     this.url = url;
     this.fileSize = fileSize;
     this.volume = volume;
@@ -200,19 +205,18 @@ export default class Clip extends EventEmitter {
   }
 
   dispose() {
-    this.pause();
+    this.stop();
     this._preBuffering = false;
     this._preBuffered = false;
     this._buffering = false;
     this._buffered = false;
     this.loaded = false;
-    this._currentTime = 0;
     this._chunks = [];
     this._fire('dispose');
   }
 
   play() {
-    if (this.playing) {
+    if (this._playbackState === PLAYBACK_STATE.PLAYING) {
       const message = `clip.play() was called on a clip that was already playing (${this.url})`;
       warn(message);
       return Promise.reject(message);
@@ -240,21 +244,41 @@ export default class Clip extends EventEmitter {
     }
 
     this.volume = this._volume;
-    this.playing = true;
+    this._playbackState = PLAYBACK_STATE.PLAYING;
     this.ended = false;
-    this._fire('play');
     return promise;
   }
 
-  pause() {
-    this._shouldStopBuffering = true;
+  resume() {
+    this._playbackState = PLAYBACK_STATE.PLAYING;
+    if (this._useMediaSource) {
+      this._audioElement.volume = this.volume;
+      return this._audioElement.play();
+    } else {
+      this._gain = this.context.createGain();
+      this._gain.connect(this.context.destination);
+      this.context.resume();
+      this._playUsingAudioContext();
+      return Promise.resolve();
+    }
+  }
 
+  pause() {
     if (this._useMediaSource) {
       this._pauseUsingMediaSource();
     } else {
-      const currentTime =
-        this._startTime + (this.context.currentTime - this._contextTimeAtStart);
-      this._pauseUsingAudioContext(currentTime);
+      this._stopUsingAudioContext();
+    }
+    this._playbackState = PLAYBACK_STATE.PAUSED;
+  }
+
+  stop() {
+    this._shouldStopBuffering = true;
+
+    if (this._useMediaSource) {
+      this._stopUsingMediaSource();
+    } else {
+      this._stopUsingAudioContext();
     }
 
     if (this._loader) {
@@ -263,15 +287,15 @@ export default class Clip extends EventEmitter {
 
     this._preBuffering = false;
     this._buffering = false;
-    this.playing = false;
-    this._fire('pause');
+    this._playbackState = PLAYBACK_STATE.STOPPED;
+    this._fire('stop');
 
     return this;
   }
 
   playbackEnded() {
-    if (this.playing) {
-      this.playing = false;
+    if (this._playbackState === PLAYBACK_STATE.PLAYING) {
+      this._playbackState = PLAYBACK_STATE.STOPPED;
       this.ended = true;
       this._fire('ended');
     }
@@ -279,13 +303,13 @@ export default class Clip extends EventEmitter {
 
   setCurrentPosition(position = 0) {
     if (this._useMediaSource) {
-      this._pauseUsingMediaSource();
+      this._stopUsingMediaSource();
     } else {
-      this._pauseUsingAudioContext(0);
+      this._stopUsingAudioContext();
     }
 
-    this.playing = false;
-    this._fire('pause');
+    this._playbackState = PLAYBACK_STATE.STOPPED;
+    this._fire('stop');
 
     const initialChunk = this._getChunkIndexByPosition(position);
     this._seekedChunk = initialChunk;
@@ -310,9 +334,8 @@ export default class Clip extends EventEmitter {
     }
 
     this.volume = this._volume;
-    this.playing = true;
+    this._playbackState = PLAYBACK_STATE.PLAYING;
     this.ended = false;
-    this._fire('play');
     return promise;
   }
 
@@ -324,7 +347,7 @@ export default class Clip extends EventEmitter {
   }
 
   get currentTime() {
-    if (!this.playing) {
+    if (this._playbackState !== PLAYBACK_STATE.PLAYING) {
       return 0;
     }
 
@@ -365,7 +388,7 @@ export default class Clip extends EventEmitter {
 
     this._lastContextTimeAtStart = this._contextTimeAtStart;
 
-    return offset + this._startTime + this._playbackProgress;
+    return offset + this._playbackProgress;
   }
 
   get duration() {
@@ -374,7 +397,7 @@ export default class Clip extends EventEmitter {
   }
 
   get paused() {
-    return !this.playing;
+    return this._playbackState === PLAYBACK_STATE.PAUSED;
   }
 
   get volume() {
@@ -397,8 +420,7 @@ export default class Clip extends EventEmitter {
   }
 
   _playUsingAudioContext() {
-    this._startTime = this._currentTime;
-    const timeOffset = this._currentTime;
+    const timeOffset = 0;
     let playing = true;
 
     const stopSources = () => {
@@ -414,10 +436,10 @@ export default class Clip extends EventEmitter {
       }
     };
 
-    const pauseListener = this.on('pause', () => {
+    const stopListener = this.on('stop', () => {
       playing = false;
       stopSources();
-      pauseListener.cancel();
+      stopListener.cancel();
     });
 
     let _playingSilence = !this._isChunkReady(this._chunkIndex);
@@ -543,7 +565,7 @@ export default class Clip extends EventEmitter {
       };
 
       const tick = (scheduledAt = 0, scheduledTimeout = 0) => {
-        if (!this.playing) return;
+        if (this._playbackState !== PLAYBACK_STATE.PLAYING) return;
 
         const i =
           this._lastPlayedChunk === this._chunkIndex
@@ -563,7 +585,7 @@ export default class Clip extends EventEmitter {
       };
 
       const frame = () => {
-        if (!playing) return;
+        if (this._playbackState !== PLAYBACK_STATE.PLAYING) return;
         requestAnimationFrame(frame);
         this._fire('progress');
       };
@@ -574,7 +596,7 @@ export default class Clip extends EventEmitter {
   }
 
   _playUsingMediaSource() {
-    if (!this.playing) return;
+    if (this._playbackState === PLAYBACK_STATE.STOPPED) return;
 
     if (this._chunkIndex + this._initialChunk >= this._totalChunksCount) {
       this._mediaSource.endOfStream();
@@ -618,20 +640,23 @@ export default class Clip extends EventEmitter {
   }
 
   _pauseUsingMediaSource() {
-    clearTimeout(this._mediaSourceTimeout);
-    if (this.playing) {
+    if (this._playbackState === PLAYBACK_STATE.PLAYING) {
       this._audioElement.pause();
       this._audioElement.volume = 0;
     }
   }
 
-  _pauseUsingAudioContext(currentTime) {
+  _stopUsingMediaSource() {
+    clearTimeout(this._mediaSourceTimeout);
+    this._pauseUsingMediaSource();
+  }
+
+  _stopUsingAudioContext() {
     clearTimeout(this._tickTimeout);
-    if (this.playing) {
+    if (this._playbackState === PLAYBACK_STATE.PLAYING) {
       this._gain.gain.value = 0;
       this._gain.disconnect(this.context.destination);
       this._gain = null;
-      this._currentTime = currentTime;
     }
   }
 
