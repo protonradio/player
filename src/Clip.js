@@ -2,7 +2,7 @@ import Loader from './Loader';
 import EventEmitter from './EventEmitter';
 import ProtonPlayerError from './ProtonPlayerError';
 import getContext from './getContext';
-import { debug, error, warn } from './utils/logger';
+import { error, warn } from './utils/logger';
 import noop from './utils/noop';
 
 const CHUNK_SIZE = 64 * 1024;
@@ -51,7 +51,11 @@ export default class Clip extends EventEmitter {
     this._lastPlayedChunk = null;
     this._tickTimeout = null;
     this._mediaSourceTimeout = null;
+
+    this._lastContextTimeAtStart = null;
     this._scheduledEndTime = null;
+    this._playbackProgress = 0;
+    this._bufferingOffset = 0;
 
     this._shouldStopBuffering = false;
     this._preBuffering = false;
@@ -321,7 +325,7 @@ export default class Clip extends EventEmitter {
 
   get currentTime() {
     if (!this.playing) {
-      return this._currentTime;
+      return 0;
     }
 
     const averageChunkDuration = this._loader ? this._loader.averageChunkDuration : 0;
@@ -341,15 +345,27 @@ export default class Clip extends EventEmitter {
         return averageChunkDuration * this._totalChunksCount;
       }
 
+      if (this._scheduledEndTime != null) {
+        this._bufferingOffset = this._playbackProgress;
+      }
+
       // Player is buffering.
-      return offset + this._scheduledEndTime == null
-        ? 0
-        : this._scheduledEndTime - this._contextTimeAtStart;
+      return offset + this._playbackProgress;
     }
 
-    return (
-      offset + this._startTime + (this.context.currentTime - this._contextTimeAtStart)
-    );
+    if (this._contextTimeAtStart === this._lastContextTimeAtStart) {
+      this._playbackProgress +=
+        this.context.currentTime -
+        this._contextTimeAtStart -
+        this._playbackProgress +
+        this._bufferingOffset;
+    } else {
+      this._playbackProgress += this.context.currentTime - this._contextTimeAtStart;
+    }
+
+    this._lastContextTimeAtStart = this._contextTimeAtStart;
+
+    return offset + this._startTime + this._playbackProgress;
   }
 
   get duration() {
