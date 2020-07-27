@@ -57,10 +57,12 @@ export default class ProtonPlayer {
         }
       });
 
-      audioElement.addEventListener('playing', () => {
-        if (this._currentlyPlaying) {
-          this._currentlyPlaying.onBufferChange(false);
-        }
+      ['canplay', 'canplaythrough', 'playing'].forEach((eventName) => {
+        audioElement.addEventListener(eventName, () => {
+          if (this._currentlyPlaying) {
+            this._currentlyPlaying.onBufferChange(false);
+          }
+        });
       });
     }
 
