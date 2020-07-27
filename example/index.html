@@ -120,7 +120,7 @@
           )}&md5=${encodeURIComponent(
             'urgwWw4oxEUp6NoCjDeunQ=='
           )}&player_id=1559854170445&token=${token}`,
-          size: 7543327,
+          fileSize: 7543327,
           preLoad: false,
         },
         {
@@ -130,7 +130,7 @@
           )}&md5=${encodeURIComponent(
             'z9C6QXJm4ux1BGsC0jEItw=='
           )}&player_id=1559854235788&token=${token}`,
-          size: 3357465,
+          fileSize: 3357465,
           preLoadOnHover: false,
         },
         {
@@ -140,7 +140,7 @@
           )}&md5=${encodeURIComponent(
             '123slGyfBJ826Udcm1W6Lg=='
           )}&player_id=1559854500653&token=${token}`,
-          size: 7233200,
+          fileSize: 7233200,
         },
         {
           name: 'Track 4 | 192 kbps | Gated Echos (Original Mix)',
@@ -149,7 +149,7 @@
           )}&md5=${encodeURIComponent(
             'QKBk2H7/wmib9Hbg2oZxQA=='
           )}&player_id=1559818900653&token=${token}`,
-          size: 8548936,
+          fileSize: 8548936,
         },
         {
           name: 'Track 5 | 320 kbps | Song for Eliae (Frezel Remix)',
@@ -158,7 +158,7 @@
           )}&md5=${encodeURIComponent(
             'KAHIjeIXwvMDggM7bii4DQ=='
           )}&player_id=1559818900653&token=${token}`,
-          size: 18891754,
+          fileSize: 18891754,
         },
         {
           name: 'Mix 1 | Embliss - Mind Over Matter 127',
@@ -167,7 +167,7 @@
           )}&md5=${encodeURIComponent(
             'c/RGi+lC2DbxhYhe6dk8vA=='
           )}&player_id=1559854282509&token=${token}`,
-          size: 86353292,
+          fileSize: 86353292,
           preLoad: false,
         },
         {
@@ -177,7 +177,7 @@
           )}&md5=${encodeURIComponent(
             'Zz/o7fvoHU0IAUlnrnshXA=='
           )}&player_id=1559854370708&token=${token}`,
-          size: 86387146,
+          fileSize: 86387146,
           preLoadOnHover: false,
         },
         {
@@ -187,7 +187,7 @@
           )}&md5=${encodeURIComponent(
             'RNYFr9b5I5uRHu3U00owHQ=='
           )}&player_id=1559854549060&token=${token}`,
-          size: 83519528,
+          fileSize: 83519528,
         },
       ];
 
@@ -221,13 +221,13 @@
       }
 
       async function preLoadAudio(audio) {
-        const { $btn, name, url, size } = audio;
+        const { $btn, name, url, fileSize } = audio;
         if (audio.preloaded) return Promise.resolve();
         audio.preloaded = true;
 
         $btn.setAttribute('value', `${name} (loading...)`);
 
-        await player.preLoad(url, size, 0).then(() => {
+        await player.preLoad(url, fileSize, 0).then(() => {
           $btn.removeAttribute('disabled');
           $btn.setAttribute('value', name + ' (preloaded)');
         });
@@ -250,7 +250,7 @@
 
           file.$btn = $btn;
 
-          const { url, size, preLoad, preLoadOnHover } = file;
+          const { url, fileSize, preLoad, preLoadOnHover } = file;
 
           if (preLoad) {
             preLoadAudio(file);
@@ -280,6 +280,11 @@
               )`;
             };
 
+            const onPlaybackEnded = () => {
+              $playbackPositionDisplay.style.background =
+                'linear-gradient(to right, green 100%, #ffffff 100%)';
+            };
+
             const onPlaybackProgress = (progress) => {
               const percent = Math.min(progress, 1) * 100;
               $playbackPositionDisplay.style.background = `linear-gradient(to right, #efe3af ${percent}%, #ffffff ${percent}%)`;
@@ -295,14 +300,15 @@
             //   }
             // });
 
-            player.play(
+            player.play({
               url,
-              size,
+              fileSize,
               onBufferChange,
               onBufferProgress,
               onPlaybackProgress,
-              0
-            );
+              onPlaybackEnded,
+              initialPosition: 0,
+            });
           };
 
           $container.appendChild($btn);

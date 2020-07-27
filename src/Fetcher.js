@@ -1,5 +1,5 @@
 import axios, { CancelToken, Cancel } from 'axios';
-import { debug } from './utils/logger';
+import { debug, error } from './utils/logger';
 import noop from './utils/noop';
 import DecodingError from './DecodingError';
 
@@ -110,7 +110,14 @@ export default class Fetcher {
   }
 
   _loadFragment(start, end, retryCount = 0) {
-    debug(`Fetching chunk...`);
+    debug('Fetching chunk...');
+
+    if (!Number.isInteger(start) || !Number.isInteger(end)) {
+      const message = 'Range header is not valid';
+      error(message, { start, end });
+      return Promise.reject(new Error(message));
+    }
+
     const options = {
       headers: {
         range: `${start}-${end}`,
