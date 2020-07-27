@@ -61,6 +61,7 @@ export default class Clip extends EventEmitter {
     this._scheduledEndTime = null;
     this._playbackProgress = 0;
     this._bufferingOffset = 0;
+    this._lastBufferChange = null;
 
     this._shouldStopBuffering = false;
     this._preBuffering = false;
@@ -176,6 +177,7 @@ export default class Clip extends EventEmitter {
       });
     }
 
+    this._onBufferChange(true);
     this._buffering = true;
     const preloadOnly = false;
     return this._loader
@@ -370,13 +372,18 @@ export default class Clip extends EventEmitter {
         return averageChunkDuration * this._totalChunksCount;
       }
 
+      // Player is buffering.
+      this._onBufferChange(true);
+
       if (this._scheduledEndTime != null) {
         this._bufferingOffset = this._playbackProgress;
       }
 
-      // Player is buffering.
       return offset + this._playbackProgress;
     }
+
+    // Player is playing back.
+    this._onBufferChange(false);
 
     if (this._contextTimeAtStart === this._lastContextTimeAtStart) {
       this._playbackProgress +=
@@ -698,5 +705,13 @@ export default class Clip extends EventEmitter {
       Date.now() - Math.max(scheduledAt, 0) - Math.max(scheduledTimeout, 0),
       0
     );
+  }
+
+  _onBufferChange(isBuffering) {
+    if (this._lastBufferChange === isBuffering) {
+      return;
+    }
+    this._fire('bufferchange', isBuffering);
+    this._lastBufferChange = isBuffering;
   }
 }

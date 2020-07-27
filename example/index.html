@@ -55,9 +55,6 @@
     <input id="volume-range" type="range" min="0" max="100" value="75" />
     <h5 id="audio-engine-text" style="width: 100%; text-align: center;"></h5>
     <p id="console"></p>
-    <audio autoplay>
-      Your browser doesn't support HTML audio element.
-    </audio>
     <script>
       const $console = document.getElementById('console');
       window.console = ((nativeConsole) => {
@@ -264,6 +261,14 @@
           }
 
           $btn.onclick = () => {
+            const onBufferChange = (isBuffering) => {
+              if (isBuffering) {
+                $playbackPositionDisplay.style.borderColor = 'red';
+              } else {
+                $playbackPositionDisplay.style.borderColor = 'black';
+              }
+            };
+
             const onBufferProgress = (initialPosition, progress) => {
               const start = Math.min(initialPosition, 1) * 100;
               const end = Math.min(progress, 1) * 100;
@@ -290,7 +295,14 @@
             //   }
             // });
 
-            player.play(url, size, onBufferProgress, onPlaybackProgress, 0);
+            player.play(
+              url,
+              size,
+              onBufferChange,
+              onBufferProgress,
+              onPlaybackProgress,
+              0
+            );
           };
 
           $container.appendChild($btn);

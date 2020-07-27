@@ -50,6 +50,18 @@ export default class ProtonPlayer {
           this._clips[k].playbackEnded();
         });
       });
+
+      audioElement.addEventListener('waiting', () => {
+        if (this._currentlyPlaying) {
+          this._currentlyPlaying.onBufferChange(true);
+        }
+      });
+
+      audioElement.addEventListener('playing', () => {
+        if (this._currentlyPlaying) {
+          this._currentlyPlaying.onBufferChange(false);
+        }
+      });
     }
 
     if (!silenceURL) {
@@ -94,6 +106,7 @@ export default class ProtonPlayer {
   play(
     url,
     fileSize,
+    onBufferChange = noop,
     onBufferProgress = noop,
     onPlaybackProgress = noop,
     initialPosition = 0,
@@ -133,6 +146,7 @@ export default class ProtonPlayer {
         clip,
         url,
         fileSize,
+        onBufferChange,
         onBufferProgress,
         onPlaybackProgress,
         lastReportedProgress: initialPosition,
@@ -146,6 +160,8 @@ export default class ProtonPlayer {
         this.stopAll();
         onPlaybackProgress(1);
       });
+
+      clip.on('bufferchange', (isBuffering) => onBufferChange(isBuffering));
 
       this._playbackPositionInterval = setInterval(() => {
         if (clip.duration === 0) return;
@@ -235,6 +251,7 @@ export default class ProtonPlayer {
     const {
       url,
       fileSize,
+      onBufferChange,
       onBufferProgress,
       onPlaybackProgress,
     } = this._currentlyPlaying;
@@ -252,6 +269,7 @@ export default class ProtonPlayer {
     return this.play(
       url,
       fileSize,
+      onBufferChange,
       onBufferProgress,
       onPlaybackProgress,
       percent,
