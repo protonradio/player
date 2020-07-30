@@ -43,8 +43,6 @@ export default class ProtonPlayer {
       typeof window.MediaSource.isTypeSupported === 'function' &&
       window.MediaSource.isTypeSupported('audio/mpeg');
 
-    debug(`Using ${this._useMediaSource ? 'MediaSource' : 'AudioContext'} API`);
-
     if (this._useMediaSource) {
       const audioElement = document.createElement('audio');
       audioElement.autoplay = false;
@@ -129,9 +127,6 @@ export default class ProtonPlayer {
       warn(message);
       return Promise.reject(message);
     }
-
-    // TODO: make the Client not call `play` when playback is paused and waveform is clicked. It should just call `setPlaybackPosition`.
-    debug(`fromSetPlaybackPosition: ${fromSetPlaybackPosition}`);
 
     if (
       this._currentlyPlaying &&
