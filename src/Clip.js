@@ -25,15 +25,13 @@ export default class Clip extends EventEmitter {
     audioMetadata = {},
     osName,
     browserName,
+    useMediaSource,
   }) {
     super();
 
     this.osName = osName;
     this.browserName = browserName;
-    this._useMediaSource =
-      typeof window.MediaSource !== 'undefined' &&
-      typeof window.MediaSource.isTypeSupported === 'function' &&
-      window.MediaSource.isTypeSupported('audio/mpeg');
+    this._useMediaSource = useMediaSource;
 
     if (this._useMediaSource) {
       this._audioElement = document.querySelector('audio');

@@ -38,8 +38,14 @@ export default class ProtonPlayer {
     this._clips = {};
     this._currentlyPlaying = null;
     this._playbackPositionInterval = null;
+    this._useMediaSource =
+      typeof window.MediaSource !== 'undefined' &&
+      typeof window.MediaSource.isTypeSupported === 'function' &&
+      window.MediaSource.isTypeSupported('audio/mpeg');
 
-    if (typeof window.MediaSource !== 'undefined') {
+    debug(`Using ${this._useMediaSource ? 'MediaSource' : 'AudioContext'} API`);
+
+    if (this._useMediaSource) {
       const audioElement = document.createElement('audio');
       audioElement.autoplay = false;
 
@@ -316,6 +322,7 @@ export default class ProtonPlayer {
       volume: this._volume,
       osName: this.osName,
       browserName: this.browserName,
+      useMediaSource: this._useMediaSource,
     });
 
     clip.on('loaderror', (err) => {
