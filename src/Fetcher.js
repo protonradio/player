@@ -110,8 +110,6 @@ export default class Fetcher {
   }
 
   _loadFragment(start, end, retryCount = 0) {
-    debug('Fetching chunk...');
-
     if (!Number.isInteger(start) || !Number.isInteger(end)) {
       const message = 'Range header is not valid';
       error(message, { start, end });
@@ -198,7 +196,6 @@ export default class Fetcher {
         resolve();
         return;
       }
-      debug(`Sleeping for ${timeout}ms...`);
       const sleepTimeout = setTimeout(resolve, timeout);
       this._sleepOnCancel = () => {
         reject(SLEEP_CANCELLED);
