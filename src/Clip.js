@@ -2,7 +2,7 @@ import Loader from './Loader';
 import EventEmitter from './EventEmitter';
 import ProtonPlayerError from './ProtonPlayerError';
 import getContext from './getContext';
-import { error, warn } from './utils/logger';
+import { debug, warn } from './utils/logger';
 import noop from './utils/noop';
 
 const CHUNK_SIZE = 64 * 1024;
@@ -633,11 +633,11 @@ export default class Clip extends EventEmitter {
         }
       } catch (e) {
         // SourceBuffer might be full, remove segments that have already been played.
-        error('Exception when running SourceBuffer#appendBuffer', e);
+        debug('Exception when running SourceBuffer#appendBuffer', e);
         try {
           this._sourceBuffer.remove(0, this._audioElement.currentTime);
         } catch (e) {
-          error('Exception when running SourceBuffer#remove', e);
+          debug('Exception when running SourceBuffer#remove', e);
         }
       }
     }
