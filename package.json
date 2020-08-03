@@ -5,12 +5,14 @@
   "module": "dist/proton-player.esm.js",
   "browser": "dist/proton-player.umd.js",
   "dependencies": {
-    "bowser": "^2.9.0"
+    "axios": "^0.19.2",
+    "bowser": "^2.10.0"
   },
   "devDependencies": {
-    "@rollup/plugin-commonjs": "^13.0.0",
+    "@rollup/plugin-commonjs": "^14.0.0",
+    "@rollup/plugin-json": "^4.1.0",
     "@rollup/plugin-node-resolve": "^8.1.0",
-    "rollup": "^2.20.0"
+    "rollup": "^2.23.0"
   },
   "scripts": {
     "build": "rollup -c",

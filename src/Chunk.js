@@ -1,35 +1,47 @@
-import { slice } from './utils/buffer.js';
-import isFrameHeader from './utils/isFrameHeader.js';
-import getFrameLength from './utils/getFrameLength.js';
+import noop from './utils/noop';
+import { error } from './utils/logger';
+import { slice } from './utils/buffer';
+import isFrameHeader from './utils/isFrameHeader';
+import getFrameLength from './utils/getFrameLength';
+import DecodingError from './DecodingError';
 
 export default class Chunk {
-  constructor({ clip, raw, onready, onerror }) {
+  constructor({ clip, raw, callback }) {
     this.context = clip.context;
     this.raw = raw;
     this.extended = null;
     this.duration = null;
     this.ready = false;
     this._attached = false;
-    this._callback = onready;
+    this._callback = callback || noop;
+    this._onReady = noop;
     this._firstByte = 0;
 
-    const decode = (callback, errback) => {
-      const buffer = slice(raw, this._firstByte, raw.length).buffer;
-      this.context.decodeAudioData(buffer, callback, (err) => {
-        if (err) return errback(err);
-        this._firstByte += 1;
-        // filthy hack taken from http://stackoverflow.com/questions/10365335/decodeaudiodata-returning-a-null-error
-        // Thanks Safari developers, you absolute numpties
-        for (; this._firstByte < raw.length - 1; this._firstByte += 1) {
-          if (isFrameHeader(raw, this._firstByte, clip._referenceHeader)) {
-            return decode(callback, errback);
+    const decode = (callback) => {
+      const { buffer } = slice(raw, this._firstByte, raw.length);
+      this.context.decodeAudioData(
+        buffer,
+        () => callback(),
+        (err) => {
+          if (err) {
+            return callback(err);
           }
+          this._firstByte += 1;
+          // Hack for Safari/iOS taken from http://stackoverflow.com/questions/10365335/decodeaudiodata-returning-a-null-error
+          for (; this._firstByte < raw.length - 1; this._firstByte += 1) {
+            if (isFrameHeader(raw, this._firstByte, clip._referenceHeader)) {
+              return decode(callback);
+            }
+          }
+          callback(new DecodingError('Could not decode audio buffer'));
         }
-        errback(new Error(`Could not decode audio buffer`));
-      });
+      );
     };
 
-    decode(() => {
+    decode((err) => {
+      if (err) {
+        return this._callback(err);
+      }
       let numFrames = 0;
       for (let i = this._firstByte; i < this.raw.length; i += 1) {
         if (isFrameHeader(this.raw, i, clip._referenceHeader)) {
@@ -40,11 +52,11 @@ export default class Chunk {
       }
       this.duration = (numFrames * 1152) / clip.metadata.sampleRate;
       if (this.duration > 0) {
-        this._ready();
+        this._callback();
       } else {
-        onerror(new Error(`Got 0 frames when decoding audio buffer`));
+        this._callback(new DecodingError('Got 0 frames when decoding audio buffer'));
       }
-    }, onerror);
+    });
   }
 
   attach(nextChunk) {
@@ -53,14 +65,17 @@ export default class Chunk {
     this._ready();
   }
 
-  createSource(timeOffset, callback, errback) {
+  createSource(timeOffset, callback) {
     if (!this.ready) {
-      console.error('Something went wrong! Chunk was not ready in time for playback');
+      const message = 'Something went wrong! Chunk was not ready in time for playback';
+      error(message);
+      callback(new Error(message));
       return;
     }
 
+    const { buffer } = slice(this.extended, 0, this.extended.length);
     this.context.decodeAudioData(
-      slice(this.extended, 0, this.extended.length).buffer,
+      buffer,
       (decoded) => {
         if (timeOffset) {
           const sampleOffset = ~~(timeOffset * decoded.sampleRate);
@@ -83,9 +98,12 @@ export default class Chunk {
         }
         const source = this.context.createBufferSource();
         source.buffer = decoded;
-        callback(source);
+        callback(null, source);
       },
-      errback
+      (err) => {
+        err = err || {}; // Safari might error out without an error object
+        callback(err);
+      }
     );
   }
 
@@ -93,7 +111,7 @@ export default class Chunk {
     if (this.ready) {
       setTimeout(callback);
     } else {
-      this._callback = callback;
+      this._onReady = callback || noop;
     }
   }
 
@@ -101,29 +119,19 @@ export default class Chunk {
     if (this.ready) return;
     if (!this._attached || this.duration === null) return;
 
-    this.ready = true;
+    const currentChunkBytes =
+      this._firstByte > 0 ? slice(this.raw, this._firstByte, this.raw.length) : this.raw;
 
     if (this.next) {
-      const rawLen = this.raw.length;
-      const nextLen = this.next.raw.length >> 1; // we don't need the whole thing
-      this.extended = new Uint8Array(rawLen + nextLen);
-      let p = 0;
-      for (let i = this._firstByte; i < rawLen; i += 1) {
-        this.extended[p++] = this.raw[i];
-      }
-      for (let i = 0; i < nextLen; i += 1) {
-        this.extended[p++] = this.next.raw[i];
-      }
+      const rawLen = currentChunkBytes.length;
+      this.extended = new Uint8Array(rawLen + this.next.raw.length);
+      this.extended.set(currentChunkBytes);
+      this.extended.set(this.next.raw, rawLen);
     } else {
-      this.extended =
-        this._firstByte > 0
-          ? slice(this.raw, this._firstByte, this.raw.length)
-          : this.raw;
+      this.extended = currentChunkBytes;
     }
 
-    if (this._callback) {
-      this._callback();
-      this._callback = null;
-    }
+    this.ready = true;
+    this._onReady();
   }
 }

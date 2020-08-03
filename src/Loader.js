@@ -1,7 +1,8 @@
 import Chunk from './Chunk';
 import EventEmitter from './EventEmitter';
-import Fetcher from './Fetcher';
+import Fetcher, { PRELOAD_BATCH_SIZE } from './Fetcher';
 import { slice } from './utils/buffer';
+import { debug } from './utils/logger';
 import parseMetadata from './utils/parseMetadata';
 import getContext from './getContext';
 
@@ -14,9 +15,11 @@ export default class Loader extends EventEmitter {
     this.metadata = audioMetadata.metadata;
     this._fetcher = new Fetcher(chunkSize, url, fileSize);
     this._loadStarted = false;
+    this._canPlayThrough = false;
     this.context = getContext();
     this.buffered = 0;
-    this.firstChunkDuration = 0;
+    this._chunksDuration = 0;
+    this._chunksCount = 0;
   }
 
   get audioMetadata() {
@@ -24,6 +27,10 @@ export default class Loader extends EventEmitter {
       referenceHeader: this._referenceHeader,
       metadata: this.metadata,
     };
+  }
+
+  get averageChunkDuration() {
+    return this._chunksCount > 0 ? this._chunksDuration / this._chunksCount : 0;
   }
 
   cancel() {
@@ -34,132 +41,111 @@ export default class Loader extends EventEmitter {
   buffer(bufferToCompletion = false, preloadOnly = false, initialByte = 0) {
     if (!this._loadStarted) {
       this._loadStarted = !preloadOnly;
+      this._canPlayThrough = false;
 
-      let tempBuffer = new Uint8Array(this._chunkSize * 2);
-      let p = 0;
-      // let loadStartTime = Date.now();
-      // let totalLoadedBytes = 0;
       const checkCanplaythrough = () => {
-        if (this.canplaythrough || !this.length) return;
-        let duration = 0;
-        let bytes = 0;
+        if (this._canPlayThrough || !this.length) return;
+        let loadedChunksCount = 0;
         for (let chunk of this._chunks) {
-          // if (!chunk.duration) break;
-          if (!chunk.duration) continue;
-          duration += chunk.duration;
-          bytes += chunk.raw.length;
-        }
-        if (!duration) return;
-        const scale = this.length / bytes;
-        const estimatedDuration = duration * scale;
-        // const timeNow = Date.now();
-        // const elapsed = timeNow - loadStartTime;
-        // const bitrate = totalLoadedBytes / elapsed;
-        // const estimatedTimeToDownload =
-        //   (1.5 * (this.length - totalLoadedBytes)) / bitrate / 1e3;
-        const estimatedTimeToDownload = 4; // TODO: ???
-        // if we have enough audio that we can start playing now
-        // and finish downloading before we run out, we've
-        // reached canplaythrough
-        const availableAudio = (bytes / this.length) * estimatedDuration;
-        if (availableAudio > estimatedTimeToDownload) {
-          this.canplaythrough = true;
-          this._fire('canplaythrough');
+          if (!chunk.duration) break;
+          if (++loadedChunksCount >= PRELOAD_BATCH_SIZE) {
+            this._canPlayThrough = true;
+            this._fire('canPlayThrough');
+            debug('Can play through 1');
+            break;
+          }
         }
       };
 
-      const drainBuffer = () => {
-        const isFirstChunk = this._chunks.length === 0;
-        const firstByte = isFirstChunk ? 32 : 0;
-        const chunk = new Chunk({
-          clip: {
-            context: this.context,
-            metadata: this.metadata,
-            _referenceHeader: this._referenceHeader,
-          },
-          raw: slice(tempBuffer, firstByte, p),
-          onready: () => {
-            if (!this.canplaythrough) {
-              checkCanplaythrough();
+      const calculateMetadata = (uint8Array) => {
+        if (
+          !this.metadata ||
+          !this._referenceHeader ||
+          Object.keys(this.metadata).length === 0 ||
+          Object.keys(this._referenceHeader).length === 0
+        ) {
+          for (let i = 0; i < uint8Array.length; i += 1) {
+            // determine some facts about this mp3 file from the initial header
+            if (
+              uint8Array[i] === 0b11111111 &&
+              (uint8Array[i + 1] & 0b11110000) === 0b11110000
+            ) {
+              // http://www.datavoyage.com/mpgscript/mpeghdr.htm
+              this._referenceHeader = {
+                mpegVersion: uint8Array[i + 1] & 0b00001000,
+                mpegLayer: uint8Array[i + 1] & 0b00000110,
+                sampleRate: uint8Array[i + 2] & 0b00001100,
+                channelMode: uint8Array[i + 3] & 0b11000000,
+              };
+              this.metadata = parseMetadata(this._referenceHeader);
+              // TODO: do the following checks based on arguments to the library?
+              if (
+                this.metadata.sampleRate === 44100 &&
+                this.metadata.channelMode === 'stereo'
+              )
+                break;
             }
-            if (!this.firstChunkDuration) {
-              this.firstChunkDuration = chunk.duration;
-            }
-          },
-          onerror: (error) => {
-            error.url = this.url;
-            error.phonographCode = 'COULD_NOT_DECODE';
-            this._fire('playbackerror', error);
-            this.cancel();
-          },
-        });
-        const lastChunk = this._chunks[this._chunks.length - 1];
-        if (lastChunk) lastChunk.attach(chunk);
-        this._chunks.push(chunk);
-        p = 0;
-        return chunk;
+          }
+        }
       };
+
+      const createChunk = (uint8Array) => {
+        calculateMetadata(uint8Array);
+        return new Promise((resolve, reject) => {
+          const chunk = new Chunk({
+            clip: {
+              context: this.context,
+              metadata: this.metadata,
+              _referenceHeader: this._referenceHeader,
+            },
+            raw: slice(uint8Array, 0, uint8Array.length),
+            callback: (err) => {
+              if (err) {
+                return reject(err);
+              }
+              resolve(chunk);
+            },
+          });
+        });
+      };
+
       this._fetcher.load({
         preloadOnly,
         initialByte,
+        createChunk,
         onProgress: (chunkLength, total) => {
           this.buffered += chunkLength;
           this.length = total;
           this._fire('loadprogress', { buffered: this.buffered, total });
         },
-        onData: (uint8Array) => {
-          if (
-            !this.metadata ||
-            !this._referenceHeader ||
-            Object.keys(this.metadata).length === 0 ||
-            Object.keys(this._referenceHeader).length === 0
-          ) {
-            for (let i = 0; i < uint8Array.length; i += 1) {
-              // determine some facts about this mp3 file from the initial header
-              if (
-                uint8Array[i] === 0b11111111 &&
-                (uint8Array[i + 1] & 0b11110000) === 0b11110000
-              ) {
-                // http://www.datavoyage.com/mpgscript/mpeghdr.htm
-                this._referenceHeader = {
-                  mpegVersion: uint8Array[i + 1] & 0b00001000,
-                  mpegLayer: uint8Array[i + 1] & 0b00000110,
-                  sampleRate: uint8Array[i + 2] & 0b00001100,
-                  channelMode: uint8Array[i + 3] & 0b11000000,
-                };
-                this.metadata = parseMetadata(this._referenceHeader);
-                break;
-              }
-            }
+        onData: (chunk) => {
+          const lastChunk = this._chunks[this._chunks.length - 1];
+          if (lastChunk) lastChunk.attach(chunk);
+          this._chunks.push(chunk);
+          if (!this._canPlayThrough) {
+            checkCanplaythrough();
           }
-          for (let i = 0; i < uint8Array.length; i += 1) {
-            // once the buffer is large enough, wait for
-            // the next frame header then drain it
-            if (p >= this._chunkSize) {
-              drainBuffer();
-            }
-            // write new data to buffer
-            tempBuffer[p++] = uint8Array[i];
+          if (chunk.raw.length === this._chunkSize + 1) {
+            this._chunksDuration += chunk.duration;
+            this._chunksCount += 1;
           }
-          // totalLoadedBytes += uint8Array.length;
         },
-        onLoad: () => {
-          if (p) {
-            const lastChunk = drainBuffer();
+        onLoad: (lastChunk) => {
+          if (lastChunk) {
             lastChunk.attach(null);
-            // totalLoadedBytes += p;
           }
           const firstChunk = this._chunks[0];
           firstChunk.onready(() => {
-            if (!this.canplaythrough) {
-              this.canplaythrough = true;
-              this._fire('canplaythrough');
+            if (!this._canPlayThrough) {
+              this._canPlayThrough = true;
+              this._fire('canPlayThrough');
+              debug('Can play through 2');
             }
             this.loaded = true;
             this._fire('load');
           });
         },
-        onError: (error) => {
+        onError: (error = {}) => {
           error.url = this.url;
           error.phonographCode = 'COULD_NOT_LOAD';
           this._fire('loaderror', error);
@@ -167,12 +153,12 @@ export default class Loader extends EventEmitter {
         },
       });
     }
-    return new Promise((fulfil, reject) => {
-      const ready = preloadOnly ? this.canplaythrough : this.loaded;
+    return new Promise((resolve, reject) => {
+      const ready = preloadOnly ? this._canPlayThrough : this.loaded;
       if (ready) {
-        fulfil();
+        resolve();
       } else {
-        this.once(preloadOnly ? 'canplaythrough' : 'load', fulfil);
+        this.once(preloadOnly ? 'canPlayThrough' : 'load', resolve);
         this.once('loaderror', reject);
       }
     });
