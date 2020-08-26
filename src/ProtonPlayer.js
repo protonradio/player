@@ -50,9 +50,9 @@ export default class ProtonPlayer {
       document.body.appendChild(audioElement);
 
       audioElement.addEventListener('ended', () => {
-        Object.keys(this._clips).forEach((k) => {
-          this._clips[k].playbackEnded();
-        });
+        if (this._currentlyPlaying && this._currentlyPlaying.clip) {
+          this._currentlyPlaying.clip.playbackEnded();
+        }
       });
 
       audioElement.addEventListener('waiting', () => {
@@ -161,7 +161,7 @@ export default class ProtonPlayer {
         onBufferProgress(initialPosition, progress)
       );
 
-      clip.on('ended', () => {
+      clip.once('ended', () => {
         this.stopAll();
         onPlaybackProgress(1);
         onPlaybackEnded();
