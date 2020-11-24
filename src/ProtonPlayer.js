@@ -170,8 +170,9 @@ export default class ProtonPlayer {
       clip.on('bufferchange', (isBuffering) => onBufferChange(isBuffering));
 
       this._playbackPositionInterval = setInterval(() => {
-        if (clip.duration === 0) return;
-        let progress = clip.currentTime / clip.duration;
+        const { duration, currentTime } = clip;
+        if (duration === 0 || duration < currentTime) return;
+        let progress = currentTime / duration;
 
         if (progress < 0) {
           progress = 0;

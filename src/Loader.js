@@ -125,7 +125,7 @@ export default class Loader extends EventEmitter {
           if (!this._canPlayThrough) {
             checkCanplaythrough();
           }
-          if (chunk.raw.length === this._chunkSize + 1) {
+          if (chunk.raw.length === this._chunkSize + 1 && chunk.duration > 0) {
             this._chunksDuration += chunk.duration;
             this._chunksCount += 1;
           }
