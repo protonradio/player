@@ -266,7 +266,9 @@ export default class ProtonPlayer {
 
     const clip = this._clips[url];
 
-    if (clip && clip.isPositionLoaded(percent)) {
+    // TODO: should be able to call `setCurrentPosition` even if the position is not loaded yet.
+    if (clip) {
+      // && clip.isPositionLoaded(percent)
       return clip.setCurrentPosition(percent) || Promise.resolve();
     }
 

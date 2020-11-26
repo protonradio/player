@@ -8,16 +8,27 @@ const LOAD_BATCH_SIZE = 2;
 export const PRELOAD_BATCH_SIZE = 4;
 
 export default class Fetcher {
-  constructor(chunkSize, url, fileSize) {
+  constructor(chunkSize, url, fileSize, clipState = null) {
     this.chunkSize = chunkSize;
     this.url = url;
     this.fileSize = fileSize;
+    this._clipState = clipState;
     this._totalLoaded = 0;
-    this._nextChunkStart = 0;
-    this._nextChunkEnd = 0;
     this._cancelled = false;
     this._preloaded = false;
     this._preloading = false;
+
+    if (this._clipState) {
+      this._clipState.on('chunkIndexChanged', (newIndex) => {
+        console.log(`[Fetcher] chunkIndexChanged -> newIndex: ${newIndex}`);
+        if (this._fullyLoaded) return;
+        this.cancel();
+        this._cancelled = false;
+        this._initialChunk = newIndex;
+        this._load();
+        // TODO: check if chunk is already loaded?
+      });
+    }
   }
 
   cancel() {
@@ -28,15 +39,16 @@ export default class Fetcher {
 
   load({
     preloadOnly = false,
-    initialByte = 0,
+    initialChunk = 0,
     onProgress,
     onData,
     onLoad,
     onError,
     createChunk,
   }) {
+    this._initialChunk = initialChunk;
+    const initialByte = initialChunk * this.chunkSize;
     this._totalLoaded = this._totalLoaded || initialByte;
-    this._nextChunkStart = this._nextChunkStart || initialByte;
     this._onProgress = onProgress || noop;
     this._onData = onData || noop;
     this._onLoad = onLoad || noop;
@@ -96,7 +108,6 @@ export default class Fetcher {
         if (this._cancelled) return;
         chunks.forEach((chunk) => this._handleChunk(chunk));
         if (!this._fullyLoaded) {
-          this._advanceStart();
           const timeout =
             LOAD_BATCH_SIZE * (this._seconds(1) / 2) - (Date.now() - startTime);
           return this._sleep(timeout)
@@ -109,7 +120,13 @@ export default class Fetcher {
       .catch(this._onError);
   }
 
-  _loadFragment(start, end, retryCount = 0) {
+  _loadFragment(chunkIndex, retryCount = 0) {
+    if (this._clipState && this._clipState.isChunkReady(chunkIndex)) {
+      console.log(`return Promise.resolve(this._clipState.chunks[${chunkIndex}])`);
+      return Promise.resolve(this._clipState.chunks[chunkIndex]);
+    }
+
+    const { start, end } = this._getRange(chunkIndex);
     if (!Number.isInteger(start) || !Number.isInteger(end)) {
       const message = 'Range header is not valid';
       error(message, { start, end });
@@ -132,7 +149,7 @@ export default class Fetcher {
           throw new Error('Bad response body');
         }
         const uint8Array = new Uint8Array(response.data);
-        return this._createChunk(uint8Array);
+        return this._createChunk(uint8Array, chunkIndex);
       })
       .catch((error) => {
         if (error instanceof Cancel) return;
@@ -152,7 +169,7 @@ export default class Fetcher {
           debug(`${message}. Retrying...`);
           const timeout = tooManyRequests ? this._seconds(10) : this._seconds(retryCount); // TODO: use `X-RateLimit-Reset` header if error was "tooManyRequests"
           return this._sleep(timeout)
-            .then(() => this._loadFragment(start, end, retryCount + 1))
+            .then(() => this._loadFragment(chunkIndex, retryCount + 1))
             .catch((err) => {
               if (err !== SLEEP_CANCELLED) throw err;
             });
@@ -167,23 +184,24 @@ export default class Fetcher {
     this._cancelTokenSource = CancelToken.source();
     const promises = [];
     for (let i = 0; i < batchSize; i++) {
-      if (this._nextChunkStart >= this.fileSize) {
+      const { start } = this._getRange(this._initialChunk);
+      if (start >= this.fileSize) {
         break;
       }
-      this._advanceEnd();
-      promises.push(this._loadFragment(this._nextChunkStart, this._nextChunkEnd));
-      this._advanceStart();
+      if (this._clipState && this._clipState.isChunkReady(this._initialChunk)) {
+        console.log(`_loadBatch -> continue`);
+        continue;
+      }
+      promises.push(this._loadFragment(this._initialChunk));
+      this._initialChunk += 1;
     }
     return promises;
   }
 
-  _advanceStart() {
-    this._nextChunkStart = this._nextChunkEnd + 1;
-  }
-
-  _advanceEnd() {
-    this._nextChunkEnd =
-      this._nextChunkStart + Math.min(this._getRemaining(), this.chunkSize);
+  _getRange(chunkIndex) {
+    const start = chunkIndex * this.chunkSize + chunkIndex;
+    const end = start + Math.min(this._getRemaining(), this.chunkSize);
+    return { start, end };
   }
 
   _getRemaining() {

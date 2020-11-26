@@ -4,6 +4,7 @@ import ProtonPlayerError from './ProtonPlayerError';
 import getContext from './getContext';
 import { debug, warn } from './utils/logger';
 import noop from './utils/noop';
+import ClipState from './ClipState';
 
 const CHUNK_SIZE = 64 * 1024;
 const OVERLAP = 0.2;
@@ -46,11 +47,12 @@ export default class Clip extends EventEmitter {
     this._playbackState = PLAYBACK_STATE.STOPPED;
     this.ended = false;
     this.url = url;
-    this.fileSize = fileSize;
     this.volume = volume;
-    this._chunks = [];
+
+    // this._chunks = []; // TODO: this should be replaced with an instance of a class that stores the state of the clip (chunks, index, etc.)
+    this._clipState = new ClipState(fileSize);
+
     this._silenceChunks = silenceChunks;
-    this._chunkIndex = 0;
     this._lastPlayedChunk = null;
     this._tickTimeout = null;
     this._mediaSourceTimeout = null;
@@ -67,7 +69,6 @@ export default class Clip extends EventEmitter {
     this._buffering = false;
     this._buffered = false;
 
-    this._totalChunksCount = Math.ceil(fileSize / CHUNK_SIZE);
     this._initialChunk = this._getChunkIndexByPosition(initialPosition);
     this._initialByte = this._initialChunk * CHUNK_SIZE;
     this._seekedChunk = 0;
@@ -98,8 +99,9 @@ export default class Clip extends EventEmitter {
     this._loader = new Loader(
       CHUNK_SIZE,
       this.url,
-      this.fileSize,
-      this._chunks,
+      this._clipState.fileSize,
+      this._clipState.chunks,
+      this._clipState,
       audioMetadata
     );
     this._loader.on('canPlayThrough', () => {
@@ -112,7 +114,7 @@ export default class Clip extends EventEmitter {
       const bufferedWithOffset = buffered + this._initialByte;
       this._fire('loadprogress', {
         total,
-        initialPosition: this._initialChunk / this._totalChunksCount,
+        initialPosition: this._initialChunk / this._clipState.totalChunksCount,
         buffered: bufferedWithOffset,
         progress: bufferedWithOffset / total,
       });
@@ -143,7 +145,7 @@ export default class Clip extends EventEmitter {
     const bufferToCompletion = false;
     const preloadOnly = true;
     return this._loader
-      .buffer(bufferToCompletion, preloadOnly, this._initialByte)
+      .buffer(bufferToCompletion, preloadOnly, this._initialChunk)
       .then(() => {
         this._preBuffering = false;
         this._preBuffered = true;
@@ -179,7 +181,7 @@ export default class Clip extends EventEmitter {
     this._buffering = true;
     const preloadOnly = false;
     return this._loader
-      .buffer(bufferToCompletion, preloadOnly, this._initialByte)
+      .buffer(bufferToCompletion, preloadOnly, this._initialChunk)
       .then(() => {
         this._buffering = false;
         this._buffered = true;
@@ -211,7 +213,7 @@ export default class Clip extends EventEmitter {
     this._buffering = false;
     this._buffered = false;
     this.loaded = false;
-    this._chunks = [];
+    this._clipState.reset();
     this._fire('dispose');
   }
 
@@ -315,7 +317,8 @@ export default class Clip extends EventEmitter {
 
     const initialChunk = this._getChunkIndexByPosition(position);
     this._seekedChunk = initialChunk;
-    this._chunkIndex = initialChunk - this._initialChunk;
+    // this._clipState.chunkIndex = initialChunk - this._initialChunk;
+    this._clipState.chunkIndex = initialChunk;
     let promise;
 
     if (this._useMediaSource) {
@@ -341,12 +344,11 @@ export default class Clip extends EventEmitter {
     return promise;
   }
 
-  isPositionLoaded(position = 0) {
-    const initialChunk = this._getChunkIndexByPosition(position);
-    const wantedChunk = initialChunk - this._initialChunk;
-    const chunk = this._chunks[wantedChunk] || {};
-    return chunk.ready === true && Number.isNaN(chunk.duration) === false;
-  }
+  // isPositionLoaded(position = 0) {
+  //   const initialChunk = this._getChunkIndexByPosition(position);
+  //   const wantedChunk = initialChunk - this._initialChunk;
+  //   return this._clipState.isChunkReady(wantedChunk);
+  // }
 
   get currentTime() {
     if (this._playbackState !== PLAYBACK_STATE.PLAYING) {
@@ -364,10 +366,13 @@ export default class Clip extends EventEmitter {
       this._scheduledEndTime == null ||
       this._scheduledEndTime < this.context.currentTime
     ) {
-      if (this._chunkIndex + this._initialChunk >= this._totalChunksCount - 1) {
+      if (
+        this._clipState.chunkIndex + this._initialChunk >=
+        this._clipState.totalChunksCount - 1
+      ) {
         // Playback has finished.
         this.playbackEnded();
-        return averageChunkDuration * this._totalChunksCount;
+        return averageChunkDuration * this._clipState.totalChunksCount;
       }
 
       // Player is buffering.
@@ -400,7 +405,7 @@ export default class Clip extends EventEmitter {
 
   get duration() {
     if (!this._loader) return 0;
-    return (this.fileSize / CHUNK_SIZE) * this._loader.averageChunkDuration;
+    return (this._clipState.fileSize / CHUNK_SIZE) * this._loader.averageChunkDuration;
   }
 
   get paused() {
@@ -449,15 +454,14 @@ export default class Clip extends EventEmitter {
       stopListener.cancel();
     });
 
-    let _playingSilence = !this._isChunkReady(this._chunkIndex);
-    const _chunks = _playingSilence ? this._silenceChunks : this._chunks;
-    const i = _playingSilence ? 0 : this._chunkIndex;
+    let _playingSilence = !this._clipState.isChunkReady(this._clipState.chunkIndex);
+    let chunk = _playingSilence
+      ? this._silenceChunks[0]
+      : this._clipState.chunks[this._clipState.chunkIndex];
+    chunk.isSilence = _playingSilence;
 
     let previousSource;
     let currentSource;
-
-    let chunk = _chunks[i];
-    chunk.isSilence = _playingSilence;
 
     chunk.createSource(timeOffset, (err, source) => {
       if (err) {
@@ -502,19 +506,20 @@ export default class Clip extends EventEmitter {
       }
 
       this._lastPlayedChunk =
-        _playingSilence && this._chunkIndex === 0 ? null : this._chunkIndex;
+        _playingSilence && this._clipState.chunkIndex === 0
+          ? null
+          : this._clipState.chunkIndex;
 
       const advance = () => {
         if (!playing) return;
 
-        if (!_playingSilence && this._lastPlayedChunk === this._chunkIndex) {
-          this._chunkIndex += 1;
+        if (!_playingSilence && this._lastPlayedChunk === this._clipState.chunkIndex) {
+          this._clipState.chunkIndex += 1;
         }
 
-        const _chunks = _playingSilence ? this._silenceChunks : this._chunks;
-        const i = _playingSilence ? 0 : this._chunkIndex;
-
-        chunk = _chunks[i];
+        chunk = _playingSilence
+          ? this._silenceChunks[0]
+          : this._clipState.chunks[this._clipState.chunkIndex];
         chunk.isSilence = _playingSilence;
 
         if (!chunk.ready) {
@@ -567,7 +572,9 @@ export default class Clip extends EventEmitter {
           }
 
           this._lastPlayedChunk =
-            _playingSilence && this._chunkIndex === 0 ? null : this._chunkIndex;
+            _playingSilence && this._clipState.chunkIndex === 0
+              ? null
+              : this._clipState.chunkIndex;
         });
       };
 
@@ -575,11 +582,11 @@ export default class Clip extends EventEmitter {
         if (this._playbackState !== PLAYBACK_STATE.PLAYING) return;
 
         const i =
-          this._lastPlayedChunk === this._chunkIndex
-            ? this._chunkIndex + 1
-            : this._chunkIndex;
+          this._lastPlayedChunk === this._clipState.chunkIndex
+            ? this._clipState.chunkIndex + 1
+            : this._clipState.chunkIndex;
 
-        _playingSilence = !this._isChunkReady(i);
+        _playingSilence = !this._clipState.isChunkReady(i);
 
         if (_playingSilence) {
           this._wasPlayingSilence = true;
@@ -605,28 +612,34 @@ export default class Clip extends EventEmitter {
   _playUsingMediaSource() {
     if (this._playbackState === PLAYBACK_STATE.STOPPED) return;
 
-    if (this._chunkIndex + this._initialChunk >= this._totalChunksCount) {
+    if (
+      this._clipState.chunkIndex + this._initialChunk >=
+      this._clipState.totalChunksCount
+    ) {
       this._mediaSource.endOfStream();
       return;
     }
 
-    const isChunkReady = this._isChunkReady(this._chunkIndex);
+    const isChunkReady = this._clipState.isChunkReady(this._clipState.chunkIndex);
+    // console.log(`[623] isChunkReady: ${isChunkReady}`);
 
     const useSilence =
       !isChunkReady &&
-      this._chunkIndex === 0 &&
+      this._clipState.chunkIndex === 0 &&
       !this._wasPlayingSilence &&
       (this.browserName === 'safari' || this.osName === 'ios');
+    // console.log(`[630] useSilence: ${useSilence}`);
 
     const chunk = useSilence
       ? this._silenceChunks[0]
-      : isChunkReady && this._chunks[this._chunkIndex];
+      : isChunkReady && this._clipState.chunks[this._clipState.chunkIndex];
+    // console.log(`[635] chunk: ${!!chunk}`);
 
     if (chunk) {
       try {
         this._sourceBuffer.appendBuffer(chunk.raw);
         if (isChunkReady) {
-          this._chunkIndex += 1;
+          this._clipState.chunkIndex += 1;
           this._wasPlayingSilence = false;
         } else if (useSilence) {
           this._wasPlayingSilence = true;
@@ -668,28 +681,19 @@ export default class Clip extends EventEmitter {
   }
 
   _getChunkIndexByPosition(position = 0) {
-    const initialChunk = Math.floor(this._totalChunksCount * position);
-    return initialChunk >= this._totalChunksCount
-      ? this._totalChunksCount - 1
+    const initialChunk = Math.floor(this._clipState.totalChunksCount * position);
+    return initialChunk >= this._clipState.totalChunksCount
+      ? this._clipState.totalChunksCount - 1
       : initialChunk;
   }
 
-  _isChunkReady(index) {
-    return (
-      this._chunks.length > 0 &&
-      index < this._chunks.length &&
-      this._chunks[index].ready === true &&
-      Number.isNaN(this._chunks[index].duration) === false
-    );
-  }
-
   _calculateNextChunkTimeout(chunkIndex = 0, scheduledAt = 0, scheduledTimeout = 0) {
-    const playingSilence = !this._isChunkReady(chunkIndex);
+    const playingSilence = !this._clipState.isChunkReady(chunkIndex);
     if (playingSilence) {
       return 100;
     }
     const timeoutDiff = this._calculateTimeoutDiff(scheduledAt, scheduledTimeout);
-    const chunk = this._chunks[chunkIndex];
+    const chunk = this._clipState.chunks[chunkIndex];
     return chunk && typeof chunk.duration === 'number' && chunk.duration > 0
       ? Math.max(chunk.duration * 1000 - TIMEOUT_SAFE_OFFSET - timeoutDiff, 0)
       : 500;

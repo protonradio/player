@@ -7,19 +7,31 @@ import parseMetadata from './utils/parseMetadata';
 import getContext from './getContext';
 
 export default class Loader extends EventEmitter {
-  constructor(chunkSize, url, fileSize, chunks, audioMetadata = {}) {
+  constructor(chunkSize, url, fileSize, chunks, clipState = null, audioMetadata = {}) {
     super();
     this._chunkSize = chunkSize;
     this._chunks = chunks;
+    this._clipState = clipState;
     this._referenceHeader = audioMetadata.referenceHeader;
     this.metadata = audioMetadata.metadata;
-    this._fetcher = new Fetcher(chunkSize, url, fileSize);
+    this._fetcher = new Fetcher(chunkSize, url, fileSize, clipState);
     this._loadStarted = false;
     this._canPlayThrough = false;
     this.context = getContext();
     this.buffered = 0;
     this._chunksDuration = 0;
     this._chunksCount = 0;
+
+    if (this._clipState) {
+      this._clipState.on('chunkIndexChanged', (newIndex) => {
+        console.log(`[Loader] chunkIndexChanged -> newIndex: ${newIndex}`);
+        this._initialChunk = newIndex;
+        if (!this._clipState.isChunkReady(newIndex)) {
+          this._canPlayThrough = false;
+          console.log(`this._canPlayThrough = false`);
+        }
+      });
+    }
   }
 
   get audioMetadata() {
@@ -38,16 +50,19 @@ export default class Loader extends EventEmitter {
     this._loadStarted = false;
   }
 
-  buffer(bufferToCompletion = false, preloadOnly = false, initialByte = 0) {
+  buffer(bufferToCompletion = false, preloadOnly = false, initialChunk = 0) {
     if (!this._loadStarted) {
       this._loadStarted = !preloadOnly;
+      this._initialChunk = initialChunk;
       this._canPlayThrough = false;
 
       const checkCanplaythrough = () => {
         if (this._canPlayThrough || !this.length) return;
         let loadedChunksCount = 0;
-        for (let chunk of this._chunks) {
-          if (!chunk.duration) break;
+        // for (let chunk of this._chunks) {
+        for (let i = this._initialChunk; i < this._chunks.length; i++) {
+          const chunk = this._chunks[i];
+          if (!chunk || !chunk.duration) break;
           if (++loadedChunksCount >= PRELOAD_BATCH_SIZE) {
             this._canPlayThrough = true;
             this._fire('canPlayThrough');
@@ -89,10 +104,11 @@ export default class Loader extends EventEmitter {
         }
       };
 
-      const createChunk = (uint8Array) => {
+      const createChunk = (uint8Array, index) => {
         calculateMetadata(uint8Array);
         return new Promise((resolve, reject) => {
           const chunk = new Chunk({
+            index,
             clip: {
               context: this.context,
               metadata: this.metadata,
@@ -111,7 +127,7 @@ export default class Loader extends EventEmitter {
 
       this._fetcher.load({
         preloadOnly,
-        initialByte,
+        initialChunk,
         createChunk,
         onProgress: (chunkLength, total) => {
           this.buffered += chunkLength;
@@ -121,7 +137,8 @@ export default class Loader extends EventEmitter {
         onData: (chunk) => {
           const lastChunk = this._chunks[this._chunks.length - 1];
           if (lastChunk) lastChunk.attach(chunk);
-          this._chunks.push(chunk);
+          this._chunks[chunk.index] = chunk;
+          console.log(`this._chunks[${chunk.index}] = chunk`);
           if (!this._canPlayThrough) {
             checkCanplaythrough();
           }
