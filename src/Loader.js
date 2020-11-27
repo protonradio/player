@@ -7,7 +7,7 @@ import parseMetadata from './utils/parseMetadata';
 import getContext from './getContext';
 
 export default class Loader extends EventEmitter {
-  constructor(chunkSize, url, fileSize, chunks, clipState = null, audioMetadata = {}) {
+  constructor(chunkSize, url, fileSize, chunks, clipState, audioMetadata = {}) {
     super();
     this._chunkSize = chunkSize;
     this._chunks = chunks;
@@ -22,16 +22,16 @@ export default class Loader extends EventEmitter {
     this._chunksDuration = 0;
     this._chunksCount = 0;
 
-    if (this._clipState) {
-      this._clipState.on('chunkIndexChanged', (newIndex) => {
-        console.log(`[Loader] chunkIndexChanged -> newIndex: ${newIndex}`);
-        this._initialChunk = newIndex;
-        if (!this._clipState.isChunkReady(newIndex)) {
-          this._canPlayThrough = false;
-          console.log(`this._canPlayThrough = false`);
-        }
-      });
-    }
+    this._clipState.on('chunkIndexChanged', (newIndex) => {
+      console.log(`[Loader] chunkIndexChanged -> newIndex: ${newIndex}`);
+      /**/
+      this._initialChunk = newIndex;
+      if (!this._clipState.isChunkReady(newIndex)) {
+        this._canPlayThrough = false;
+        console.log(`this._canPlayThrough = false`);
+      }
+      /**/
+    });
   }
 
   get audioMetadata() {
@@ -151,7 +151,8 @@ export default class Loader extends EventEmitter {
           if (lastChunk) {
             lastChunk.attach(null);
           }
-          const firstChunk = this._chunks[0];
+          // const firstChunk = this._chunks[0];
+          const firstChunk = this._chunks[this._initialChunk];
           firstChunk.onready(() => {
             if (!this._canPlayThrough) {
               this._canPlayThrough = true;

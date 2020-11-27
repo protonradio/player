@@ -28,6 +28,12 @@ export default class ClipState extends EventEmitter {
   }
 
   set chunkIndex(index) {
+    if (index >= this._totalChunksCount) {
+      console.log(
+        `ClipState#set chunkIndex: index = ${index} >= this._totalChunksCount: ${this._totalChunksCount}`
+      );
+      return;
+    }
     const diff = Math.abs(index - this._chunkIndex);
     this._chunkIndex = index;
     if (diff > 1) {

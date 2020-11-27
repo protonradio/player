@@ -7,6 +7,7 @@ import getContext from './getContext';
 import Loader from './Loader';
 import Clip from './Clip';
 import _ from './init';
+import ClipState from './ClipState';
 
 export default class ProtonPlayer {
   constructor({ silenceURL, volume = 1, onReady = noop, onError = noop }) {
@@ -34,7 +35,8 @@ export default class ProtonPlayer {
     this._onError = onError;
     this._volume = volume;
     this._ready = false;
-    this._silenceChunks = [];
+    // this._silenceChunks = [];
+    this._silenceChunksClipState = new ClipState(64 * 64);
     this._clips = {};
     this._currentlyPlaying = null;
     this._playbackPositionInterval = null;
@@ -80,7 +82,8 @@ export default class ProtonPlayer {
       silenceChunkSize,
       silenceURL,
       silenceChunkSize,
-      this._silenceChunks
+      this._silenceChunksClipState.chunks,
+      this._silenceChunksClipState
     );
     silenceLoader.on('loaderror', (err) => {
       this._ready = false;
@@ -316,7 +319,7 @@ export default class ProtonPlayer {
       fileSize,
       initialPosition,
       audioMetadata,
-      silenceChunks: this._silenceChunks,
+      silenceChunks: this._silenceChunksClipState.chunks,
       volume: this._volume,
       osName: this.osName,
       browserName: this.browserName,

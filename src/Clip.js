@@ -48,10 +48,6 @@ export default class Clip extends EventEmitter {
     this.ended = false;
     this.url = url;
     this.volume = volume;
-
-    // this._chunks = []; // TODO: this should be replaced with an instance of a class that stores the state of the clip (chunks, index, etc.)
-    this._clipState = new ClipState(fileSize);
-
     this._silenceChunks = silenceChunks;
     this._lastPlayedChunk = null;
     this._tickTimeout = null;
@@ -69,17 +65,21 @@ export default class Clip extends EventEmitter {
     this._buffering = false;
     this._buffered = false;
 
+    this._clipState = new ClipState(fileSize);
     this._initialChunk = this._getChunkIndexByPosition(initialPosition);
+    this._clipState._chunkIndex = this._initialChunk; // TODO: pass `initialPosition` to ClipState constructor and calculate `initialChunk` in there
     this._initialByte = this._initialChunk * CHUNK_SIZE;
-    this._seekedChunk = 0;
+    this._seekedChunk = 0; // TODO: shouldn't be `_initialChunk` instead?
 
     if (initialPosition !== 0 && Object.keys(audioMetadata).length === 0) {
       this._preBuffering = true;
+      const initialChunkClipState = new ClipState(CHUNK_SIZE);
       const initialChunkLoader = new Loader(
         CHUNK_SIZE,
         this.url,
         CHUNK_SIZE, // load just 1 chunk
-        []
+        initialChunkClipState.chunks,
+        initialChunkClipState
       );
       initialChunkLoader.on('loaderror', (err) => {
         this._preBuffering = false;
@@ -317,7 +317,6 @@ export default class Clip extends EventEmitter {
 
     const initialChunk = this._getChunkIndexByPosition(position);
     this._seekedChunk = initialChunk;
-    // this._clipState.chunkIndex = initialChunk - this._initialChunk;
     this._clipState.chunkIndex = initialChunk;
     let promise;
 
@@ -344,12 +343,6 @@ export default class Clip extends EventEmitter {
     return promise;
   }
 
-  // isPositionLoaded(position = 0) {
-  //   const initialChunk = this._getChunkIndexByPosition(position);
-  //   const wantedChunk = initialChunk - this._initialChunk;
-  //   return this._clipState.isChunkReady(wantedChunk);
-  // }
-
   get currentTime() {
     if (this._playbackState !== PLAYBACK_STATE.PLAYING) {
       return 0;
@@ -367,7 +360,8 @@ export default class Clip extends EventEmitter {
       this._scheduledEndTime < this.context.currentTime
     ) {
       if (
-        this._clipState.chunkIndex + this._initialChunk >=
+        // this._clipState.chunkIndex + this._initialChunk >=
+        this._clipState.chunkIndex >=
         this._clipState.totalChunksCount - 1
       ) {
         // Playback has finished.
@@ -506,7 +500,7 @@ export default class Clip extends EventEmitter {
       }
 
       this._lastPlayedChunk =
-        _playingSilence && this._clipState.chunkIndex === 0
+        _playingSilence && this._clipState.chunkIndex === 0 // TODO: should this be "initial chunk" instead of `0`?
           ? null
           : this._clipState.chunkIndex;
 
@@ -572,7 +566,7 @@ export default class Clip extends EventEmitter {
           }
 
           this._lastPlayedChunk =
-            _playingSilence && this._clipState.chunkIndex === 0
+            _playingSilence && this._clipState.chunkIndex === 0 // TODO: should this be "initial chunk" instead of `0`?
               ? null
               : this._clipState.chunkIndex;
         });
@@ -613,27 +607,36 @@ export default class Clip extends EventEmitter {
     if (this._playbackState === PLAYBACK_STATE.STOPPED) return;
 
     if (
-      this._clipState.chunkIndex + this._initialChunk >=
-      this._clipState.totalChunksCount
+      // this._clipState.chunkIndex + this._initialChunk >=
+      this._clipState.chunkIndex >= this._clipState.totalChunksCount
     ) {
       this._mediaSource.endOfStream();
       return;
     }
 
     const isChunkReady = this._clipState.isChunkReady(this._clipState.chunkIndex);
-    // console.log(`[623] isChunkReady: ${isChunkReady}`);
+    // console.log(
+    //   `[_playUsingMediaSource] this._clipState.chunks[${this._clipState.chunkIndex}] isChunkReady: ${isChunkReady}`
+    // );
 
     const useSilence =
       !isChunkReady &&
-      this._clipState.chunkIndex === 0 &&
+      // this._clipState.chunkIndex === 0 && // TODO: should this be "initial chunk" instead of `0`?
+      this._clipState.chunkIndex === this._initialChunk &&
       !this._wasPlayingSilence &&
       (this.browserName === 'safari' || this.osName === 'ios');
-    // console.log(`[630] useSilence: ${useSilence}`);
+    // console.log(
+    //   `[_playUsingMediaSource] this._clipState.chunks[${this._clipState.chunkIndex}] useSilence: ${useSilence}`
+    // );
 
     const chunk = useSilence
       ? this._silenceChunks[0]
       : isChunkReady && this._clipState.chunks[this._clipState.chunkIndex];
-    // console.log(`[635] chunk: ${!!chunk}`);
+    // console.log(
+    //   `[_playUsingMediaSource] this._clipState.chunks[${
+    //     this._clipState.chunkIndex
+    //   }] chunk: ${!!chunk}`
+    // );
 
     if (chunk) {
       try {

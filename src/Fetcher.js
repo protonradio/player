@@ -8,27 +8,28 @@ const LOAD_BATCH_SIZE = 2;
 export const PRELOAD_BATCH_SIZE = 4;
 
 export default class Fetcher {
-  constructor(chunkSize, url, fileSize, clipState = null) {
+  constructor(chunkSize, url, fileSize, clipState) {
     this.chunkSize = chunkSize;
     this.url = url;
     this.fileSize = fileSize;
     this._clipState = clipState;
-    this._totalLoaded = 0;
+    // this._totalLoaded = 0;
     this._cancelled = false;
     this._preloaded = false;
     this._preloading = false;
 
-    if (this._clipState) {
-      this._clipState.on('chunkIndexChanged', (newIndex) => {
-        console.log(`[Fetcher] chunkIndexChanged -> newIndex: ${newIndex}`);
-        if (this._fullyLoaded) return;
-        this.cancel();
-        this._cancelled = false;
-        this._initialChunk = newIndex;
-        this._load();
-        // TODO: check if chunk is already loaded?
-      });
-    }
+    this._clipState.on('chunkIndexChanged', (newIndex) => {
+      console.log(`[Fetcher] chunkIndexChanged -> newIndex: ${newIndex}`);
+      /**/
+      this.cancel();
+      // this._fullyLoaded = false;
+      this._initialChunk = newIndex;
+      // const { start } = this._getRange(newIndex);
+      // this._totalLoaded = start; // TODO: is this OK?
+      this._cancelled = false;
+      this._load();
+      /**/
+    });
   }
 
   cancel() {
@@ -47,8 +48,10 @@ export default class Fetcher {
     createChunk,
   }) {
     this._initialChunk = initialChunk;
-    const initialByte = initialChunk * this.chunkSize;
-    this._totalLoaded = this._totalLoaded || initialByte;
+    //const initialByte = initialChunk * this.chunkSize;
+    //this._totalLoaded = this._totalLoaded || initialByte;
+    // const { start } = this._getRange(initialChunk);
+    // this._totalLoaded = start; // TODO: is this OK?
     this._onProgress = onProgress || noop;
     this._onData = onData || noop;
     this._onLoad = onLoad || noop;
@@ -58,7 +61,10 @@ export default class Fetcher {
     this._preLoad()
       .then((chunks) => {
         chunks.forEach((chunk) => this._handleChunk(chunk));
-        if (this._fullyLoaded || preloadOnly) return;
+        if (this._isFullyLoaded() || preloadOnly) {
+          console.log('(2) this._isFullyLoaded() || preloadOnly -> return');
+          return;
+        }
         this._load();
       })
       .catch(this._onError);
@@ -67,11 +73,16 @@ export default class Fetcher {
   _handleChunk(chunk) {
     if (!chunk || !chunk.raw || chunk.raw.length === 0) return;
 
-    this._totalLoaded += chunk.raw.length;
+    // this._totalLoaded += chunk.raw.length;
     this._onData(chunk);
     this._onProgress(chunk.raw.length, this.fileSize);
-    this._fullyLoaded = this._totalLoaded >= this.fileSize;
-    if (this._fullyLoaded) {
+    // this._fullyLoaded = this._totalLoaded >= this.fileSize;
+    console.log(
+      `this._isFullyLoaded(): ${this._isFullyLoaded()} = this._initialChunk: ${
+        this._initialChunk
+      } >= this._clipState.totalChunksCount: ${this._clipState.totalChunksCount}`
+    );
+    if (this._isFullyLoaded()) {
       this._onLoad(chunk);
     }
   }
@@ -97,36 +108,36 @@ export default class Fetcher {
 
   _load() {
     const promises = this._loadBatch(LOAD_BATCH_SIZE);
-    if (promises.length === 0) {
-      return Promise.resolve();
-    }
-
     const startTime = Date.now();
 
     return Promise.all(promises)
       .then((chunks) => {
         if (this._cancelled) return;
         chunks.forEach((chunk) => this._handleChunk(chunk));
-        if (!this._fullyLoaded) {
+        if (!this._isFullyLoaded()) {
           const timeout =
-            LOAD_BATCH_SIZE * (this._seconds(1) / 2) - (Date.now() - startTime);
+            chunks.length === 0
+              ? 0
+              : LOAD_BATCH_SIZE * (this._seconds(1) / 2) - (Date.now() - startTime);
           return this._sleep(timeout)
             .then(() => this._load())
             .catch((err) => {
               if (err !== SLEEP_CANCELLED) throw err;
             });
+        } else {
+          console.log('(3) this._isFullyLoaded() -> else');
         }
       })
       .catch(this._onError);
   }
 
   _loadFragment(chunkIndex, retryCount = 0) {
-    if (this._clipState && this._clipState.isChunkReady(chunkIndex)) {
-      console.log(`return Promise.resolve(this._clipState.chunks[${chunkIndex}])`);
+    if (this._clipState.isChunkReady(chunkIndex)) {
       return Promise.resolve(this._clipState.chunks[chunkIndex]);
     }
 
     const { start, end } = this._getRange(chunkIndex);
+    console.log(`chunkIndex: ${chunkIndex} => range: ${start}-${end}`);
     if (!Number.isInteger(start) || !Number.isInteger(end)) {
       const message = 'Range header is not valid';
       error(message, { start, end });
@@ -188,25 +199,27 @@ export default class Fetcher {
       if (start >= this.fileSize) {
         break;
       }
-      if (this._clipState && this._clipState.isChunkReady(this._initialChunk)) {
-        console.log(`_loadBatch -> continue`);
-        continue;
+      if (!this._clipState.isChunkReady(this._initialChunk)) {
+        promises.push(this._loadFragment(this._initialChunk));
       }
-      promises.push(this._loadFragment(this._initialChunk));
       this._initialChunk += 1;
     }
     return promises;
   }
 
+  _isFullyLoaded() {
+    return this._initialChunk >= this._clipState.totalChunksCount - 1;
+  }
+
   _getRange(chunkIndex) {
     const start = chunkIndex * this.chunkSize + chunkIndex;
-    const end = start + Math.min(this._getRemaining(), this.chunkSize);
+    const end = Math.min(this.fileSize, start + this.chunkSize);
     return { start, end };
   }
 
-  _getRemaining() {
-    return this.fileSize - this._totalLoaded - 1;
-  }
+  // _getRemaining() {
+  //   return this.fileSize - this._totalLoaded - 1;
+  // }
 
   _sleep(timeout) {
     return new Promise((resolve, reject) => {
