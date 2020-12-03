@@ -298,6 +298,7 @@ export default class Clip extends EventEmitter {
   }
 
   playbackEnded() {
+    debug('Clip#playbackEnded');
     if (this._playbackState === PLAYBACK_STATE.PLAYING) {
       this._playbackState = PLAYBACK_STATE.STOPPED;
       this.ended = true;
@@ -361,8 +362,8 @@ export default class Clip extends EventEmitter {
     ) {
       if (
         // this._clipState.chunkIndex + this._initialChunk >=
-        this._clipState.chunkIndex >=
-        this._clipState.totalChunksCount - 1
+        // this._clipState.chunkIndex >= this._clipState.totalChunksCount - 1
+        this._clipState.chunksBufferingFinished
       ) {
         // Playback has finished.
         this.playbackEnded();
@@ -604,20 +605,20 @@ export default class Clip extends EventEmitter {
   }
 
   _playUsingMediaSource() {
+    if (window.DEBUG === true) debugger; // TODO: delete
     if (this._playbackState === PLAYBACK_STATE.STOPPED) return;
 
     if (
       // this._clipState.chunkIndex + this._initialChunk >=
-      this._clipState.chunkIndex >= this._clipState.totalChunksCount
+      // this._clipState.chunkIndex >= this._clipState.totalChunksCount
+      this._clipState.chunksBufferingFinished
     ) {
+      debug('this._mediaSource.endOfStream()');
       this._mediaSource.endOfStream();
       return;
     }
 
     const isChunkReady = this._clipState.isChunkReady(this._clipState.chunkIndex);
-    // console.log(
-    //   `[_playUsingMediaSource] this._clipState.chunks[${this._clipState.chunkIndex}] isChunkReady: ${isChunkReady}`
-    // );
 
     const useSilence =
       !isChunkReady &&
@@ -625,18 +626,10 @@ export default class Clip extends EventEmitter {
       this._clipState.chunkIndex === this._initialChunk &&
       !this._wasPlayingSilence &&
       (this.browserName === 'safari' || this.osName === 'ios');
-    // console.log(
-    //   `[_playUsingMediaSource] this._clipState.chunks[${this._clipState.chunkIndex}] useSilence: ${useSilence}`
-    // );
 
     const chunk = useSilence
       ? this._silenceChunks[0]
       : isChunkReady && this._clipState.chunks[this._clipState.chunkIndex];
-    // console.log(
-    //   `[_playUsingMediaSource] this._clipState.chunks[${
-    //     this._clipState.chunkIndex
-    //   }] chunk: ${!!chunk}`
-    // );
 
     if (chunk) {
       try {

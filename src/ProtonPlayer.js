@@ -2,12 +2,12 @@ import Bowser from 'bowser';
 
 import ProtonPlayerError from './ProtonPlayerError';
 import { debug, warn, error } from './utils/logger';
-import noop from './utils/noop';
 import getContext from './getContext';
+import ClipState from './ClipState';
+import noop from './utils/noop';
 import Loader from './Loader';
 import Clip from './Clip';
 import _ from './init';
-import ClipState from './ClipState';
 
 export default class ProtonPlayer {
   constructor({ silenceURL, volume = 1, onReady = noop, onError = noop }) {
@@ -253,7 +253,7 @@ export default class ProtonPlayer {
     debug('ProtonPlayer#setPlaybackPosition', percent);
 
     if (!this._currentlyPlaying || percent > 1) {
-      return;
+      return Promise.resolve();
     }
 
     this._currentlyPlaying.lastReportedProgress = percent;

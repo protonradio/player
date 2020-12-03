@@ -7,8 +7,18 @@ export default class ClipState extends EventEmitter {
     super();
     this._fileSize = fileSize;
     this._totalChunksCount = Math.ceil(fileSize / CHUNK_SIZE);
+    this.reset();
+  }
+
+  reset() {
     this._chunks = [];
     this._chunkIndex = 0;
+    this._chunksBufferingFinished = false;
+  }
+
+  isChunkReady(wantedChunk) {
+    const chunk = this._chunks[wantedChunk] || {};
+    return chunk.ready === true && Number.isNaN(chunk.duration) === false;
   }
 
   get fileSize() {
@@ -27,11 +37,13 @@ export default class ClipState extends EventEmitter {
     return this._chunkIndex;
   }
 
+  get chunksBufferingFinished() {
+    return this._chunksBufferingFinished;
+  }
+
   set chunkIndex(index) {
-    if (index >= this._totalChunksCount) {
-      console.log(
-        `ClipState#set chunkIndex: index = ${index} >= this._totalChunksCount: ${this._totalChunksCount}`
-      );
+    this._chunksBufferingFinished = index >= this._totalChunksCount;
+    if (this._chunksBufferingFinished) {
       return;
     }
     const diff = Math.abs(index - this._chunkIndex);
@@ -39,14 +51,5 @@ export default class ClipState extends EventEmitter {
     if (diff > 1) {
       this._fire('chunkIndexChanged', this._chunkIndex);
     }
-  }
-
-  reset() {
-    this._chunks = [];
-  }
-
-  isChunkReady(wantedChunk) {
-    const chunk = this._chunks[wantedChunk] || {};
-    return chunk.ready === true && Number.isNaN(chunk.duration) === false;
   }
 }

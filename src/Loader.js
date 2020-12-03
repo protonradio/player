@@ -23,14 +23,9 @@ export default class Loader extends EventEmitter {
     this._chunksCount = 0;
 
     this._clipState.on('chunkIndexChanged', (newIndex) => {
-      console.log(`[Loader] chunkIndexChanged -> newIndex: ${newIndex}`);
-      /**/
       this._initialChunk = newIndex;
-      if (!this._clipState.isChunkReady(newIndex)) {
-        this._canPlayThrough = false;
-        console.log(`this._canPlayThrough = false`);
-      }
-      /**/
+      // this._canPlayThrough = this._clipState.isChunkReady(newIndex); // TODO: do this or always set it to false?
+      this._canPlayThrough = false;
     });
   }
 
@@ -59,11 +54,23 @@ export default class Loader extends EventEmitter {
       const checkCanplaythrough = () => {
         if (this._canPlayThrough || !this.length) return;
         let loadedChunksCount = 0;
-        // for (let chunk of this._chunks) {
-        for (let i = this._initialChunk; i < this._chunks.length; i++) {
+        const preloadBatchSize = Math.min(
+          PRELOAD_BATCH_SIZE,
+          this._clipState.totalChunksCount - this._initialChunk
+        );
+        debug(`checkCanplaythrough:
+        - PRELOAD_BATCH_SIZE: ${PRELOAD_BATCH_SIZE}
+        - this._clipState.totalChunksCount: ${this._clipState.totalChunksCount}
+        - this._initialChunk: ${this._initialChunk}
+        - this._clipState.totalChunksCount - this._initialChunk: ${
+          this._clipState.totalChunksCount - this._initialChunk
+        }
+        - preloadBatchSize: ${preloadBatchSize}
+        `);
+        for (let i = this._initialChunk; i < this._clipState.totalChunksCount; i++) {
           const chunk = this._chunks[i];
           if (!chunk || !chunk.duration) break;
-          if (++loadedChunksCount >= PRELOAD_BATCH_SIZE) {
+          if (++loadedChunksCount >= preloadBatchSize) {
             this._canPlayThrough = true;
             this._fire('canPlayThrough');
             debug('Can play through 1');
@@ -135,10 +142,12 @@ export default class Loader extends EventEmitter {
           this._fire('loadprogress', { buffered: this.buffered, total });
         },
         onData: (chunk) => {
-          const lastChunk = this._chunks[this._chunks.length - 1];
+          debug(`onData -> chunk.index: ${chunk.index} -> chunk.next: ${!!chunk.next}`);
+          const lastChunk = this._chunks[chunk.index - 1];
           if (lastChunk) lastChunk.attach(chunk);
+          // const nextChunk = this._chunks[chunk.index + 1];
+          // if (nextChunk) chunk.attach(nextChunk);
           this._chunks[chunk.index] = chunk;
-          console.log(`this._chunks[${chunk.index}] = chunk`);
           if (!this._canPlayThrough) {
             checkCanplaythrough();
           }
@@ -151,17 +160,18 @@ export default class Loader extends EventEmitter {
           if (lastChunk) {
             lastChunk.attach(null);
           }
-          // const firstChunk = this._chunks[0];
           const firstChunk = this._chunks[this._initialChunk];
-          firstChunk.onready(() => {
-            if (!this._canPlayThrough) {
-              this._canPlayThrough = true;
-              this._fire('canPlayThrough');
-              debug('Can play through 2');
-            }
-            this.loaded = true;
-            this._fire('load');
-          });
+          if (firstChunk) {
+            firstChunk.onready(() => {
+              if (!this._canPlayThrough) {
+                this._canPlayThrough = true;
+                this._fire('canPlayThrough');
+                debug('Can play through 2');
+              }
+              this.loaded = true;
+              this._fire('load');
+            });
+          }
         },
         onError: (error = {}) => {
           error.url = this.url;
