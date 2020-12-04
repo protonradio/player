@@ -2,6 +2,7 @@ import axios, { CancelToken, Cancel } from 'axios';
 import { debug, error } from './utils/logger';
 import noop from './utils/noop';
 import DecodingError from './DecodingError';
+import FetchJob from './FetchJob';
 
 const SLEEP_CANCELLED = 'SLEEP_CANCELLED';
 const LOAD_BATCH_SIZE = 2;
@@ -20,18 +21,25 @@ export default class Fetcher {
     this._currentChunk = 0;
     this._doneFetchingChunks = false;
 
+    this._jobs = {};
+
     this._clipState.on('chunkIndexChanged', (newIndex) => {
       this.cancel();
       this._currentChunk = newIndex;
       this._doneFetchingChunks = false;
       // this._cancelled = false;
-      setTimeout(() => this._load(), 2500);
+      this._load();
     });
   }
 
   cancel() {
     // this._cancelled = true;
-    this._cancelTokenSource && this._cancelTokenSource.cancel();
+    debug(`Fetcher#cancel -> this._jobs: ${JSON.stringify(this._jobs, null, 2)}`);
+    Object.keys(this._jobs).forEach((chunkIndex) => {
+      this._jobs[chunkIndex].cancel();
+      delete this._jobs[chunkIndex];
+    });
+    // this._cancelTokenSource && this._cancelTokenSource.cancel();
     this._sleepOnCancel && this._sleepOnCancel();
   }
 
@@ -54,7 +62,7 @@ export default class Fetcher {
     // this._cancelled = false;
     this._preLoad()
       .then((chunks) => {
-        chunks.forEach((chunk) => this._handleChunk(chunk));
+        // chunks.forEach((chunk) => this._handleChunk(chunk));
         if (preloadOnly || this._doneFetchingChunks) {
           return;
         }
@@ -64,16 +72,27 @@ export default class Fetcher {
   }
 
   _handleChunk(chunk) {
-    if (!chunk || !chunk.raw || chunk.raw.length === 0) return;
+    return new Promise((resolve) => {
+      if (chunk && this._jobs[chunk.index]) {
+        delete this._jobs[chunk.index];
+      }
 
-    this._onData(chunk);
-    this._onProgress(chunk.raw.length, this.fileSize);
+      if (!chunk || !chunk.raw || chunk.raw.length === 0) {
+        resolve();
+        return;
+      }
 
-    const isLastChunk = chunk.index === this._clipState.totalChunksCount - 1;
-    this._doneFetchingChunks = isLastChunk; // TODO: is this OK?
-    if (isLastChunk) {
-      this._onLoad(chunk);
-    }
+      this._onData(chunk);
+      this._onProgress(chunk.raw.length, this.fileSize);
+
+      const isLastChunk = chunk.index === this._clipState.totalChunksCount - 1;
+      this._doneFetchingChunks = isLastChunk; // TODO: is this OK?
+      if (isLastChunk) {
+        this._onLoad(chunk);
+      }
+
+      resolve();
+    });
   }
 
   _preLoad() {
@@ -106,7 +125,7 @@ export default class Fetcher {
     return Promise.all(promises)
       .then((chunks) => {
         // if (this._cancelled) return;
-        chunks.forEach((chunk) => this._handleChunk(chunk));
+        // chunks.forEach((chunk) => this._handleChunk(chunk));
         if (this._doneFetchingChunks) {
           return Promise.resolve();
         }
@@ -123,78 +142,87 @@ export default class Fetcher {
       .catch(this._onError);
   }
 
-  _loadFragment(chunkIndex, retryCount = 0) {
-    // if (this._clipState.isChunkReady(chunkIndex)) {
-    if (this._clipState.chunks[chunkIndex]) {
-      return Promise.resolve(this._clipState.chunks[chunkIndex]);
-    }
-
-    const { start, end } = this._getRange(chunkIndex);
-    if (!Number.isInteger(start) || !Number.isInteger(end)) {
-      const message = 'Range header is not valid';
-      error(message, { start, end });
-      return Promise.reject(new Error(message));
-    }
-
-    const options = {
-      headers: {
-        range: `${start}-${end}`,
-      },
-      timeout: this._seconds(5),
-      responseType: 'arraybuffer',
-      cancelToken: this._cancelTokenSource.token,
-    };
-    return axios
-      .get(this.url, options)
-      .then((response) => {
-        // if (this._cancelled) return null;
-        if (!(response.data instanceof ArrayBuffer)) {
-          throw new Error('Bad response body');
-        }
-        const uint8Array = new Uint8Array(response.data);
-        return this._createChunk(uint8Array, chunkIndex);
-      })
-      .catch((error) => {
-        if (error instanceof Cancel) return;
-
-        const timedOut = error.code === 'ECONNABORTED';
-        const decodingError = error instanceof DecodingError;
-        const tooManyRequests = error.response && error.response.status === 429;
-        if (timedOut || decodingError || tooManyRequests) {
-          if (retryCount >= 10) {
-            throw new Error(`Chunk fetch/decode failed after ${retryCount} retries`);
-          }
-          const message = timedOut
-            ? `Timed out fetching chunk`
-            : decodingError
-            ? `Decoding error when creating chunk`
-            : `Too many requests when fetching chunk`;
-          debug(`${message}. Retrying...`);
-          const timeout = tooManyRequests ? this._seconds(10) : this._seconds(retryCount); // TODO: use `X-RateLimit-Reset` header if error was "tooManyRequests"
-          return this._sleep(timeout)
-            .then(() => this._loadFragment(chunkIndex, retryCount + 1))
-            .catch((err) => {
-              if (err !== SLEEP_CANCELLED) throw err;
-            });
-        }
-
-        debug(`Unexpected error when fetching chunk`);
-        throw error;
-      });
-  }
+  // _loadFragment(chunkIndex, retryCount = 0) {
+  //   // if (this._clipState.isChunkReady(chunkIndex)) {
+  //   if (this._clipState.chunks[chunkIndex]) {
+  //     return Promise.resolve(this._clipState.chunks[chunkIndex]);
+  //   }
+  //
+  //   const { start, end } = this._getRange(chunkIndex);
+  //   if (!Number.isInteger(start) || !Number.isInteger(end)) {
+  //     const message = 'Range header is not valid';
+  //     error(message, { start, end });
+  //     return Promise.reject(new Error(message));
+  //   }
+  //
+  //   const options = {
+  //     headers: {
+  //       range: `${start}-${end}`,
+  //     },
+  //     timeout: this._seconds(5),
+  //     responseType: 'arraybuffer',
+  //     cancelToken: this._cancelTokenSource.token,
+  //   };
+  //   return axios
+  //     .get(this.url, options)
+  //     .then((response) => {
+  //       // if (this._cancelled) return null;
+  //       if (!(response.data instanceof ArrayBuffer)) {
+  //         throw new Error('Bad response body');
+  //       }
+  //       const uint8Array = new Uint8Array(response.data);
+  //       return this._createChunk(uint8Array, chunkIndex);
+  //     })
+  //     .catch((error) => {
+  //       if (error instanceof Cancel) return;
+  //
+  //       const timedOut = error.code === 'ECONNABORTED';
+  //       const decodingError = error instanceof DecodingError;
+  //       const tooManyRequests = error.response && error.response.status === 429;
+  //       if (timedOut || decodingError || tooManyRequests) {
+  //         if (retryCount >= 10) {
+  //           throw new Error(`Chunk fetch/decode failed after ${retryCount} retries`);
+  //         }
+  //         const message = timedOut
+  //           ? `Timed out fetching chunk`
+  //           : decodingError
+  //           ? `Decoding error when creating chunk`
+  //           : `Too many requests when fetching chunk`;
+  //         debug(`${message}. Retrying...`);
+  //         const timeout = tooManyRequests ? this._seconds(10) : this._seconds(retryCount); // TODO: use `X-RateLimit-Reset` header if error was "tooManyRequests"
+  //         return this._sleep(timeout)
+  //           .then(() => this._loadFragment(chunkIndex, retryCount + 1))
+  //           .catch((err) => {
+  //             if (err !== SLEEP_CANCELLED) throw err;
+  //           });
+  //       }
+  //
+  //       debug(`Unexpected error when fetching chunk`);
+  //       throw error;
+  //     });
+  // }
 
   _loadBatch(batchSize = 1) {
-    this._cancelTokenSource = CancelToken.source();
+    // this._cancelTokenSource = CancelToken.source();
     const promises = [];
     for (let i = 0; i < batchSize; i++) {
-      const { start } = this._getRange(this._currentChunk);
+      const chunkIndex = this._currentChunk;
+      const { start, end } = this._getRange(chunkIndex);
       if (start >= this.fileSize) {
         break;
       }
 
-      // if (!this._clipState.isChunkReady(this._currentChunk)) {
-      promises.push(this._loadFragment(this._currentChunk));
-      // }
+      if (this._clipState.chunks[chunkIndex]) {
+        promises.push(Promise.resolve(this._clipState.chunks[chunkIndex]));
+      } else {
+        const job = new FetchJob(this.url, start, end);
+        this._jobs[chunkIndex] = job;
+        const promise = job
+          .fetch()
+          .then((uint8Array) => this._createChunk(uint8Array, chunkIndex))
+          .then((chunk) => this._handleChunk(chunk));
+        promises.push(promise);
+      }
 
       if (this._currentChunk < this._clipState.totalChunksCount) {
         this._currentChunk += 1;

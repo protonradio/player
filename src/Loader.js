@@ -5,27 +5,32 @@ import { slice } from './utils/buffer';
 import { debug } from './utils/logger';
 import parseMetadata from './utils/parseMetadata';
 import getContext from './getContext';
+import FetchJob from './FetchJob';
 
 export default class Loader extends EventEmitter {
   constructor(chunkSize, url, fileSize, chunks, clipState, audioMetadata = {}) {
     super();
     this._chunkSize = chunkSize;
+    this._url = url;
+    this._fileSize = fileSize;
     this._chunks = chunks;
     this._clipState = clipState;
     this._referenceHeader = audioMetadata.referenceHeader;
     this.metadata = audioMetadata.metadata;
-    this._fetcher = new Fetcher(chunkSize, url, fileSize, clipState);
+    // this._fetcher = new Fetcher(chunkSize, url, fileSize, clipState);
     this._loadStarted = false;
     this._canPlayThrough = false;
     this.context = getContext();
     this.buffered = 0;
     this._chunksDuration = 0;
     this._chunksCount = 0;
+    this._jobs = {};
 
     this._clipState.on('chunkIndexChanged', (newIndex) => {
+      this.cancel();
       this._initialChunk = newIndex;
-      // this._canPlayThrough = this._clipState.isChunkReady(newIndex); // TODO: do this or always set it to false?
-      this._canPlayThrough = false;
+      this._canPlayThrough = false; // this._canPlayThrough = this._clipState.isChunkReady(newIndex); // TODO: do this or always set it to false?
+      this.buffer(false, false, newIndex); // TODO: make `buffer` manage a setInterval "worker" that gets reset here.
     });
   }
 
@@ -41,8 +46,19 @@ export default class Loader extends EventEmitter {
   }
 
   cancel() {
-    this._fetcher.cancel();
+    // this._fetcher.cancel();
     this._loadStarted = false;
+    debug(`Loader#cancel -> this._jobs: ${JSON.stringify(this._jobs, null, 2)}`);
+    Object.keys(this._jobs).forEach((chunkIndex) => {
+      this._jobs[chunkIndex].cancel();
+      delete this._jobs[chunkIndex];
+    });
+  }
+
+  _getRange(chunkIndex) {
+    const start = chunkIndex * this._chunkSize + chunkIndex;
+    const end = Math.min(this._fileSize, start + this._chunkSize);
+    return { start, end };
   }
 
   buffer(bufferToCompletion = false, preloadOnly = false, initialChunk = 0) {
@@ -112,6 +128,10 @@ export default class Loader extends EventEmitter {
       };
 
       const createChunk = (uint8Array, index) => {
+        if (!uint8Array || !Number.isInteger(index)) {
+          debug('Loader#createChunk: Invalid arguments. Resolving with null');
+          return Promise.resolve(null);
+        }
         calculateMetadata(uint8Array);
         return new Promise((resolve, reject) => {
           const chunk = new Chunk({
@@ -132,54 +152,151 @@ export default class Loader extends EventEmitter {
         });
       };
 
-      this._fetcher.load({
-        preloadOnly,
-        initialChunk,
-        createChunk,
-        onProgress: (chunkLength, total) => {
-          this.buffered += chunkLength;
-          this.length = total;
-          this._fire('loadprogress', { buffered: this.buffered, total });
-        },
-        onData: (chunk) => {
-          debug(`onData -> chunk.index: ${chunk.index} -> chunk.next: ${!!chunk.next}`);
-          const lastChunk = this._chunks[chunk.index - 1];
-          if (lastChunk) lastChunk.attach(chunk);
-          // const nextChunk = this._chunks[chunk.index + 1];
-          // if (nextChunk) chunk.attach(nextChunk);
-          this._chunks[chunk.index] = chunk;
-          if (!this._canPlayThrough) {
-            checkCanplaythrough();
+      const onData = (chunk) => {
+        debug(`onData -> chunk.index: ${chunk.index} -> chunk.next: ${!!chunk.next}`);
+
+        const lastChunk = this._chunks[chunk.index - 1];
+        if (lastChunk) lastChunk.attach(chunk);
+
+        const nextChunk = this._chunks[chunk.index + 1];
+        if (nextChunk) chunk.attach(nextChunk);
+
+        this._chunks[chunk.index] = chunk;
+        if (!this._canPlayThrough) {
+          checkCanplaythrough();
+        }
+        if (chunk.raw.length === this._chunkSize + 1 && chunk.duration > 0) {
+          this._chunksDuration += chunk.duration;
+          this._chunksCount += 1;
+        }
+        this._clipState.logChunks(); // TODO: delete
+      };
+
+      const onProgress = (chunkLength, total) => {
+        this.buffered += chunkLength;
+        this.length = total;
+        this._fire('loadprogress', { buffered: this.buffered, total });
+      };
+
+      const onLoad = (lastChunk) => {
+        if (lastChunk) {
+          lastChunk.attach(null);
+        }
+        const firstChunk = this._chunks[this._initialChunk];
+        if (firstChunk) {
+          firstChunk.onready(() => {
+            if (!this._canPlayThrough) {
+              this._canPlayThrough = true;
+              this._fire('canPlayThrough');
+              debug('Can play through 2');
+            }
+            this.loaded = true;
+            this._fire('load');
+          });
+        }
+      };
+
+      const fooBarBaz = (chunkIndex) => {
+        const { start, end } = this._getRange(chunkIndex);
+        const job = new FetchJob(this._url, start, end);
+        this._jobs[chunkIndex] = job;
+        return job.fetch().then((uint8Array) => createChunk(uint8Array, chunkIndex));
+      };
+
+      let chunkIndex = this._initialChunk;
+      const promises = [];
+      const batchSize = Math.min(10, this._clipState.totalChunksCount);
+
+      debug(`Loader#buffer -> batchSize: ${batchSize}, chunkIndex: ${chunkIndex}`);
+
+      for (let i = 0; i < batchSize; i++) {
+        if (chunkIndex >= this._clipState.totalChunksCount) {
+          break;
+        }
+
+        if (!this._clipState.chunks[chunkIndex]) {
+          const promise = fooBarBaz(chunkIndex);
+          promises.push(promise);
+        } else {
+          debug(`Chunk ${chunkIndex} already exists`);
+        }
+
+        if (chunkIndex < this._clipState.totalChunksCount) {
+          chunkIndex += 1;
+        }
+      }
+
+      Promise.all(promises).then((chunks) => {
+        chunks.forEach((chunk) => {
+          if (!chunk) return;
+
+          if (this._jobs[chunk.index]) {
+            delete this._jobs[chunk.index];
           }
-          if (chunk.raw.length === this._chunkSize + 1 && chunk.duration > 0) {
-            this._chunksDuration += chunk.duration;
-            this._chunksCount += 1;
+
+          if (!chunk || !chunk.raw || chunk.raw.length === 0) {
+            return;
           }
-        },
-        onLoad: (lastChunk) => {
-          if (lastChunk) {
-            lastChunk.attach(null);
+
+          onData(chunk);
+          onProgress(chunk.raw.length, this._fileSize);
+
+          const isLastChunk = chunk.index === this._clipState.totalChunksCount - 1;
+          // this._doneFetchingChunks = isLastChunk; // TODO: is this OK?
+          if (isLastChunk) {
+            onLoad(chunk);
           }
-          const firstChunk = this._chunks[this._initialChunk];
-          if (firstChunk) {
-            firstChunk.onready(() => {
-              if (!this._canPlayThrough) {
-                this._canPlayThrough = true;
-                this._fire('canPlayThrough');
-                debug('Can play through 2');
-              }
-              this.loaded = true;
-              this._fire('load');
-            });
-          }
-        },
-        onError: (error = {}) => {
-          error.url = this.url;
-          error.phonographCode = 'COULD_NOT_LOAD';
-          this._fire('loaderror', error);
-          this._loadStarted = false;
-        },
+        });
       });
+
+      // this._fetcher.load({
+      //   preloadOnly,
+      //   initialChunk,
+      //   createChunk,
+      //   onProgress: (chunkLength, total) => {
+      //     this.buffered += chunkLength;
+      //     this.length = total;
+      //     this._fire('loadprogress', { buffered: this.buffered, total });
+      //   },
+      //   onData: (chunk) => {
+      //     debug(`onData -> chunk.index: ${chunk.index} -> chunk.next: ${!!chunk.next}`);
+      //     const lastChunk = this._chunks[chunk.index - 1];
+      //     if (lastChunk) lastChunk.attach(chunk);
+      //     // const nextChunk = this._chunks[chunk.index + 1];
+      //     // if (nextChunk) chunk.attach(nextChunk);
+      //     this._chunks[chunk.index] = chunk;
+      //     if (!this._canPlayThrough) {
+      //       checkCanplaythrough();
+      //     }
+      //     if (chunk.raw.length === this._chunkSize + 1 && chunk.duration > 0) {
+      //       this._chunksDuration += chunk.duration;
+      //       this._chunksCount += 1;
+      //     }
+      //   },
+      //   onLoad: (lastChunk) => {
+      //     if (lastChunk) {
+      //       lastChunk.attach(null);
+      //     }
+      //     const firstChunk = this._chunks[this._initialChunk];
+      //     if (firstChunk) {
+      //       firstChunk.onready(() => {
+      //         if (!this._canPlayThrough) {
+      //           this._canPlayThrough = true;
+      //           this._fire('canPlayThrough');
+      //           debug('Can play through 2');
+      //         }
+      //         this.loaded = true;
+      //         this._fire('load');
+      //       });
+      //     }
+      //   },
+      //   onError: (error = {}) => {
+      //     error.url = this.url;
+      //     error.phonographCode = 'COULD_NOT_LOAD';
+      //     this._fire('loaderror', error);
+      //     this._loadStarted = false;
+      //   },
+      // });
     }
     return new Promise((resolve, reject) => {
       const ready = preloadOnly ? this._canPlayThrough : this.loaded;

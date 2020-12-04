@@ -12,7 +12,7 @@ export default class FetchJob {
     this._end = end;
     this._cancelled = false;
     this._cancelTokenSource = CancelToken.source();
-    this._sleepOnCancel = noop();
+    this._sleepOnCancel = noop;
   }
 
   cancel() {

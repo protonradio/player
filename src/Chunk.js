@@ -139,4 +139,10 @@ export default class Chunk {
     this.ready = true;
     this._onReady();
   }
+
+  toString() {
+    return `ready: ${this.ready}, index: ${this.index}, next.index: ${
+      this.next && this.next.index
+    }`;
+  }
 }

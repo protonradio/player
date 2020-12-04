@@ -1,4 +1,5 @@
 import EventEmitter from './EventEmitter';
+import { debug } from './utils/logger';
 
 const CHUNK_SIZE = 64 * 1024;
 
@@ -11,6 +12,7 @@ export default class ClipState extends EventEmitter {
   }
 
   reset() {
+    debug('ClipState#reset');
     this._chunks = [];
     this._chunkIndex = 0;
     this._chunksBufferingFinished = false;
@@ -19,6 +21,15 @@ export default class ClipState extends EventEmitter {
   isChunkReady(wantedChunk) {
     const chunk = this._chunks[wantedChunk] || {};
     return chunk.ready === true && Number.isNaN(chunk.duration) === false;
+  }
+
+  logChunks() {
+    console.log(
+      this._chunks
+        .map((chunk, index) => `[${index}] = ` + chunk.toString())
+        .filter((val) => !!val)
+        .join('\n')
+    );
   }
 
   get fileSize() {
