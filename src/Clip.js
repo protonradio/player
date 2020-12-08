@@ -74,13 +74,7 @@ export default class Clip extends EventEmitter {
     if (initialPosition !== 0 && Object.keys(audioMetadata).length === 0) {
       this._preBuffering = true;
       const initialChunkClipState = new ClipState(CHUNK_SIZE);
-      const initialChunkLoader = new Loader(
-        CHUNK_SIZE,
-        this.url,
-        CHUNK_SIZE, // load just 1 chunk
-        initialChunkClipState.chunks,
-        initialChunkClipState
-      );
+      const initialChunkLoader = new Loader(CHUNK_SIZE, this.url, initialChunkClipState);
       initialChunkLoader.on('loaderror', (err) => {
         this._preBuffering = false;
         this._fire('loaderror', err);
@@ -89,21 +83,14 @@ export default class Clip extends EventEmitter {
         this._preBuffering = false;
         this._initLoader(initialChunkLoader.audioMetadata);
       });
-      initialChunkLoader.buffer(true);
+      initialChunkLoader.buffer();
     } else {
       this._initLoader(audioMetadata);
     }
   }
 
   _initLoader(audioMetadata) {
-    this._loader = new Loader(
-      CHUNK_SIZE,
-      this.url,
-      this._clipState.fileSize,
-      this._clipState.chunks,
-      this._clipState,
-      audioMetadata
-    );
+    this._loader = new Loader(CHUNK_SIZE, this.url, this._clipState, audioMetadata);
     this._loader.on('canPlayThrough', () => {
       if (this._buffering && !this._preBuffering) {
         this._preBuffered = true;
@@ -142,10 +129,9 @@ export default class Clip extends EventEmitter {
     }
 
     this._preBuffering = true;
-    const bufferToCompletion = false;
     const preloadOnly = true;
     return this._loader
-      .buffer(bufferToCompletion, preloadOnly, this._initialChunk)
+      .buffer(preloadOnly, this._initialChunk)
       .then(() => {
         this._preBuffering = false;
         this._preBuffered = true;
@@ -157,7 +143,7 @@ export default class Clip extends EventEmitter {
       });
   }
 
-  buffer(bufferToCompletion = false, isRetrying = false) {
+  buffer(isRetrying = false) {
     if (isRetrying && this._shouldStopBuffering) {
       return Promise.reject(new ProtonPlayerError('Clip was paused or disposed'));
     }
@@ -170,10 +156,7 @@ export default class Clip extends EventEmitter {
 
     if (this._preBuffering || this._buffering || !this._loader) {
       return new Promise((resolve, reject) => {
-        setTimeout(
-          () => this.buffer(bufferToCompletion, true).then(resolve).catch(reject),
-          1
-        );
+        setTimeout(() => this.buffer(true).then(resolve).catch(reject), 1);
       });
     }
 
@@ -181,7 +164,7 @@ export default class Clip extends EventEmitter {
     this._buffering = true;
     const preloadOnly = false;
     return this._loader
-      .buffer(bufferToCompletion, preloadOnly, this._initialChunk)
+      .buffer(preloadOnly, this._initialChunk)
       .then(() => {
         this._buffering = false;
         this._buffered = true;

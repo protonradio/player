@@ -24,11 +24,12 @@ export default class ClipState extends EventEmitter {
   }
 
   logChunks() {
-    console.log(
-      this._chunks
-        .map((chunk, index) => `[${index}] = ` + chunk.toString())
-        .filter((val) => !!val)
-        .join('\n')
+    debug(
+      '\n' +
+        this._chunks
+          .map((chunk, index) => `[${index}] = ` + chunk.toString())
+          .filter((val) => !!val)
+          .join('\n')
     );
   }
 

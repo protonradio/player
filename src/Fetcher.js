@@ -1,8 +1,10 @@
+import CancellableSleep from './utils/CancellableSleep';
 import axios, { CancelToken, Cancel } from 'axios';
 import { debug, error } from './utils/logger';
-import noop from './utils/noop';
 import DecodingError from './DecodingError';
+import seconds from './utils/seconds';
 import FetchJob from './FetchJob';
+import noop from './utils/noop';
 
 const SLEEP_CANCELLED = 'SLEEP_CANCELLED';
 const LOAD_BATCH_SIZE = 2;
@@ -40,7 +42,7 @@ export default class Fetcher {
       delete this._jobs[chunkIndex];
     });
     // this._cancelTokenSource && this._cancelTokenSource.cancel();
-    this._sleepOnCancel && this._sleepOnCancel();
+    this._sleep && this._sleep.cancel();
   }
 
   load({
@@ -132,8 +134,10 @@ export default class Fetcher {
         const timeout =
           chunks.length === 0
             ? 0
-            : LOAD_BATCH_SIZE * (this._seconds(1) / 2) - (Date.now() - startTime);
-        return this._sleep(timeout)
+            : LOAD_BATCH_SIZE * (seconds(1) / 2) - (Date.now() - startTime);
+        this._sleep = new CancellableSleep(timeout);
+        return this._sleep
+          .wait()
           .then(() => this._load())
           .catch((err) => {
             if (err !== SLEEP_CANCELLED) throw err;
@@ -159,7 +163,7 @@ export default class Fetcher {
   //     headers: {
   //       range: `${start}-${end}`,
   //     },
-  //     timeout: this._seconds(5),
+  //     timeout: seconds(5),
   //     responseType: 'arraybuffer',
   //     cancelToken: this._cancelTokenSource.token,
   //   };
@@ -189,7 +193,7 @@ export default class Fetcher {
   //           ? `Decoding error when creating chunk`
   //           : `Too many requests when fetching chunk`;
   //         debug(`${message}. Retrying...`);
-  //         const timeout = tooManyRequests ? this._seconds(10) : this._seconds(retryCount); // TODO: use `X-RateLimit-Reset` header if error was "tooManyRequests"
+  //         const timeout = tooManyRequests ? seconds(10) : seconds(retryCount); // TODO: use `X-RateLimit-Reset` header if error was "tooManyRequests"
   //         return this._sleep(timeout)
   //           .then(() => this._loadFragment(chunkIndex, retryCount + 1))
   //           .catch((err) => {
@@ -235,23 +239,5 @@ export default class Fetcher {
     const start = chunkIndex * this.chunkSize + chunkIndex;
     const end = Math.min(this.fileSize, start + this.chunkSize);
     return { start, end };
-  }
-
-  _sleep(timeout) {
-    return new Promise((resolve, reject) => {
-      if (timeout <= 0) {
-        resolve();
-        return;
-      }
-      const sleepTimeout = setTimeout(resolve, timeout);
-      this._sleepOnCancel = () => {
-        reject(SLEEP_CANCELLED);
-        clearTimeout(sleepTimeout);
-      };
-    });
-  }
-
-  _seconds(secs = 0) {
-    return secs * 1000;
   }
 }

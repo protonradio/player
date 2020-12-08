@@ -35,8 +35,8 @@ export default class ProtonPlayer {
     this._onError = onError;
     this._volume = volume;
     this._ready = false;
-    // this._silenceChunks = [];
-    this._silenceChunksClipState = new ClipState(64 * 64);
+    const silenceChunkSize = 64 * 64;
+    this._silenceChunksClipState = new ClipState(silenceChunkSize);
     this._clips = {};
     this._currentlyPlaying = null;
     this._playbackPositionInterval = null;
@@ -77,12 +77,9 @@ export default class ProtonPlayer {
         'The `silenceURL` argument is required for using the AudioContext API backend'
       );
     }
-    const silenceChunkSize = 64 * 64;
     const silenceLoader = new Loader(
       silenceChunkSize,
       silenceURL,
-      silenceChunkSize,
-      this._silenceChunksClipState.chunks,
       this._silenceChunksClipState
     );
     silenceLoader.on('loaderror', (err) => {
@@ -93,7 +90,7 @@ export default class ProtonPlayer {
       this._ready = true;
       this._onReady();
     });
-    silenceLoader.buffer(true);
+    silenceLoader.buffer();
   }
 
   preLoad(url, fileSize, initialPosition = 0) {
