@@ -4,9 +4,8 @@ import ProtonPlayerError from './ProtonPlayerError';
 import getContext from './getContext';
 import { debug, warn } from './utils/logger';
 import noop from './utils/noop';
-import ClipState from './ClipState';
+import ClipState, { CHUNK_SIZE } from './ClipState';
 
-const CHUNK_SIZE = 64 * 1024;
 const OVERLAP = 0.2;
 const TIMEOUT_SAFE_OFFSET = 50;
 
@@ -65,11 +64,9 @@ export default class Clip extends EventEmitter {
     this._buffering = false;
     this._buffered = false;
 
-    this._clipState = new ClipState(fileSize);
-    this._initialChunk = this._getChunkIndexByPosition(initialPosition);
-    this._clipState._chunkIndex = this._initialChunk; // TODO: pass `initialPosition` to ClipState constructor and calculate `initialChunk` in there
+    this._clipState = new ClipState(fileSize, initialPosition);
+    this._initialChunk = this._clipState.chunkIndex;
     this._initialByte = this._initialChunk * CHUNK_SIZE;
-    this._seekedChunk = 0; // TODO: shouldn't be `_initialChunk` instead?
 
     if (initialPosition !== 0 && Object.keys(audioMetadata).length === 0) {
       this._preBuffering = true;
@@ -299,9 +296,9 @@ export default class Clip extends EventEmitter {
     this._playbackState = PLAYBACK_STATE.STOPPED;
     this._fire('stop');
 
-    const initialChunk = this._getChunkIndexByPosition(position);
-    this._seekedChunk = initialChunk;
-    this._clipState.chunkIndex = initialChunk;
+    this._initialChunk = this._clipState.getChunkIndexByPosition(position);
+    this._clipState.chunkIndex = this._initialChunk;
+
     let promise;
 
     if (this._useMediaSource) {
@@ -333,7 +330,7 @@ export default class Clip extends EventEmitter {
     }
 
     const averageChunkDuration = this._loader ? this._loader.averageChunkDuration : 0;
-    const offset = averageChunkDuration * (this._seekedChunk || this._initialChunk);
+    const offset = averageChunkDuration * this._initialChunk;
 
     if (this._useMediaSource) {
       return offset + this._audioElement.currentTime;
@@ -343,11 +340,7 @@ export default class Clip extends EventEmitter {
       this._scheduledEndTime == null ||
       this._scheduledEndTime < this.context.currentTime
     ) {
-      if (
-        // this._clipState.chunkIndex + this._initialChunk >=
-        // this._clipState.chunkIndex >= this._clipState.totalChunksCount - 1
-        this._clipState.chunksBufferingFinished
-      ) {
+      if (this._clipState.chunksBufferingFinished) {
         // Playback has finished.
         this.playbackEnded();
         return averageChunkDuration * this._clipState.totalChunksCount;
@@ -484,7 +477,7 @@ export default class Clip extends EventEmitter {
       }
 
       this._lastPlayedChunk =
-        _playingSilence && this._clipState.chunkIndex === 0 // TODO: should this be "initial chunk" instead of `0`?
+        _playingSilence && this._clipState.chunkIndex === this._initialChunk // TODO: is this OK?
           ? null
           : this._clipState.chunkIndex;
 
@@ -550,7 +543,7 @@ export default class Clip extends EventEmitter {
           }
 
           this._lastPlayedChunk =
-            _playingSilence && this._clipState.chunkIndex === 0 // TODO: should this be "initial chunk" instead of `0`?
+            _playingSilence && this._clipState.chunkIndex === this._initialChunk // TODO: is this OK?
               ? null
               : this._clipState.chunkIndex;
         });
@@ -588,14 +581,9 @@ export default class Clip extends EventEmitter {
   }
 
   _playUsingMediaSource() {
-    if (window.DEBUG === true) debugger; // TODO: delete
     if (this._playbackState === PLAYBACK_STATE.STOPPED) return;
 
-    if (
-      // this._clipState.chunkIndex + this._initialChunk >=
-      // this._clipState.chunkIndex >= this._clipState.totalChunksCount
-      this._clipState.chunksBufferingFinished
-    ) {
+    if (this._clipState.chunksBufferingFinished) {
       debug('this._mediaSource.endOfStream()');
       this._mediaSource.endOfStream();
       return;
@@ -605,7 +593,6 @@ export default class Clip extends EventEmitter {
 
     const useSilence =
       !isChunkReady &&
-      // this._clipState.chunkIndex === 0 && // TODO: should this be "initial chunk" instead of `0`?
       this._clipState.chunkIndex === this._initialChunk &&
       !this._wasPlayingSilence &&
       (this.browserName === 'safari' || this.osName === 'ios');
@@ -657,13 +644,6 @@ export default class Clip extends EventEmitter {
       this._gain.disconnect(this.context.destination);
       this._gain = null;
     }
-  }
-
-  _getChunkIndexByPosition(position = 0) {
-    const initialChunk = Math.floor(this._clipState.totalChunksCount * position);
-    return initialChunk >= this._clipState.totalChunksCount
-      ? this._clipState.totalChunksCount - 1
-      : initialChunk;
   }
 
   _calculateNextChunkTimeout(chunkIndex = 0, scheduledAt = 0, scheduledTimeout = 0) {

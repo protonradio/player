@@ -1,4 +1,4 @@
-import SequentialFetcher, { PRELOAD_BATCH_SIZE } from './SequentialFetcher';
+import Fetcher, { PRELOAD_BATCH_SIZE } from './Fetcher';
 import parseMetadata from './utils/parseMetadata';
 import EventEmitter from './EventEmitter';
 import { slice } from './utils/buffer';
@@ -23,6 +23,7 @@ export default class Loader extends EventEmitter {
     this.buffered = 0;
     this._chunksDuration = 0;
     this._chunksCount = 0;
+    this._fetcher = null;
     this._jobs = {};
 
     this._clipState.on('chunkIndexChanged', (newIndex) => {
@@ -64,7 +65,7 @@ export default class Loader extends EventEmitter {
       this._loadStarted = !preloadOnly;
       this._initialChunk = initialChunk;
       this._canPlayThrough = false;
-      this._fetcher = new SequentialFetcher(
+      this._fetcher = new Fetcher(
         this._clipState,
         this._initialChunk,
         this._fetchChunk.bind(this),

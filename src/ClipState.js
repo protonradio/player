@@ -1,18 +1,18 @@
 import EventEmitter from './EventEmitter';
 import { debug } from './utils/logger';
 
-const CHUNK_SIZE = 64 * 1024;
+export const CHUNK_SIZE = 64 * 1024;
 
 export default class ClipState extends EventEmitter {
-  constructor(fileSize) {
+  constructor(fileSize, initialPosition = 0) {
     super();
+    this.reset();
     this._fileSize = fileSize;
     this._totalChunksCount = Math.ceil(fileSize / CHUNK_SIZE);
-    this.reset();
+    this._chunkIndex = this.getChunkIndexByPosition(initialPosition);
   }
 
   reset() {
-    debug('ClipState#reset');
     this._chunks = [];
     this._chunkIndex = 0;
     this._chunksBufferingFinished = false;
@@ -21,6 +21,13 @@ export default class ClipState extends EventEmitter {
   isChunkReady(wantedChunk) {
     const chunk = this._chunks[wantedChunk] || {};
     return chunk.ready === true && Number.isNaN(chunk.duration) === false;
+  }
+
+  getChunkIndexByPosition(position = 0) {
+    const initialChunk = Math.floor(this._totalChunksCount * position);
+    return initialChunk >= this._totalChunksCount
+      ? this._totalChunksCount - 1
+      : initialChunk;
   }
 
   logChunks() {
@@ -58,9 +65,9 @@ export default class ClipState extends EventEmitter {
     if (this._chunksBufferingFinished) {
       return;
     }
-    const diff = Math.abs(index - this._chunkIndex);
+    const diff = index - this._chunkIndex;
     this._chunkIndex = index;
-    if (diff > 1) {
+    if (diff !== 1) {
       this._fire('chunkIndexChanged', this._chunkIndex);
     }
   }
