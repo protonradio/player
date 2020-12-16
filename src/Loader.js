@@ -71,7 +71,7 @@ export default class Loader extends EventEmitter {
         this._fetchChunk.bind(this),
         preloadOnly
       );
-      this._fetcher.load(); // TODO: bubble up errors by firing the "loaderror" event
+      this._fetcher.load();
     }
     return new Promise((resolve, reject) => {
       const ready = preloadOnly ? this._canPlayThrough : this.loaded;
@@ -204,11 +204,16 @@ export default class Loader extends EventEmitter {
 
   _fetchChunk(chunkIndex) {
     const { start, end } = this._getRange(chunkIndex);
-    const job = new FetchJob(this._url, start, end);
+    const job = new FetchJob(
+      this._url,
+      this._createChunk.bind(this),
+      chunkIndex,
+      start,
+      end
+    );
     this._jobs[chunkIndex] = job;
     return job
       .fetch()
-      .then((uint8Array) => this._createChunk(uint8Array, chunkIndex))
       .then((chunk) => {
         if (!chunk) return;
 
@@ -229,6 +234,12 @@ export default class Loader extends EventEmitter {
         }
 
         return Promise.resolve();
+      })
+      .catch((err = {}) => {
+        err.url = this.url;
+        err.customCode = 'COULD_NOT_LOAD';
+        this._fire('loaderror', err);
+        this._loadStarted = false; // TODO: is this needed?
       });
   }
 }

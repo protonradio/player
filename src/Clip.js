@@ -218,7 +218,6 @@ export default class Clip extends EventEmitter {
       this._audioElement.src = URL.createObjectURL(this._mediaSource);
       promise = this._audioElement.play();
     } else {
-      this._bufferingOffset = 0;
       this._gain = this.context.createGain();
       this._gain.connect(this.context.destination);
       this.context.resume();
@@ -233,24 +232,25 @@ export default class Clip extends EventEmitter {
   }
 
   resume() {
-    this._playbackState = PLAYBACK_STATE.PLAYING;
+    let promise;
     if (this._useMediaSource) {
       this._audioElement.volume = this.volume;
-      return this._audioElement.play();
+      promise = this._audioElement.play();
     } else {
       this._gain = this.context.createGain();
       this._gain.connect(this.context.destination);
       this.context.resume();
       this._playUsingAudioContext();
-      return Promise.resolve();
+      promise = Promise.resolve();
     }
+    this._playbackState = PLAYBACK_STATE.PLAYING;
+    return promise;
   }
 
   pause() {
     if (this._useMediaSource) {
       this._pauseUsingMediaSource();
     } else {
-      this._bufferingOffset = this._playbackProgress;
       this._stopUsingAudioContext();
     }
     this._playbackState = PLAYBACK_STATE.PAUSED;
@@ -339,7 +339,7 @@ export default class Clip extends EventEmitter {
     const isPlayingSilence =
       this._scheduledEndTime == null || this.context.currentTime > this._scheduledEndTime;
 
-    console.log(`isPlayingSilence? ${isPlayingSilence}`); // TODO: delete
+    console.log(`isPlayingSilence? ${isPlayingSilence}`);
 
     if (isPlayingSilence) {
       if (this._clipState.chunksBufferingFinished) {
@@ -353,6 +353,9 @@ export default class Clip extends EventEmitter {
 
       if (this._scheduledEndTime != null) {
         this._bufferingOffset = this._playbackProgress;
+        console.log(
+          `(0) this._scheduledEndTime != null -> this._bufferingOffset = this._playbackProgress = ${this._bufferingOffset}`
+        );
       }
 
       console.log(
@@ -364,7 +367,7 @@ export default class Clip extends EventEmitter {
     // Player is playing back.
     this._onBufferChange(false);
 
-    let num = 0; // TODO: delete
+    let num; // TODO: delete
 
     if (this._contextTimeAtStart === this._lastContextTimeAtStart) {
       this._playbackProgress +=
@@ -374,7 +377,7 @@ export default class Clip extends EventEmitter {
         this._bufferingOffset;
       num = 2; // TODO: delete
     } else {
-      // this._playbackProgress += this.context.currentTime - this._contextTimeAtStart;
+      this._playbackProgress = this._bufferingOffset;
       num = 3; // TODO: delete
     }
 
@@ -415,8 +418,12 @@ export default class Clip extends EventEmitter {
   }
 
   _playUsingAudioContext() {
-    this._playbackProgress = 0; // TODO: is this OK?
-    this._scheduledEndTime = null; // TODO: is this OK?
+    this._playbackProgress = 0;
+    this._scheduledEndTime = null;
+
+    if (this._playbackState !== PLAYBACK_STATE.PAUSED) {
+      this._bufferingOffset = 0;
+    }
 
     const timeOffset = 0;
     let playing = true;
@@ -452,7 +459,7 @@ export default class Clip extends EventEmitter {
     chunk.createSource(timeOffset, (err, source) => {
       if (err) {
         err.url = this.url;
-        err.phonographCode = 'COULD_NOT_START_PLAYBACK';
+        err.customCode = 'COULD_NOT_START_PLAYBACK';
         this._fire('playbackerror', err);
         return;
       }
@@ -515,7 +522,7 @@ export default class Clip extends EventEmitter {
         chunk.createSource(0, (err, source) => {
           if (err) {
             err.url = this.url;
-            err.phonographCode = 'COULD_NOT_CREATE_SOURCE';
+            err.customCode = 'COULD_NOT_CREATE_SOURCE';
             this._fire('playbackerror', err);
             return;
           }
@@ -658,6 +665,7 @@ export default class Clip extends EventEmitter {
   }
 
   _stopUsingAudioContext() {
+    this._bufferingOffset = this._playbackProgress;
     clearTimeout(this._tickTimeout);
     if (this._playbackState === PLAYBACK_STATE.PLAYING) {
       this._gain.gain.value = 0;

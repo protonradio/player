@@ -5,8 +5,10 @@ import DecodingError from './DecodingError';
 import seconds from './utils/seconds';
 
 export default class FetchJob {
-  constructor(url, start, end) {
+  constructor(url, createChunk, chunkIndex, start, end) {
     this._url = url;
+    this._createChunk = createChunk;
+    this._chunkIndex = chunkIndex;
     this._start = start;
     this._end = end;
     this._cancelled = false;
@@ -43,7 +45,8 @@ export default class FetchJob {
         if (!(response.data instanceof ArrayBuffer)) {
           throw new Error('Bad response body');
         }
-        return new Uint8Array(response.data);
+        const uint8Array = new Uint8Array(response.data);
+        return this._createChunk(uint8Array, this._chunkIndex);
       })
       .catch((error) => {
         if (error instanceof Cancel) return;
