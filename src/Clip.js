@@ -336,10 +336,12 @@ export default class Clip extends EventEmitter {
       return offset + this._audioElement.currentTime;
     }
 
-    if (
-      this._scheduledEndTime == null ||
-      this._scheduledEndTime < this.context.currentTime
-    ) {
+    const isPlayingSilence =
+      this._scheduledEndTime == null || this.context.currentTime > this._scheduledEndTime;
+
+    console.log(`isPlayingSilence? ${isPlayingSilence}`); // TODO: delete
+
+    if (isPlayingSilence) {
       if (this._clipState.chunksBufferingFinished) {
         // Playback has finished.
         this.playbackEnded();
@@ -353,11 +355,16 @@ export default class Clip extends EventEmitter {
         this._bufferingOffset = this._playbackProgress;
       }
 
+      console.log(
+        `(1) offset (${offset}) + this._playbackProgress (${this._playbackProgress})`
+      );
       return offset + this._playbackProgress;
     }
 
     // Player is playing back.
     this._onBufferChange(false);
+
+    let num = 0; // TODO: delete
 
     if (this._contextTimeAtStart === this._lastContextTimeAtStart) {
       this._playbackProgress +=
@@ -365,12 +372,17 @@ export default class Clip extends EventEmitter {
         this._contextTimeAtStart -
         this._playbackProgress +
         this._bufferingOffset;
+      num = 2; // TODO: delete
     } else {
-      this._playbackProgress += this.context.currentTime - this._contextTimeAtStart;
+      // this._playbackProgress += this.context.currentTime - this._contextTimeAtStart;
+      num = 3; // TODO: delete
     }
 
     this._lastContextTimeAtStart = this._contextTimeAtStart;
 
+    console.log(
+      `(${num}) offset (${offset}) + this._playbackProgress (${this._playbackProgress})`
+    );
     return offset + this._playbackProgress;
   }
 
@@ -403,6 +415,9 @@ export default class Clip extends EventEmitter {
   }
 
   _playUsingAudioContext() {
+    this._playbackProgress = 0; // TODO: is this OK?
+    this._scheduledEndTime = null; // TODO: is this OK?
+
     const timeOffset = 0;
     let playing = true;
 
@@ -462,7 +477,7 @@ export default class Clip extends EventEmitter {
         this._contextTimeAtStart = this.context.currentTime;
         nextStart = this._contextTimeAtStart + (chunk.duration - timeOffset);
         if (!chunk.isSilence) {
-          this._scheduledEndTime = nextStart;
+          this._scheduledEndTime = nextStart + OVERLAP;
         }
 
         gain.gain.setValueAtTime(0, nextStart + OVERLAP);
@@ -477,7 +492,7 @@ export default class Clip extends EventEmitter {
       }
 
       this._lastPlayedChunk =
-        _playingSilence && this._clipState.chunkIndex === this._initialChunk // TODO: is this OK?
+        _playingSilence && this._clipState.chunkIndex === this._initialChunk
           ? null
           : this._clipState.chunkIndex;
 
@@ -531,7 +546,7 @@ export default class Clip extends EventEmitter {
             source.start(nextStart);
             nextStart += chunk.duration;
             if (!chunk.isSilence) {
-              this._scheduledEndTime = nextStart;
+              this._scheduledEndTime = nextStart + OVERLAP;
             }
             gain.gain.setValueAtTime(0, nextStart + OVERLAP);
           } catch (e) {
@@ -543,7 +558,7 @@ export default class Clip extends EventEmitter {
           }
 
           this._lastPlayedChunk =
-            _playingSilence && this._clipState.chunkIndex === this._initialChunk // TODO: is this OK?
+            _playingSilence && this._clipState.chunkIndex === this._initialChunk
               ? null
               : this._clipState.chunkIndex;
         });
@@ -558,6 +573,11 @@ export default class Clip extends EventEmitter {
             : this._clipState.chunkIndex;
 
         _playingSilence = !this._clipState.isChunkReady(i);
+
+        if (i === this._clipState.totalChunksCount) {
+          this._clipState.chunkIndex += 1; // Mark playback buffering as finished
+          return;
+        }
 
         if (_playingSilence) {
           this._wasPlayingSilence = true;
