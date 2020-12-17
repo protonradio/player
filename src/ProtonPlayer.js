@@ -109,6 +109,7 @@ export default class ProtonPlayer {
     }
   }
 
+  // TODO: add ability to set a "allowed last position" (that defaults to 1 = 100%) so the player doesn't buffer more than what's allowed to be played
   play({
     url,
     fileSize,

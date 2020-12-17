@@ -339,8 +339,6 @@ export default class Clip extends EventEmitter {
     const isPlayingSilence =
       this._scheduledEndTime == null || this.context.currentTime > this._scheduledEndTime;
 
-    console.log(`isPlayingSilence? ${isPlayingSilence}`);
-
     if (isPlayingSilence) {
       if (this._clipState.chunksBufferingFinished) {
         // Playback has finished.
@@ -353,21 +351,13 @@ export default class Clip extends EventEmitter {
 
       if (this._scheduledEndTime != null) {
         this._bufferingOffset = this._playbackProgress;
-        console.log(
-          `(0) this._scheduledEndTime != null -> this._bufferingOffset = this._playbackProgress = ${this._bufferingOffset}`
-        );
       }
 
-      console.log(
-        `(1) offset (${offset}) + this._playbackProgress (${this._playbackProgress})`
-      );
       return offset + this._playbackProgress;
     }
 
     // Player is playing back.
     this._onBufferChange(false);
-
-    let num; // TODO: delete
 
     if (this._contextTimeAtStart === this._lastContextTimeAtStart) {
       this._playbackProgress +=
@@ -375,17 +365,12 @@ export default class Clip extends EventEmitter {
         this._contextTimeAtStart -
         this._playbackProgress +
         this._bufferingOffset;
-      num = 2; // TODO: delete
     } else {
       this._playbackProgress = this._bufferingOffset;
-      num = 3; // TODO: delete
     }
 
     this._lastContextTimeAtStart = this._contextTimeAtStart;
 
-    console.log(
-      `(${num}) offset (${offset}) + this._playbackProgress (${this._playbackProgress})`
-    );
     return offset + this._playbackProgress;
   }
 
