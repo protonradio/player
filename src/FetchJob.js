@@ -22,17 +22,17 @@ export default class FetchJob {
   }
 
   fetch(retryCount = 0) {
-    const start = this._start;
-    const end = this._end;
-    if (!Number.isInteger(start) || !Number.isInteger(end)) {
+    if (this._cancelled) return Promise.resolve(null);
+
+    if (!Number.isInteger(this._start) || !Number.isInteger(this._end)) {
       const message = 'Range header is not valid';
-      error(message, { start, end });
+      error(message, { start: this._start, end: this._end });
       return Promise.reject(new Error(message));
     }
 
     const options = {
       headers: {
-        range: `${start}-${end}`,
+        range: `${this._start}-${this._end}`,
       },
       timeout: seconds(5),
       responseType: 'arraybuffer',
@@ -52,10 +52,11 @@ export default class FetchJob {
         if (error instanceof Cancel) return;
 
         const timedOut = error.code === 'ECONNABORTED';
+        const networkError = error.message === 'Network Error';
         const decodingError = error instanceof DecodingError;
         const tooManyRequests = error.response && error.response.status === 429;
-        if (timedOut || decodingError || tooManyRequests) {
-          if (retryCount >= 10) {
+        if (timedOut || networkError || decodingError || tooManyRequests) {
+          if (!networkError && retryCount >= 10) {
             throw new Error(`Chunk fetch/decode failed after ${retryCount} retries`);
           }
           const message = timedOut
