@@ -93,7 +93,7 @@ export default class ProtonPlayer {
     silenceLoader.buffer();
   }
 
-  preLoad(url, fileSize, initialPosition = 0) {
+  preLoad(url, fileSize, initialPosition = 0, lastAllowedPosition = 1) {
     // TODO: allow preloading on iOS by making preloading more efficient (aka: load and process 1 chunk at a time when preloading)
     if (this.osName === 'ios') {
       return Promise.resolve();
@@ -102,14 +102,18 @@ export default class ProtonPlayer {
     debug('ProtonPlayer#preLoad', url);
 
     try {
-      return this._getClip(url, fileSize, initialPosition).preBuffer();
+      return this._getClip(
+        url,
+        fileSize,
+        initialPosition,
+        lastAllowedPosition
+      ).preBuffer();
     } catch (err) {
       this._onError(err);
       return Promise.reject(err);
     }
   }
 
-  // TODO: add ability to set a "allowed last position" (that defaults to 1 = 100%) so the player doesn't buffer more than what's allowed to be played
   play({
     url,
     fileSize,
@@ -118,6 +122,7 @@ export default class ProtonPlayer {
     onPlaybackProgress = noop,
     onPlaybackEnded = noop,
     initialPosition = 0,
+    lastAllowedPosition = 1,
     audioMetadata = {},
     fromSetPlaybackPosition = false,
   }) {
@@ -145,7 +150,13 @@ export default class ProtonPlayer {
     this.stopAll();
 
     try {
-      const clip = this._getClip(url, fileSize, initialPosition, audioMetadata);
+      const clip = this._getClip(
+        url,
+        fileSize,
+        initialPosition,
+        lastAllowedPosition,
+        audioMetadata
+      );
 
       this._currentlyPlaying = {
         clip,
@@ -267,9 +278,7 @@ export default class ProtonPlayer {
 
     const clip = this._clips[url];
 
-    // TODO: should be able to call `setCurrentPosition` even if the position is not loaded yet.
     if (clip) {
-      // && clip.isPositionLoaded(percent)
       return clip.setCurrentPosition(percent) || Promise.resolve();
     }
 
@@ -299,7 +308,13 @@ export default class ProtonPlayer {
     });
   }
 
-  _getClip(url, fileSize, initialPosition = 0, audioMetadata = {}) {
+  _getClip(
+    url,
+    fileSize,
+    initialPosition = 0,
+    lastAllowedPosition = 1,
+    audioMetadata = {}
+  ) {
     if (typeof url !== 'string') {
       throw new ProtonPlayerError('Invalid URL');
     }
@@ -316,6 +331,7 @@ export default class ProtonPlayer {
       url,
       fileSize,
       initialPosition,
+      lastAllowedPosition,
       audioMetadata,
       silenceChunks: this._silenceChunksClipState.chunks,
       volume: this._volume,

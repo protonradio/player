@@ -20,6 +20,7 @@ export default class Clip extends EventEmitter {
     url,
     fileSize,
     initialPosition = 0,
+    lastAllowedPosition = 1,
     silenceChunks = [],
     volume = 1,
     audioMetadata = {},
@@ -64,7 +65,7 @@ export default class Clip extends EventEmitter {
     this._buffering = false;
     this._buffered = false;
 
-    this._clipState = new ClipState(fileSize, initialPosition);
+    this._clipState = new ClipState(fileSize, initialPosition, lastAllowedPosition);
     this._initialChunk = this._clipState.chunkIndex;
     this._initialByte = this._initialChunk * CHUNK_SIZE;
 

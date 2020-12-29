@@ -239,7 +239,7 @@ export default class Loader extends EventEmitter {
         err.url = this.url;
         err.customCode = 'COULD_NOT_LOAD';
         this._fire('loaderror', err);
-        this._loadStarted = false; // TODO: is this needed?
+        this._loadStarted = false;
       });
   }
 }

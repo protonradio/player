@@ -19,7 +19,11 @@ export default class Fetcher {
   }
 
   load() {
-    if (this._cancelled || this._chunkIndex >= this._clipState.totalChunksCount) {
+    if (
+      this._cancelled ||
+      this._chunkIndex >= this._clipState.totalChunksCount ||
+      this._chunkIndex >= this._clipState.lastAllowedChunkIndex + 1
+    ) {
       return;
     }
 
@@ -32,7 +36,10 @@ export default class Fetcher {
     );
 
     for (let i = 0; i < batchSize; i++) {
-      if (this._chunkIndex >= this._clipState.totalChunksCount) {
+      if (
+        this._chunkIndex >= this._clipState.totalChunksCount ||
+        this._chunkIndex >= this._clipState.lastAllowedChunkIndex + 1
+      ) {
         break;
       }
 
