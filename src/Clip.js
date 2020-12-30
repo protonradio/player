@@ -65,6 +65,8 @@ export default class Clip extends EventEmitter {
     this._buffering = false;
     this._buffered = false;
 
+    debug(`Clip#construct -> initialPosition: ${initialPosition}`); // TODO: delete
+    debug(`Clip#construct -> lastAllowedPosition: ${lastAllowedPosition}`); // TODO: delete
     this._clipState = new ClipState(fileSize, initialPosition, lastAllowedPosition);
     this._initialChunk = this._clipState.chunkIndex;
     this._initialByte = this._initialChunk * CHUNK_SIZE;
@@ -287,7 +289,7 @@ export default class Clip extends EventEmitter {
     }
   }
 
-  setCurrentPosition(position = 0) {
+  setCurrentPosition(position = 0, lastAllowedPosition = 1) {
     if (this._useMediaSource) {
       this._stopUsingMediaSource();
     } else {
@@ -297,7 +299,10 @@ export default class Clip extends EventEmitter {
     this._playbackState = PLAYBACK_STATE.STOPPED;
     this._fire('stop');
 
+    debug(`Clip#setCurrentPosition -> lastAllowedPosition: ${lastAllowedPosition}`); // TODO: delete
+
     this._initialChunk = this._clipState.getChunkIndexByPosition(position);
+    this._clipState.lastAllowedChunkIndex = lastAllowedPosition;
     this._clipState.chunkIndex = this._initialChunk;
 
     let promise;
@@ -496,6 +501,11 @@ export default class Clip extends EventEmitter {
           this._clipState.chunkIndex += 1;
         }
 
+        if (this._clipState.chunksBufferingFinished) {
+          this._scheduledEndTime = null;
+          return;
+        }
+
         chunk = _playingSilence
           ? this._silenceChunks[0]
           : this._clipState.chunks[this._clipState.chunkIndex];
@@ -558,7 +568,12 @@ export default class Clip extends EventEmitter {
       };
 
       const tick = (scheduledAt = 0, scheduledTimeout = 0) => {
-        if (this._playbackState !== PLAYBACK_STATE.PLAYING) return;
+        if (
+          this._playbackState !== PLAYBACK_STATE.PLAYING ||
+          this._clipState.chunksBufferingFinished
+        ) {
+          return;
+        }
 
         const i =
           this._lastPlayedChunk === this._clipState.chunkIndex
@@ -566,11 +581,6 @@ export default class Clip extends EventEmitter {
             : this._clipState.chunkIndex;
 
         _playingSilence = !this._clipState.isChunkReady(i);
-
-        if (i === this._clipState.totalChunksCount) {
-          this._clipState.chunkIndex += 1; // Mark playback buffering as finished
-          return;
-        }
 
         if (_playingSilence) {
           this._wasPlayingSilence = true;

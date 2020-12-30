@@ -84,4 +84,16 @@ export default class ClipState extends EventEmitter {
       this._fire('chunkIndexChanged', this._chunkIndex);
     }
   }
+
+  set lastAllowedChunkIndex(position) {
+    const newLastAllowedChunkIndex = this.getLastChunkIndexByPosition(position);
+    if (
+      this._chunksBufferingFinished &&
+      newLastAllowedChunkIndex > this._lastAllowedChunkIndex &&
+      newLastAllowedChunkIndex < this._totalChunksCount
+    ) {
+      this._chunksBufferingFinished = false;
+    }
+    this._lastAllowedChunkIndex = newLastAllowedChunkIndex;
+  }
 }

@@ -166,6 +166,7 @@ export default class ProtonPlayer {
         onBufferProgress,
         onPlaybackProgress,
         onPlaybackEnded,
+        lastAllowedPosition,
         lastReportedProgress: initialPosition,
       };
 
@@ -258,7 +259,7 @@ export default class ProtonPlayer {
       .forEach((k) => this.dispose(k));
   }
 
-  setPlaybackPosition(percent) {
+  setPlaybackPosition(percent, newLastAllowedPosition = null) {
     debug('ProtonPlayer#setPlaybackPosition', percent);
 
     if (!this._currentlyPlaying || percent > 1) {
@@ -274,12 +275,17 @@ export default class ProtonPlayer {
       onBufferProgress,
       onPlaybackProgress,
       onPlaybackEnded,
+      lastAllowedPosition,
     } = this._currentlyPlaying;
+
+    newLastAllowedPosition = newLastAllowedPosition || lastAllowedPosition;
 
     const clip = this._clips[url];
 
     if (clip) {
-      return clip.setCurrentPosition(percent) || Promise.resolve();
+      return (
+        clip.setCurrentPosition(percent, newLastAllowedPosition) || Promise.resolve()
+      );
     }
 
     const audioMetadata = clip && clip.audioMetadata;
@@ -295,6 +301,7 @@ export default class ProtonPlayer {
       onPlaybackEnded,
       audioMetadata,
       initialPosition: percent,
+      lastAllowedPosition: newLastAllowedPosition,
       fromSetPlaybackPosition: true,
     });
   }
