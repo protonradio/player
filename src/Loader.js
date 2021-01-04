@@ -175,7 +175,6 @@ export default class Loader extends EventEmitter {
       this._chunksDuration += chunk.duration;
       this._chunksCount += 1;
     }
-    this._clipState.logChunks(); // TODO: delete
   }
 
   _onProgress(chunkLength, total) {

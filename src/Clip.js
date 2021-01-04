@@ -65,8 +65,6 @@ export default class Clip extends EventEmitter {
     this._buffering = false;
     this._buffered = false;
 
-    debug(`Clip#construct -> initialPosition: ${initialPosition}`); // TODO: delete
-    debug(`Clip#construct -> lastAllowedPosition: ${lastAllowedPosition}`); // TODO: delete
     this._clipState = new ClipState(fileSize, initialPosition, lastAllowedPosition);
     this._initialChunk = this._clipState.chunkIndex;
     this._initialByte = this._initialChunk * CHUNK_SIZE;
@@ -298,8 +296,6 @@ export default class Clip extends EventEmitter {
 
     this._playbackState = PLAYBACK_STATE.STOPPED;
     this._fire('stop');
-
-    debug(`Clip#setCurrentPosition -> lastAllowedPosition: ${lastAllowedPosition}`); // TODO: delete
 
     this._initialChunk = this._clipState.getChunkIndexByPosition(position);
     this._clipState.lastAllowedChunkIndex = lastAllowedPosition;
