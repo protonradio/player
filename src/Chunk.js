@@ -6,7 +6,8 @@ import getFrameLength from './utils/getFrameLength';
 import DecodingError from './DecodingError';
 
 export default class Chunk {
-  constructor({ clip, raw, callback }) {
+  constructor({ index, clip, raw, callback }) {
+    this._index = index;
     this.context = clip.context;
     this.raw = raw;
     this.extended = null;
@@ -57,6 +58,10 @@ export default class Chunk {
         this._callback(new DecodingError('Got 0 frames when decoding audio buffer'));
       }
     });
+  }
+
+  get index() {
+    return this._index;
   }
 
   attach(nextChunk) {
@@ -133,5 +138,11 @@ export default class Chunk {
 
     this.ready = true;
     this._onReady();
+  }
+
+  toString() {
+    return `ready: ${this.ready}, index: ${this.index}, next.index: ${
+      this.next && this.next.index
+    }`;
   }
 }

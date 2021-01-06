@@ -4,8 +4,8 @@ import ProtonPlayerError from './ProtonPlayerError';
 import getContext from './getContext';
 import { debug, warn } from './utils/logger';
 import noop from './utils/noop';
+import ClipState, { CHUNK_SIZE } from './ClipState';
 
-const CHUNK_SIZE = 64 * 1024;
 const OVERLAP = 0.2;
 const TIMEOUT_SAFE_OFFSET = 50;
 
@@ -20,6 +20,7 @@ export default class Clip extends EventEmitter {
     url,
     fileSize,
     initialPosition = 0,
+    lastAllowedPosition = 1,
     silenceChunks = [],
     volume = 1,
     audioMetadata = {},
@@ -46,11 +47,8 @@ export default class Clip extends EventEmitter {
     this._playbackState = PLAYBACK_STATE.STOPPED;
     this.ended = false;
     this.url = url;
-    this.fileSize = fileSize;
     this.volume = volume;
-    this._chunks = [];
     this._silenceChunks = silenceChunks;
-    this._chunkIndex = 0;
     this._lastPlayedChunk = null;
     this._tickTimeout = null;
     this._mediaSourceTimeout = null;
@@ -67,19 +65,14 @@ export default class Clip extends EventEmitter {
     this._buffering = false;
     this._buffered = false;
 
-    this._totalChunksCount = Math.ceil(fileSize / CHUNK_SIZE);
-    this._initialChunk = this._getChunkIndexByPosition(initialPosition);
+    this._clipState = new ClipState(fileSize, initialPosition, lastAllowedPosition);
+    this._initialChunk = this._clipState.chunkIndex;
     this._initialByte = this._initialChunk * CHUNK_SIZE;
-    this._seekedChunk = 0;
 
     if (initialPosition !== 0 && Object.keys(audioMetadata).length === 0) {
       this._preBuffering = true;
-      const initialChunkLoader = new Loader(
-        CHUNK_SIZE,
-        this.url,
-        CHUNK_SIZE, // load just 1 chunk
-        []
-      );
+      const initialChunkClipState = new ClipState(CHUNK_SIZE);
+      const initialChunkLoader = new Loader(CHUNK_SIZE, this.url, initialChunkClipState);
       initialChunkLoader.on('loaderror', (err) => {
         this._preBuffering = false;
         this._fire('loaderror', err);
@@ -88,20 +81,14 @@ export default class Clip extends EventEmitter {
         this._preBuffering = false;
         this._initLoader(initialChunkLoader.audioMetadata);
       });
-      initialChunkLoader.buffer(true);
+      initialChunkLoader.buffer();
     } else {
       this._initLoader(audioMetadata);
     }
   }
 
   _initLoader(audioMetadata) {
-    this._loader = new Loader(
-      CHUNK_SIZE,
-      this.url,
-      this.fileSize,
-      this._chunks,
-      audioMetadata
-    );
+    this._loader = new Loader(CHUNK_SIZE, this.url, this._clipState, audioMetadata);
     this._loader.on('canPlayThrough', () => {
       if (this._buffering && !this._preBuffering) {
         this._preBuffered = true;
@@ -112,7 +99,7 @@ export default class Clip extends EventEmitter {
       const bufferedWithOffset = buffered + this._initialByte;
       this._fire('loadprogress', {
         total,
-        initialPosition: this._initialChunk / this._totalChunksCount,
+        initialPosition: this._initialChunk / this._clipState.totalChunksCount,
         buffered: bufferedWithOffset,
         progress: bufferedWithOffset / total,
       });
@@ -140,10 +127,9 @@ export default class Clip extends EventEmitter {
     }
 
     this._preBuffering = true;
-    const bufferToCompletion = false;
     const preloadOnly = true;
     return this._loader
-      .buffer(bufferToCompletion, preloadOnly, this._initialByte)
+      .buffer(preloadOnly, this._initialChunk)
       .then(() => {
         this._preBuffering = false;
         this._preBuffered = true;
@@ -155,7 +141,7 @@ export default class Clip extends EventEmitter {
       });
   }
 
-  buffer(bufferToCompletion = false, isRetrying = false) {
+  buffer(isRetrying = false) {
     if (isRetrying && this._shouldStopBuffering) {
       return Promise.reject(new ProtonPlayerError('Clip was paused or disposed'));
     }
@@ -168,10 +154,7 @@ export default class Clip extends EventEmitter {
 
     if (this._preBuffering || this._buffering || !this._loader) {
       return new Promise((resolve, reject) => {
-        setTimeout(
-          () => this.buffer(bufferToCompletion, true).then(resolve).catch(reject),
-          1
-        );
+        setTimeout(() => this.buffer(true).then(resolve).catch(reject), 1);
       });
     }
 
@@ -179,7 +162,7 @@ export default class Clip extends EventEmitter {
     this._buffering = true;
     const preloadOnly = false;
     return this._loader
-      .buffer(bufferToCompletion, preloadOnly, this._initialByte)
+      .buffer(preloadOnly, this._initialChunk)
       .then(() => {
         this._buffering = false;
         this._buffered = true;
@@ -211,7 +194,7 @@ export default class Clip extends EventEmitter {
     this._buffering = false;
     this._buffered = false;
     this.loaded = false;
-    this._chunks = [];
+    this._clipState.reset();
     this._fire('dispose');
   }
 
@@ -236,7 +219,6 @@ export default class Clip extends EventEmitter {
       this._audioElement.src = URL.createObjectURL(this._mediaSource);
       promise = this._audioElement.play();
     } else {
-      this._bufferingOffset = 0;
       this._gain = this.context.createGain();
       this._gain.connect(this.context.destination);
       this.context.resume();
@@ -251,24 +233,25 @@ export default class Clip extends EventEmitter {
   }
 
   resume() {
-    this._playbackState = PLAYBACK_STATE.PLAYING;
+    let promise;
     if (this._useMediaSource) {
       this._audioElement.volume = this.volume;
-      return this._audioElement.play();
+      promise = this._audioElement.play();
     } else {
       this._gain = this.context.createGain();
       this._gain.connect(this.context.destination);
       this.context.resume();
       this._playUsingAudioContext();
-      return Promise.resolve();
+      promise = Promise.resolve();
     }
+    this._playbackState = PLAYBACK_STATE.PLAYING;
+    return promise;
   }
 
   pause() {
     if (this._useMediaSource) {
       this._pauseUsingMediaSource();
     } else {
-      this._bufferingOffset = this._playbackProgress;
       this._stopUsingAudioContext();
     }
     this._playbackState = PLAYBACK_STATE.PAUSED;
@@ -296,6 +279,7 @@ export default class Clip extends EventEmitter {
   }
 
   playbackEnded() {
+    debug('Clip#playbackEnded');
     if (this._playbackState === PLAYBACK_STATE.PLAYING) {
       this._playbackState = PLAYBACK_STATE.STOPPED;
       this.ended = true;
@@ -303,7 +287,7 @@ export default class Clip extends EventEmitter {
     }
   }
 
-  setCurrentPosition(position = 0) {
+  setCurrentPosition(position = 0, lastAllowedPosition = 1) {
     if (this._useMediaSource) {
       this._stopUsingMediaSource();
     } else {
@@ -313,9 +297,10 @@ export default class Clip extends EventEmitter {
     this._playbackState = PLAYBACK_STATE.STOPPED;
     this._fire('stop');
 
-    const initialChunk = this._getChunkIndexByPosition(position);
-    this._seekedChunk = initialChunk;
-    this._chunkIndex = initialChunk - this._initialChunk;
+    this._initialChunk = this._clipState.getChunkIndexByPosition(position);
+    this._clipState.lastAllowedChunkIndex = lastAllowedPosition;
+    this._clipState.chunkIndex = this._initialChunk;
+
     let promise;
 
     if (this._useMediaSource) {
@@ -341,33 +326,26 @@ export default class Clip extends EventEmitter {
     return promise;
   }
 
-  isPositionLoaded(position = 0) {
-    const initialChunk = this._getChunkIndexByPosition(position);
-    const wantedChunk = initialChunk - this._initialChunk;
-    const chunk = this._chunks[wantedChunk] || {};
-    return chunk.ready === true && Number.isNaN(chunk.duration) === false;
-  }
-
   get currentTime() {
     if (this._playbackState !== PLAYBACK_STATE.PLAYING) {
       return 0;
     }
 
     const averageChunkDuration = this._loader ? this._loader.averageChunkDuration : 0;
-    const offset = averageChunkDuration * (this._seekedChunk || this._initialChunk);
+    const offset = averageChunkDuration * this._initialChunk;
 
     if (this._useMediaSource) {
       return offset + this._audioElement.currentTime;
     }
 
-    if (
-      this._scheduledEndTime == null ||
-      this._scheduledEndTime < this.context.currentTime
-    ) {
-      if (this._chunkIndex + this._initialChunk >= this._totalChunksCount - 1) {
+    const isPlayingSilence =
+      this._scheduledEndTime == null || this.context.currentTime > this._scheduledEndTime;
+
+    if (isPlayingSilence) {
+      if (this._clipState.chunksBufferingFinished) {
         // Playback has finished.
         this.playbackEnded();
-        return averageChunkDuration * this._totalChunksCount;
+        return averageChunkDuration * this._clipState.totalChunksCount;
       }
 
       // Player is buffering.
@@ -390,7 +368,7 @@ export default class Clip extends EventEmitter {
         this._playbackProgress +
         this._bufferingOffset;
     } else {
-      this._playbackProgress += this.context.currentTime - this._contextTimeAtStart;
+      this._playbackProgress = this._bufferingOffset;
     }
 
     this._lastContextTimeAtStart = this._contextTimeAtStart;
@@ -400,7 +378,7 @@ export default class Clip extends EventEmitter {
 
   get duration() {
     if (!this._loader) return 0;
-    return (this.fileSize / CHUNK_SIZE) * this._loader.averageChunkDuration;
+    return (this._clipState.fileSize / CHUNK_SIZE) * this._loader.averageChunkDuration;
   }
 
   get paused() {
@@ -427,6 +405,13 @@ export default class Clip extends EventEmitter {
   }
 
   _playUsingAudioContext() {
+    this._playbackProgress = 0;
+    this._scheduledEndTime = null;
+
+    if (this._playbackState !== PLAYBACK_STATE.PAUSED) {
+      this._bufferingOffset = 0;
+    }
+
     const timeOffset = 0;
     let playing = true;
 
@@ -449,20 +434,19 @@ export default class Clip extends EventEmitter {
       stopListener.cancel();
     });
 
-    let _playingSilence = !this._isChunkReady(this._chunkIndex);
-    const _chunks = _playingSilence ? this._silenceChunks : this._chunks;
-    const i = _playingSilence ? 0 : this._chunkIndex;
+    let _playingSilence = !this._clipState.isChunkReady(this._clipState.chunkIndex);
+    let chunk = _playingSilence
+      ? this._silenceChunks[0]
+      : this._clipState.chunks[this._clipState.chunkIndex];
+    chunk.isSilence = _playingSilence;
 
     let previousSource;
     let currentSource;
 
-    let chunk = _chunks[i];
-    chunk.isSilence = _playingSilence;
-
     chunk.createSource(timeOffset, (err, source) => {
       if (err) {
         err.url = this.url;
-        err.phonographCode = 'COULD_NOT_START_PLAYBACK';
+        err.customCode = 'COULD_NOT_START_PLAYBACK';
         this._fire('playbackerror', err);
         return;
       }
@@ -487,7 +471,7 @@ export default class Clip extends EventEmitter {
         this._contextTimeAtStart = this.context.currentTime;
         nextStart = this._contextTimeAtStart + (chunk.duration - timeOffset);
         if (!chunk.isSilence) {
-          this._scheduledEndTime = nextStart;
+          this._scheduledEndTime = nextStart + OVERLAP;
         }
 
         gain.gain.setValueAtTime(0, nextStart + OVERLAP);
@@ -502,19 +486,25 @@ export default class Clip extends EventEmitter {
       }
 
       this._lastPlayedChunk =
-        _playingSilence && this._chunkIndex === 0 ? null : this._chunkIndex;
+        _playingSilence && this._clipState.chunkIndex === this._initialChunk
+          ? null
+          : this._clipState.chunkIndex;
 
       const advance = () => {
         if (!playing) return;
 
-        if (!_playingSilence && this._lastPlayedChunk === this._chunkIndex) {
-          this._chunkIndex += 1;
+        if (!_playingSilence && this._lastPlayedChunk === this._clipState.chunkIndex) {
+          this._clipState.chunkIndex += 1;
         }
 
-        const _chunks = _playingSilence ? this._silenceChunks : this._chunks;
-        const i = _playingSilence ? 0 : this._chunkIndex;
+        if (this._clipState.chunksBufferingFinished) {
+          this._scheduledEndTime = null;
+          return;
+        }
 
-        chunk = _chunks[i];
+        chunk = _playingSilence
+          ? this._silenceChunks[0]
+          : this._clipState.chunks[this._clipState.chunkIndex];
         chunk.isSilence = _playingSilence;
 
         if (!chunk.ready) {
@@ -524,7 +514,7 @@ export default class Clip extends EventEmitter {
         chunk.createSource(0, (err, source) => {
           if (err) {
             err.url = this.url;
-            err.phonographCode = 'COULD_NOT_CREATE_SOURCE';
+            err.customCode = 'COULD_NOT_CREATE_SOURCE';
             this._fire('playbackerror', err);
             return;
           }
@@ -555,7 +545,7 @@ export default class Clip extends EventEmitter {
             source.start(nextStart);
             nextStart += chunk.duration;
             if (!chunk.isSilence) {
-              this._scheduledEndTime = nextStart;
+              this._scheduledEndTime = nextStart + OVERLAP;
             }
             gain.gain.setValueAtTime(0, nextStart + OVERLAP);
           } catch (e) {
@@ -567,19 +557,26 @@ export default class Clip extends EventEmitter {
           }
 
           this._lastPlayedChunk =
-            _playingSilence && this._chunkIndex === 0 ? null : this._chunkIndex;
+            _playingSilence && this._clipState.chunkIndex === this._initialChunk
+              ? null
+              : this._clipState.chunkIndex;
         });
       };
 
       const tick = (scheduledAt = 0, scheduledTimeout = 0) => {
-        if (this._playbackState !== PLAYBACK_STATE.PLAYING) return;
+        if (
+          this._playbackState !== PLAYBACK_STATE.PLAYING ||
+          this._clipState.chunksBufferingFinished
+        ) {
+          return;
+        }
 
         const i =
-          this._lastPlayedChunk === this._chunkIndex
-            ? this._chunkIndex + 1
-            : this._chunkIndex;
+          this._lastPlayedChunk === this._clipState.chunkIndex
+            ? this._clipState.chunkIndex + 1
+            : this._clipState.chunkIndex;
 
-        _playingSilence = !this._isChunkReady(i);
+        _playingSilence = !this._clipState.isChunkReady(i);
 
         if (_playingSilence) {
           this._wasPlayingSilence = true;
@@ -605,28 +602,29 @@ export default class Clip extends EventEmitter {
   _playUsingMediaSource() {
     if (this._playbackState === PLAYBACK_STATE.STOPPED) return;
 
-    if (this._chunkIndex + this._initialChunk >= this._totalChunksCount) {
+    if (this._clipState.chunksBufferingFinished) {
+      debug('this._mediaSource.endOfStream()');
       this._mediaSource.endOfStream();
       return;
     }
 
-    const isChunkReady = this._isChunkReady(this._chunkIndex);
+    const isChunkReady = this._clipState.isChunkReady(this._clipState.chunkIndex);
 
     const useSilence =
       !isChunkReady &&
-      this._chunkIndex === 0 &&
+      this._clipState.chunkIndex === this._initialChunk &&
       !this._wasPlayingSilence &&
       (this.browserName === 'safari' || this.osName === 'ios');
 
     const chunk = useSilence
       ? this._silenceChunks[0]
-      : isChunkReady && this._chunks[this._chunkIndex];
+      : isChunkReady && this._clipState.chunks[this._clipState.chunkIndex];
 
     if (chunk) {
       try {
         this._sourceBuffer.appendBuffer(chunk.raw);
         if (isChunkReady) {
-          this._chunkIndex += 1;
+          this._clipState.chunkIndex += 1;
           this._wasPlayingSilence = false;
         } else if (useSilence) {
           this._wasPlayingSilence = true;
@@ -659,6 +657,7 @@ export default class Clip extends EventEmitter {
   }
 
   _stopUsingAudioContext() {
+    this._bufferingOffset = this._playbackProgress;
     clearTimeout(this._tickTimeout);
     if (this._playbackState === PLAYBACK_STATE.PLAYING) {
       this._gain.gain.value = 0;
@@ -667,29 +666,13 @@ export default class Clip extends EventEmitter {
     }
   }
 
-  _getChunkIndexByPosition(position = 0) {
-    const initialChunk = Math.floor(this._totalChunksCount * position);
-    return initialChunk >= this._totalChunksCount
-      ? this._totalChunksCount - 1
-      : initialChunk;
-  }
-
-  _isChunkReady(index) {
-    return (
-      this._chunks.length > 0 &&
-      index < this._chunks.length &&
-      this._chunks[index].ready === true &&
-      Number.isNaN(this._chunks[index].duration) === false
-    );
-  }
-
   _calculateNextChunkTimeout(chunkIndex = 0, scheduledAt = 0, scheduledTimeout = 0) {
-    const playingSilence = !this._isChunkReady(chunkIndex);
+    const playingSilence = !this._clipState.isChunkReady(chunkIndex);
     if (playingSilence) {
       return 100;
     }
     const timeoutDiff = this._calculateTimeoutDiff(scheduledAt, scheduledTimeout);
-    const chunk = this._chunks[chunkIndex];
+    const chunk = this._clipState.chunks[chunkIndex];
     return chunk && typeof chunk.duration === 'number' && chunk.duration > 0
       ? Math.max(chunk.duration * 1000 - TIMEOUT_SAFE_OFFSET - timeoutDiff, 0)
       : 500;

@@ -2,8 +2,9 @@ import Bowser from 'bowser';
 
 import ProtonPlayerError from './ProtonPlayerError';
 import { debug, warn, error } from './utils/logger';
-import noop from './utils/noop';
 import getContext from './getContext';
+import ClipState from './ClipState';
+import noop from './utils/noop';
 import Loader from './Loader';
 import Clip from './Clip';
 import _ from './init';
@@ -34,7 +35,8 @@ export default class ProtonPlayer {
     this._onError = onError;
     this._volume = volume;
     this._ready = false;
-    this._silenceChunks = [];
+    const silenceChunkSize = 64 * 64;
+    this._silenceChunksClipState = new ClipState(silenceChunkSize);
     this._clips = {};
     this._currentlyPlaying = null;
     this._playbackPositionInterval = null;
@@ -75,12 +77,10 @@ export default class ProtonPlayer {
         'The `silenceURL` argument is required for using the AudioContext API backend'
       );
     }
-    const silenceChunkSize = 64 * 64;
     const silenceLoader = new Loader(
       silenceChunkSize,
       silenceURL,
-      silenceChunkSize,
-      this._silenceChunks
+      this._silenceChunksClipState
     );
     silenceLoader.on('loaderror', (err) => {
       this._ready = false;
@@ -90,10 +90,10 @@ export default class ProtonPlayer {
       this._ready = true;
       this._onReady();
     });
-    silenceLoader.buffer(true);
+    silenceLoader.buffer();
   }
 
-  preLoad(url, fileSize, initialPosition = 0) {
+  preLoad(url, fileSize, initialPosition = 0, lastAllowedPosition = 1) {
     // TODO: allow preloading on iOS by making preloading more efficient (aka: load and process 1 chunk at a time when preloading)
     if (this.osName === 'ios') {
       return Promise.resolve();
@@ -102,7 +102,12 @@ export default class ProtonPlayer {
     debug('ProtonPlayer#preLoad', url);
 
     try {
-      return this._getClip(url, fileSize, initialPosition).preBuffer();
+      return this._getClip(
+        url,
+        fileSize,
+        initialPosition,
+        lastAllowedPosition
+      ).preBuffer();
     } catch (err) {
       this._onError(err);
       return Promise.reject(err);
@@ -117,6 +122,7 @@ export default class ProtonPlayer {
     onPlaybackProgress = noop,
     onPlaybackEnded = noop,
     initialPosition = 0,
+    lastAllowedPosition = 1,
     audioMetadata = {},
     fromSetPlaybackPosition = false,
   }) {
@@ -144,7 +150,13 @@ export default class ProtonPlayer {
     this.stopAll();
 
     try {
-      const clip = this._getClip(url, fileSize, initialPosition, audioMetadata);
+      const clip = this._getClip(
+        url,
+        fileSize,
+        initialPosition,
+        lastAllowedPosition,
+        audioMetadata
+      );
 
       this._currentlyPlaying = {
         clip,
@@ -154,6 +166,7 @@ export default class ProtonPlayer {
         onBufferProgress,
         onPlaybackProgress,
         onPlaybackEnded,
+        lastAllowedPosition,
         lastReportedProgress: initialPosition,
       };
 
@@ -246,11 +259,11 @@ export default class ProtonPlayer {
       .forEach((k) => this.dispose(k));
   }
 
-  setPlaybackPosition(percent) {
+  setPlaybackPosition(percent, newLastAllowedPosition = null) {
     debug('ProtonPlayer#setPlaybackPosition', percent);
 
     if (!this._currentlyPlaying || percent > 1) {
-      return;
+      return Promise.resolve();
     }
 
     this._currentlyPlaying.lastReportedProgress = percent;
@@ -262,12 +275,17 @@ export default class ProtonPlayer {
       onBufferProgress,
       onPlaybackProgress,
       onPlaybackEnded,
+      lastAllowedPosition,
     } = this._currentlyPlaying;
+
+    newLastAllowedPosition = newLastAllowedPosition || lastAllowedPosition;
 
     const clip = this._clips[url];
 
-    if (clip && clip.isPositionLoaded(percent)) {
-      return clip.setCurrentPosition(percent) || Promise.resolve();
+    if (clip) {
+      return (
+        clip.setCurrentPosition(percent, newLastAllowedPosition) || Promise.resolve()
+      );
     }
 
     const audioMetadata = clip && clip.audioMetadata;
@@ -283,6 +301,7 @@ export default class ProtonPlayer {
       onPlaybackEnded,
       audioMetadata,
       initialPosition: percent,
+      lastAllowedPosition: newLastAllowedPosition,
       fromSetPlaybackPosition: true,
     });
   }
@@ -296,7 +315,13 @@ export default class ProtonPlayer {
     });
   }
 
-  _getClip(url, fileSize, initialPosition = 0, audioMetadata = {}) {
+  _getClip(
+    url,
+    fileSize,
+    initialPosition = 0,
+    lastAllowedPosition = 1,
+    audioMetadata = {}
+  ) {
     if (typeof url !== 'string') {
       throw new ProtonPlayerError('Invalid URL');
     }
@@ -313,8 +338,9 @@ export default class ProtonPlayer {
       url,
       fileSize,
       initialPosition,
+      lastAllowedPosition,
       audioMetadata,
-      silenceChunks: this._silenceChunks,
+      silenceChunks: this._silenceChunksClipState.chunks,
       volume: this._volume,
       osName: this.osName,
       browserName: this.browserName,

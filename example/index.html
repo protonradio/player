@@ -7,7 +7,7 @@
     <script src="../dist/proton-player.umd.js"></script>
   </head>
   <body>
-    <div id="container" style="display: flex; flex-direction: column;">
+    <div id="container" style="display: flex; flex-direction: column">
       <input
         id="stop-btn"
         class="btn"
@@ -44,16 +44,16 @@
     <h5>Buffered:</h5>
     <div
       id="buffer-display"
-      style="width: 100%; height: 10px; border: 1px solid black;"
+      style="width: 100%; height: 10px; border: 1px solid black"
     ></div>
     <h5>Playback Position (use it to seek!):</h5>
     <div
       id="playback-position-display"
-      style="width: 100%; height: 10px; border: 1px solid black;"
+      style="width: 100%; height: 10px; border: 1px solid black"
     ></div>
     <h5>Volume:</h5>
     <input id="volume-range" type="range" min="0" max="100" value="75" />
-    <h5 id="audio-engine-text" style="width: 100%; text-align: center;"></h5>
+    <h5 id="audio-engine-text" style="width: 100%; text-align: center"></h5>
     <p id="console"></p>
     <script>
       const $console = document.getElementById('console');
@@ -110,7 +110,7 @@
       });
 
       const token =
-        'eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjozMDMyMjIsInBocGJiX3VzZXIiOnsidXNlcl9hY3RpdmUiOnRydWUsInVzZXJuYW1lIjoiY2hhcmxlc25hdmkiLCJhdXRoZW50aWNhdGlvbl90b2tlbiI6IkJ6WWZpUU53SzdVY0g5TDNGaHBFIiwicHJvdG9uX3N1YnNjcmliZSI6dHJ1ZX0sInVzZXIiOnsiaWQiOjI4NjY4LCJhY2Nlc3NsZXZlbCI6M30sImV4cCI6MTU5NDE1MjcxMywiaWF0IjoxNTk0MDY2MzEzfQ.3-wdTrtRLmAfVIr0OD-OYDCeVpmBtTQAw05PRd5lPXw';
+        'eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjo4LCJwaHBiYl91c2VyIjp7InVzZXJfYWN0aXZlIjp0cnVlLCJ1c2VybmFtZSI6ImpheWVwb2NoIiwiYXV0aGVudGljYXRpb25fdG9rZW4iOiJ3ZGZYZXNGR1UwY3hSOFl5MWlTTSIsInByb3Rvbl9zdWJzY3JpYmUiOnRydWV9LCJ1c2VyIjp7ImlkIjoyLCJhY2Nlc3NsZXZlbCI6MH0sInByaXZhdGVfYWxnb2xpYV9rZXkiOiJiZDRlNDQ0MDNmYzNkMjdhMzI4MDE0NmM2Y2JkNjQyNCIsImV4cCI6MTYwNzExMDczOSwiaWF0IjoxNjA3MDI0MzM5fQ.fJvyX-DncEHoRLhsCXNcREFOJzJeEm-NXN2JiguUQEk';
 
       const audios = [
         {
