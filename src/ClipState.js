@@ -81,7 +81,7 @@ export default class ClipState extends EventEmitter {
     const diff = index - this._chunkIndex;
     this._chunkIndex = index;
     if (diff !== 1) {
-      this._fire('chunkIndexChanged', this._chunkIndex);
+      this._fire('chunkIndexManuallyChanged', this._chunkIndex);
     }
   }
 

@@ -26,7 +26,7 @@ export default class Loader extends EventEmitter {
     this._fetcher = null;
     this._jobs = {};
 
-    this._clipState.on('chunkIndexChanged', (newIndex) => {
+    this._clipState.on('chunkIndexManuallyChanged', (newIndex) => {
       this.cancel();
       this._initialChunk = newIndex;
       this._canPlayThrough = false;
