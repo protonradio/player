@@ -3,6 +3,7 @@ import EventEmitter from './EventEmitter';
 import ProtonPlayerError from './ProtonPlayerError';
 import getContext from './getContext';
 import { debug, warn } from './utils/logger';
+import suppressAbortError from './utils/suppressAbortError';
 import noop from './utils/noop';
 import ClipState, { CHUNK_SIZE } from './ClipState';
 
@@ -217,7 +218,9 @@ export default class Clip extends EventEmitter {
         self._playUsingMediaSource();
       });
       this._audioElement.src = URL.createObjectURL(this._mediaSource);
-      promise = this._audioElement.play();
+      promise = this._audioElement
+        .play()
+        .catch(suppressAbortError);
     } else {
       this._gain = this.context.createGain();
       this._gain.connect(this.context.destination);
@@ -236,7 +239,9 @@ export default class Clip extends EventEmitter {
     let promise;
     if (this._useMediaSource) {
       this._audioElement.volume = this.volume;
-      promise = this._audioElement.play();
+      promise = this._audioElement
+        .play()
+        .catch(suppressAbortError);
     } else {
       this._gain = this.context.createGain();
       this._gain.connect(this.context.destination);
@@ -306,7 +311,9 @@ export default class Clip extends EventEmitter {
     if (this._useMediaSource) {
       this._mediaSource = new MediaSource();
       this._audioElement.src = URL.createObjectURL(this._mediaSource);
-      promise = this._audioElement.play();
+      promise = this._audioElement
+        .play()
+        .catch(suppressAbortError);
       const self = this;
       this._mediaSource.addEventListener('sourceopen', function () {
         self._sourceBuffer = this.addSourceBuffer('audio/mpeg');
