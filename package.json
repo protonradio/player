@@ -4,21 +4,25 @@
   "main": "dist/proton-player.cjs.js",
   "module": "dist/proton-player.esm.js",
   "browser": "dist/proton-player.umd.js",
+  "type": "module",
   "dependencies": {
     "axios": "^0.21.1",
     "bowser": "^2.11.0"
   },
   "devDependencies": {
+    "@babel/core": "^7.15.0",
+    "@babel/register": "^7.14.5",
     "@rollup/plugin-commonjs": "^17.0.0",
     "@rollup/plugin-json": "^4.1.0",
     "@rollup/plugin-node-resolve": "^11.0.1",
+    "mocha": "^9.0.3",
+    "power-assert": "^1.6.1",
     "rollup": "^2.36.0"
   },
   "scripts": {
     "build": "rollup -c",
     "dev": "rollup -c -w",
-    "test": "node test/test.js",
-    "pretest": "npm run build"
+    "test": "mocha"
   },
   "files": [
     "dist"
