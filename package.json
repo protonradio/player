@@ -17,6 +17,7 @@
     "@rollup/plugin-node-resolve": "^11.0.1",
     "mocha": "^9.0.3",
     "power-assert": "^1.6.1",
+    "prettier": "^2.3.2",
     "rollup": "^2.36.0"
   },
   "scripts": {
