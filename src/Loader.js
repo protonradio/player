@@ -35,7 +35,7 @@ export default class Loader extends EventEmitter {
     this._jobs = {};
     this._sleep = null;
     this._fetchStrategy =
-      clipState.fileSize > Bytes.megabytes(10)
+      clipState.fileSize > Bytes.megabytes(30)
         ? FetchStrategy.LAZY
         : FetchStrategy.GREEDY;
 
