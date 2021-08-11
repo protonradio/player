@@ -8,14 +8,14 @@ export const FetchStrategy = {
 };
 
 class FetchCursor {
-  constructor(index, batchSize, maxIndex) {
-    this.index = Math.min(index, maxIndex);
+  constructor(index, size, batchSize) {
+    this.index = Math.min(index, size);
+    this.size = size;
     this.batchSize = batchSize;
-    this.maxIndex = maxIndex;
   }
 
   chunks() {
-    const chunkCount = Math.min(this.batchSize, this.maxIndex - this.index);
+    const chunkCount = Math.min(this.batchSize, this.size - this.index);
     return Array(chunkCount)
       .fill(this.index)
       .map((x, i) => x + i);
@@ -24,24 +24,24 @@ class FetchCursor {
 
 class PreloadCursor extends FetchCursor {
   seek() {
-    return new ExhaustedCursor(this.index, this.batchSize, this.maxIndex);
+    return new ExhaustedCursor(this.index, this.size, this.batchSize);
   }
 }
 
 class GreedyCursor extends FetchCursor {
   seek() {
     const nextIndex = this.index + this.batchSize;
-    return nextIndex >= this.maxIndex
-      ? new ExhaustedCursor(this.maxIndex, this.batchSize, this.maxIndex)
-      : new GreedyCursor(this.index + this.batchSize, this.batchSize, this.maxIndex);
+    return nextIndex >= this.size
+      ? new ExhaustedCursor(this.size, this.size, this.batchSize)
+      : new GreedyCursor(nextIndex, this.size, this.batchSize);
   }
 }
 
 class LazyCursor extends FetchCursor {
   seek(playheadIndex) {
-    return playheadIndex > this.maxIndex
-      ? new ExhaustedCursor(this.maxIndex, this.batchSize, this.maxIndex)
-      : new LazyCursor(playheadIndex, this.batchSize, this.maxIndex);
+    return playheadIndex > this.size
+      ? new ExhaustedCursor(this.size, this.size, this.batchSize)
+      : new LazyCursor(playheadIndex, this.size, this.batchSize);
   }
 }
 
@@ -56,15 +56,15 @@ class ExhaustedCursor extends FetchCursor {
 
 export const createFetchCursor = ({
   index = 0,
-  maxIndex,
+  size,
   strategy = FetchStrategy.GREEDY,
 }) => {
   switch (strategy) {
     case FetchStrategy.PRELOAD_ONLY:
-      return new PreloadCursor(index, PRELOAD_BATCH_SIZE, maxIndex);
+      return new PreloadCursor(index, size, PRELOAD_BATCH_SIZE);
     case FetchStrategy.LAZY:
-      return new LazyCursor(index, LOAD_BATCH_SIZE, maxIndex);
+      return new LazyCursor(index, size, LOAD_BATCH_SIZE);
     case FetchStrategy.GREEDY:
-      return new GreedyCursor(index, LOAD_BATCH_SIZE, maxIndex);
+      return new GreedyCursor(index, size, LOAD_BATCH_SIZE);
   }
 };

@@ -12,6 +12,7 @@ import {
   LOAD_BATCH_SIZE,
   PRELOAD_BATCH_SIZE,
 } from './FetchCursor';
+import * as Bytes from './utils/bytes';
 
 export default class Loader extends EventEmitter {
   constructor(chunkSize, url, clipState, audioMetadata = {}) {
@@ -30,12 +31,11 @@ export default class Loader extends EventEmitter {
     this._chunksDuration = 0;
     this._chunksCount = 0;
     this._jobs = {};
-
-    // TODO(rocco): Temporary, just for testing between mixes + audio tracks. This
-    //              should probs be passed in as a param.
-    this._fetchStrategy =
-      this._clipState.totalChunksCount < 1000 ? FetchStrategy.GREEDY : FetchStrategy.LAZY;
     this._sleep = null;
+    this._fetchStrategy =
+      clipState.fileSize > Bytes.megabytes(10)
+        ? FetchStrategy.LAZY
+        : FetchStrategy.GREEDY;
 
     this._clipState.on('chunkIndexManuallyChanged', (newIndex) => {
       this.cancel();
@@ -43,7 +43,7 @@ export default class Loader extends EventEmitter {
       this._canPlayThrough = false;
       this._cursor = createFetchCursor({
         index: newIndex,
-        maxIndex: this._clipState.totalChunksCount,
+        size: this._clipState.totalChunksCount,
         strategy: this._fetchStrategy,
       });
       this.buffer(false, newIndex);
@@ -85,7 +85,7 @@ export default class Loader extends EventEmitter {
 
       this._cursor = createFetchCursor({
         index: initialChunk,
-        maxIndex: this._clipState.totalChunksCount,
+        size: this._clipState.totalChunksCount,
         strategy: preloadOnly ? FetchStrategy.PRELOAD_ONLY : this._fetchStrategy,
       });
 
