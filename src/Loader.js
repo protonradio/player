@@ -1,4 +1,4 @@
-import Fetcher, { PRELOAD_BATCH_SIZE } from './Fetcher';
+import CancellableSleep, { SLEEP_CANCELLED } from './utils/CancellableSleep';
 import parseMetadata from './utils/parseMetadata';
 import EventEmitter from './EventEmitter';
 import { slice } from './utils/buffer';
@@ -6,6 +6,15 @@ import { debug } from './utils/logger';
 import getContext from './getContext';
 import FetchJob from './FetchJob';
 import Chunk from './Chunk';
+import {
+  FetchStrategy,
+  createFetchCursor,
+  LOAD_BATCH_SIZE,
+  PRELOAD_BATCH_SIZE,
+} from './FetchCursor';
+import * as Bytes from './utils/bytes';
+
+const DELAY_BETWEEN_FETCHES = 500; // milliseconds
 
 export default class Loader extends EventEmitter {
   constructor(chunkSize, url, clipState, audioMetadata = {}) {
@@ -23,13 +32,22 @@ export default class Loader extends EventEmitter {
     this.buffered = 0;
     this._chunksDuration = 0;
     this._chunksCount = 0;
-    this._fetcher = null;
     this._jobs = {};
+    this._sleep = null;
+    this._fetchStrategy =
+      clipState.fileSize > Bytes.megabytes(30)
+        ? FetchStrategy.LAZY
+        : FetchStrategy.GREEDY;
 
     this._clipState.on('chunkIndexManuallyChanged', (newIndex) => {
       this.cancel();
       this._initialChunk = newIndex;
       this._canPlayThrough = false;
+      this._cursor = createFetchCursor({
+        index: newIndex,
+        size: this._clipState.totalChunksCount,
+        strategy: this._fetchStrategy,
+      });
       this.buffer(false, newIndex);
     });
   }
@@ -46,7 +64,7 @@ export default class Loader extends EventEmitter {
   }
 
   cancel() {
-    this._fetcher && this._fetcher.cancel();
+    this._sleep && this._sleep.cancel();
     Object.keys(this._jobs).forEach((chunkIndex) => {
       this._jobs[chunkIndex].cancel();
       delete this._jobs[chunkIndex];
@@ -65,13 +83,15 @@ export default class Loader extends EventEmitter {
       this._loadStarted = !preloadOnly;
       this._initialChunk = initialChunk;
       this._canPlayThrough = false;
-      this._fetcher = new Fetcher(
-        this._clipState,
-        this._initialChunk,
-        this._fetchChunk.bind(this),
-        preloadOnly
-      );
-      this._fetcher.load();
+      this._preloadOnly = preloadOnly;
+
+      this._cursor = createFetchCursor({
+        index: initialChunk,
+        size: this._clipState.totalChunksCount,
+        strategy: preloadOnly ? FetchStrategy.PRELOAD_ONLY : this._fetchStrategy,
+      });
+
+      this._fetchNextChunks();
     }
     return new Promise((resolve, reject) => {
       const ready = preloadOnly ? this._canPlayThrough : this.loaded;
@@ -201,7 +221,33 @@ export default class Loader extends EventEmitter {
     }
   }
 
+  _fetchNextChunks() {
+    const startTime = Date.now();
+
+    const nextChunks = this._cursor.chunks().map(this._fetchChunk.bind(this));
+    this._cursor = this._cursor.seek(this._clipState.chunkIndex);
+
+    if (nextChunks.length === 0) {
+      return Promise.resolve();
+    }
+
+    this._sleep = new CancellableSleep(
+      LOAD_BATCH_SIZE * DELAY_BETWEEN_FETCHES - (Date.now() - startTime)
+    );
+
+    return Promise.all(nextChunks)
+      .then(() => this._sleep.wait())
+      .then(() => this._fetchNextChunks())
+      .catch((err) => {
+        if (err !== SLEEP_CANCELLED) throw err;
+      });
+  }
+
   _fetchChunk(chunkIndex) {
+    if (!!this._clipState.chunks[chunkIndex]) {
+      return Promise.resolve();
+    }
+
     const { start, end } = this._getRange(chunkIndex);
     const job = new FetchJob(
       this._url,
