@@ -38,6 +38,7 @@ export default class Loader extends EventEmitter {
       clipState.fileSize > Bytes.megabytes(30)
         ? FetchStrategy.LAZY
         : FetchStrategy.GREEDY;
+    this._cancelled = false;
 
     this._clipState.on('chunkIndexManuallyChanged', (newIndex) => {
       this.cancel();
@@ -64,6 +65,7 @@ export default class Loader extends EventEmitter {
   }
 
   cancel() {
+    this._cancelled = true;
     this._sleep && this._sleep.cancel();
     Object.keys(this._jobs).forEach((chunkIndex) => {
       this._jobs[chunkIndex].cancel();
@@ -84,6 +86,7 @@ export default class Loader extends EventEmitter {
       this._initialChunk = initialChunk;
       this._canPlayThrough = false;
       this._preloadOnly = preloadOnly;
+      this._cancelled = false;
 
       this._cursor = createFetchCursor({
         index: initialChunk,
@@ -226,6 +229,8 @@ export default class Loader extends EventEmitter {
   }
 
   _fetchNextChunks() {
+    if (this._cancelled) return Promise.resolve();
+
     const startTime = Date.now();
     const nextChunks = this._cursor.chunks().map(this._fetchChunk.bind(this));
 
