@@ -14,7 +14,7 @@ import {
 } from './FetchCursor';
 import * as Bytes from './utils/bytes';
 
-const DELAY_BETWEEN_FETCHES = 500; // milliseconds
+const DELAY_BETWEEN_FETCHES = 400; // milliseconds
 
 export default class Loader extends EventEmitter {
   constructor(chunkSize, url, clipState, audioMetadata = {}) {
@@ -221,11 +221,13 @@ export default class Loader extends EventEmitter {
     }
   }
 
+  _seekFetchCursor() {
+    this._cursor = this._cursor.seek(this._clipState.chunkIndex);
+  }
+
   _fetchNextChunks() {
     const startTime = Date.now();
-
     const nextChunks = this._cursor.chunks().map(this._fetchChunk.bind(this));
-    this._cursor = this._cursor.seek(this._clipState.chunkIndex);
 
     if (nextChunks.length === 0) {
       return Promise.resolve();
@@ -237,6 +239,7 @@ export default class Loader extends EventEmitter {
 
     return Promise.all(nextChunks)
       .then(() => this._sleep.wait())
+      .then(() => this._seekFetchCursor())
       .then(() => this._fetchNextChunks())
       .catch((err) => {
         if (err !== SLEEP_CANCELLED) throw err;
