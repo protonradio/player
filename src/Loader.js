@@ -14,7 +14,7 @@ import {
 } from './FetchCursor';
 import * as Bytes from './utils/bytes';
 
-const DELAY_BETWEEN_FETCHES = 500; // milliseconds
+const DELAY_BETWEEN_FETCHES = 400; // milliseconds
 
 export default class Loader extends EventEmitter {
   constructor(chunkSize, url, clipState, audioMetadata = {}) {
@@ -38,6 +38,7 @@ export default class Loader extends EventEmitter {
       clipState.fileSize > Bytes.megabytes(30)
         ? FetchStrategy.LAZY
         : FetchStrategy.GREEDY;
+    this._cancelled = false;
 
     this._clipState.on('chunkIndexManuallyChanged', (newIndex) => {
       this.cancel();
@@ -64,6 +65,7 @@ export default class Loader extends EventEmitter {
   }
 
   cancel() {
+    this._cancelled = true;
     this._sleep && this._sleep.cancel();
     Object.keys(this._jobs).forEach((chunkIndex) => {
       this._jobs[chunkIndex].cancel();
@@ -84,6 +86,7 @@ export default class Loader extends EventEmitter {
       this._initialChunk = initialChunk;
       this._canPlayThrough = false;
       this._preloadOnly = preloadOnly;
+      this._cancelled = false;
 
       this._cursor = createFetchCursor({
         index: initialChunk,
@@ -221,11 +224,15 @@ export default class Loader extends EventEmitter {
     }
   }
 
-  _fetchNextChunks() {
-    const startTime = Date.now();
-
-    const nextChunks = this._cursor.chunks().map(this._fetchChunk.bind(this));
+  _seekFetchCursor() {
     this._cursor = this._cursor.seek(this._clipState.chunkIndex);
+  }
+
+  _fetchNextChunks() {
+    if (this._cancelled) return Promise.resolve();
+
+    const startTime = Date.now();
+    const nextChunks = this._cursor.chunks().map(this._fetchChunk.bind(this));
 
     if (nextChunks.length === 0) {
       return Promise.resolve();
@@ -237,6 +244,7 @@ export default class Loader extends EventEmitter {
 
     return Promise.all(nextChunks)
       .then(() => this._sleep.wait())
+      .then(() => this._seekFetchCursor())
       .then(() => this._fetchNextChunks())
       .catch((err) => {
         if (err !== SLEEP_CANCELLED) throw err;
