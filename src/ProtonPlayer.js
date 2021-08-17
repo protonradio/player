@@ -8,9 +8,10 @@ import noop from './utils/noop';
 import Loader from './Loader';
 import Clip from './Clip';
 import _ from './init';
+import { getSilenceURL } from './utils/silence';
 
 export default class ProtonPlayer {
-  constructor({ silenceURL, volume = 1, onReady = noop, onError = noop }) {
+  constructor({ volume = 1, onReady = noop, onError = noop }) {
     debug('ProtonPlayer#constructor');
 
     const browser = Bowser.getParser(window.navigator.userAgent);
@@ -72,14 +73,9 @@ export default class ProtonPlayer {
       });
     }
 
-    if (!silenceURL) {
-      throw new Error(
-        'The `silenceURL` argument is required for using the AudioContext API backend'
-      );
-    }
     const silenceLoader = new Loader(
       silenceChunkSize,
-      silenceURL,
+      getSilenceURL(),
       this._silenceChunksClipState
     );
     silenceLoader.on('loaderror', (err) => {
