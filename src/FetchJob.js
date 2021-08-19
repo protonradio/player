@@ -1,7 +1,7 @@
 import CancellableSleep, { SLEEP_CANCELLED } from './utils/CancellableSleep';
 import axios, { Cancel, CancelToken } from 'axios';
 import { debug, error } from './utils/logger';
-import DecodingError from './DecodingError';
+import DecodingError, { isFatalDecodingError } from './DecodingError';
 import seconds from './utils/seconds';
 
 export default class FetchJob {
