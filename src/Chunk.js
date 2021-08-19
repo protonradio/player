@@ -1,5 +1,5 @@
 import noop from './utils/noop';
-import { error } from './utils/logger';
+import { debug, error } from './utils/logger';
 import { slice } from './utils/buffer';
 import isFrameHeader from './utils/isFrameHeader';
 import getFrameLength from './utils/getFrameLength';
@@ -27,6 +27,7 @@ export default class Chunk {
         (err) => {
           if (err) {
             if (isFatalDecodingError(err)) {
+              debug('Decoding error suppressed', err.message);
               this.invalid = true;
               return callback();
             } else {
