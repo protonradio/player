@@ -4,3 +4,5 @@ export default class DecodingError extends Error {
     this.name = 'DecodingError';
   }
 }
+
+export const isFatalDecodingError = (e) => e.message === 'Unable to decode audio data';

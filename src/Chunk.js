@@ -1,9 +1,9 @@
 import noop from './utils/noop';
-import { error } from './utils/logger';
+import { debug, error } from './utils/logger';
 import { slice } from './utils/buffer';
 import isFrameHeader from './utils/isFrameHeader';
 import getFrameLength from './utils/getFrameLength';
-import DecodingError from './DecodingError';
+import DecodingError, { isFatalDecodingError } from './DecodingError';
 
 export default class Chunk {
   constructor({ index, clip, raw, callback }) {
@@ -13,6 +13,7 @@ export default class Chunk {
     this.extended = null;
     this.duration = null;
     this.ready = false;
+    this.invalid = false;
     this._attached = false;
     this._callback = callback || noop;
     this._onReady = noop;
@@ -25,7 +26,13 @@ export default class Chunk {
         () => callback(),
         (err) => {
           if (err) {
-            return callback(err);
+            if (isFatalDecodingError(err)) {
+              debug('Decoding error suppressed', err.message);
+              this.invalid = true;
+              return callback();
+            } else {
+              return callback(err);
+            }
           }
           this._firstByte += 1;
           // Hack for Safari/iOS taken from http://stackoverflow.com/questions/10365335/decodeaudiodata-returning-a-null-error
