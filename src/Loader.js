@@ -5,7 +5,7 @@ import { slice } from './utils/buffer';
 import { debug } from './utils/logger';
 import getContext from './getContext';
 import FetchJob from './FetchJob';
-import Chunk from './Chunk';
+import Chunk, { createChunk } from './Chunk';
 import {
   FetchStrategy,
   createFetchCursor,
@@ -13,6 +13,9 @@ import {
   PRELOAD_BATCH_SIZE,
 } from './FetchCursor';
 import * as Bytes from './utils/bytes';
+import useMediaSource from './utils/useMediaSource';
+import DecodingError from './DecodingError';
+import isFrameHeader from './utils/isFrameHeader';
 
 const DELAY_BETWEEN_FETCHES = 400; // milliseconds
 
@@ -164,33 +167,28 @@ export default class Loader extends EventEmitter {
       return Promise.resolve(null);
     }
     this._calculateMetadata(uint8Array);
-    return new Promise((resolve, reject) => {
-      const chunk = new Chunk({
-        index,
-        clip: {
-          context: this.context,
-          metadata: this.metadata,
-          _referenceHeader: this._referenceHeader,
-        },
-        raw: slice(uint8Array, 0, uint8Array.length),
-        callback: (err) => {
-          if (err) {
-            return reject(err);
-          }
-          resolve(chunk);
-        },
-      });
+    const clip = {
+      context: this.context,
+      metadata: this.metadata,
+      _referenceHeader: this._referenceHeader,
+    };
+    const chunk = createChunk({
+      index,
+      clip,
+      raw: slice(uint8Array, 0, uint8Array.length),
+      next: useMediaSource() ? null : undefined,
     });
+
+    if (useMediaSource()) {
+      return Promise.resolve(chunk);
+    } else {
+      return decodeChunk(chunk, clip);
+    }
   }
 
   _onData(chunk) {
-    const lastChunk = this._chunks[chunk.index - 1];
-    if (lastChunk) lastChunk.attach(chunk);
-
-    const nextChunk = this._chunks[chunk.index + 1];
-    if (nextChunk) chunk.attach(nextChunk);
-
     this._chunks[chunk.index] = chunk;
+
     if (!this._canPlayThrough) {
       this._checkCanplaythrough();
     }
@@ -206,21 +204,16 @@ export default class Loader extends EventEmitter {
     this._fire('loadprogress', { buffered: this.buffered, total });
   }
 
-  _onLoad(lastChunk) {
-    if (lastChunk) {
-      lastChunk.attach(null);
-    }
+  _onLoad() {
     const firstChunk = this._chunks[this._initialChunk];
-    if (firstChunk) {
-      firstChunk.onready(() => {
-        if (!this._canPlayThrough) {
-          this._canPlayThrough = true;
-          this._fire('canPlayThrough');
-          debug('Can play through 2');
-        }
-        this.loaded = true;
-        this._fire('load');
-      });
+    if (firstChunk && !this.loaded) {
+      if (!this._canPlayThrough) {
+        this._canPlayThrough = true;
+        this._fire('canPlayThrough');
+        debug('Can play through 2');
+      }
+      this.loaded = true;
+      this._fire('load');
     }
   }
 
@@ -283,7 +276,7 @@ export default class Loader extends EventEmitter {
 
         const isLastChunk = chunk.index === this._clipState.totalChunksCount - 1;
         if (isLastChunk) {
-          this._onLoad(chunk);
+          this._onLoad();
         }
 
         return Promise.resolve();
@@ -296,3 +289,25 @@ export default class Loader extends EventEmitter {
       });
   }
 }
+
+const decodeChunk = (chunk, clip) => {
+  const { buffer } = chunk.buffer();
+  return getContext()
+    .decodeAudioData(buffer)
+    .then(checkDecodedAudio(chunk))
+    .catch(attemptDecodeRecovery(chunk, clip));
+};
+
+const checkDecodedAudio = (chunk) => () =>
+  chunk.duration > 0
+    ? chunk
+    : Promise.reject(new DecodingError('Got 0 frames when decoding audio buffer'));
+
+const attemptDecodeRecovery = (chunk, clip) => (err) => {
+  for (let i = chunk.byteOffset; i < chunk.raw.length - 1; i++) {
+    if (isFrameHeader(chunk.raw, i, clip._referenceHeader)) {
+      return decodeChunk(createChunk({ ...chunk, byteOffset: i, clip }), clip);
+    }
+  }
+  throw err;
+};

@@ -9,3 +9,13 @@ export function slice(view, start, end) {
   }
   return clone;
 }
+
+export function concat(a, b) {
+  if (!b) return a;
+
+  const c = new Uint8Array(a.length + b.length);
+  c.set(a);
+  c.set(b, a.length);
+
+  return c;
+}

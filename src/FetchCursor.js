@@ -63,7 +63,7 @@ export const createFetchCursor = ({
     case FetchStrategy.PRELOAD_ONLY:
       return new PreloadCursor(index, size, PRELOAD_BATCH_SIZE);
     case FetchStrategy.LAZY:
-      return new LazyCursor(index, size, LOAD_BATCH_SIZE);
+      return new LazyCursor(index, size, LOAD_BATCH_SIZE * 2);
     case FetchStrategy.GREEDY:
       return new GreedyCursor(index, size, LOAD_BATCH_SIZE);
   }
