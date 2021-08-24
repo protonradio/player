@@ -176,7 +176,6 @@ export default class Loader extends EventEmitter {
       index,
       clip,
       raw: slice(uint8Array, 0, uint8Array.length),
-      next: useMediaSource() ? null : undefined,
     });
 
     if (useMediaSource()) {
