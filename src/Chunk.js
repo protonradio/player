@@ -1,6 +1,9 @@
 import { concat, slice } from './utils/buffer';
 import durationForAudioBuffer from './utils/durationForAudioBuffer';
 
+// A Chunk is a container object for working with incomplete pieces of an
+// audio source. The contained audio data may not be aligned on a frame boundary
+// at all and may not even be decoded.
 export default class Chunk {
   constructor({ index, raw, duration, byteOffset = 0 }) {
     // Index of this chunk relative to the entire audio source.
@@ -29,6 +32,8 @@ export default class Chunk {
   }
 }
 
+// NOTE: The way that this constructor calculates the duration of the provided
+//       audio buffer is MP3-specific. Must be changed for other formats.
 export const createChunk = ({ index, clip, byteOffset, raw }) =>
   new Chunk({
     index,

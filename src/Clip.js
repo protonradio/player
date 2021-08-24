@@ -612,14 +612,12 @@ export default class Clip extends EventEmitter {
     }
 
     const isChunkReady = this._clipState.isChunkReady(this._clipState.chunkIndex);
-    const isChunkInvalid = this._clipState.chunks[this._clipState.chunkIndex]?.invalid;
 
     const useSilence =
-      isChunkInvalid ||
-      (!isChunkReady &&
-        this._clipState.chunkIndex === this._initialChunk &&
-        !this._wasPlayingSilence &&
-        (this.browserName === 'safari' || this.osName === 'ios'));
+      !isChunkReady &&
+      this._clipState.chunkIndex === this._initialChunk &&
+      !this._wasPlayingSilence &&
+      (this.browserName === 'safari' || this.osName === 'ios');
 
     const chunk = useSilence
       ? this._silenceChunks[0]
