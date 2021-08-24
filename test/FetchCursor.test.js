@@ -35,8 +35,8 @@ describe('FetchCursor', () => {
     it('seeks relative to the provided playhead index', () => {
       const cursor = createFetchCursor({ size: 7, strategy: FetchStrategy.LAZY });
 
-      assert.deepEqual(cursor.chunks(), [0, 1]);
-      assert.deepEqual(cursor.seek(1).chunks(), [1, 2]);
+      assert.deepEqual(cursor.chunks(), [0, 1, 2, 3]);
+      assert.deepEqual(cursor.seek(1).chunks(), [1, 2, 3, 4]);
       assert.deepEqual(cursor.seek(5).chunks(), [5, 6]);
       assert.deepEqual(cursor.seek(6).chunks(), [6]);
       assert.deepEqual(cursor.seek(10).chunks(), []);
