@@ -1,4 +1,4 @@
-const DEBUG = false;
+const DEBUG = process.env.DEBUG === 'true';
 
 export function debug(...args) {
   if (DEBUG) {

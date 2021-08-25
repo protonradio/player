@@ -19,7 +19,7 @@
   },
   "scripts": {
     "build": "rollup -c",
-    "dev": "rollup -c -w",
+    "dev": "DEBUG=true rollup -c -w",
     "test": "mocha --require esm"
   },
   "files": [

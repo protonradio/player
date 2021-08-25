@@ -700,7 +700,7 @@ export default class Clip extends EventEmitter {
   }
 
   _createSourceFromChunk(chunk, timeOffset, callback) {
-    debug('createSourceFromChunk');
+    debug('_createSourceFromChunk');
     const context = getContext();
 
     if (!chunk) {
