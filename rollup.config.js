@@ -1,7 +1,14 @@
 import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import json from '@rollup/plugin-json';
+import replace from '@rollup/plugin-replace';
 import pkg from './package.json';
+
+const env = () =>
+  replace({
+    __DEV__: process.env.DEV ? 'true' : 'false',
+    preventAssignment: true,
+  });
 
 export default [
   // browser-friendly UMD build
@@ -13,7 +20,7 @@ export default [
       format: 'umd',
       sourcemap: true,
     },
-    plugins: [resolve({ browser: true }), commonjs(), json()],
+    plugins: [resolve({ browser: true }), commonjs(), json(), env()],
   },
 
   // CommonJS (for Node) and ES module (for bundlers) build.
@@ -29,5 +36,6 @@ export default [
       { file: pkg.main, format: 'cjs' },
       { file: pkg.module, format: 'es' },
     ],
+    plugins: [env()],
   },
 ];

@@ -1,7 +1,5 @@
-const DEBUG = process.env.DEBUG === 'true';
-
 export function debug(...args) {
-  if (DEBUG) {
+  if (__DEV__) {
     console.log(`%c[ProtonPlayer]`, 'color: #e26014; font-weight: bold;', ...args);
   }
 }
