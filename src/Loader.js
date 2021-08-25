@@ -301,6 +301,8 @@ const checkDecodedAudio = (chunk) => () =>
     ? chunk
     : Promise.reject(new DecodingError('Got 0 frames when decoding audio buffer'));
 
+// Hack for Safari/iOS taken from:
+// http://stackoverflow.com/questions/10365335/decodeaudiodata-returning-a-null-error
 const attemptDecodeRecovery = (chunk, clip) => (err) => {
   for (let i = chunk.byteOffset; i < chunk.raw.length - 1; i++) {
     if (isFrameHeader(chunk.raw, i, clip._referenceHeader)) {
