@@ -1,11 +1,10 @@
 import CancellableSleep, { SLEEP_CANCELLED } from './utils/CancellableSleep';
 import parseMetadata from './utils/parseMetadata';
 import EventEmitter from './EventEmitter';
-import { slice } from './utils/buffer';
 import { debug } from './utils/logger';
 import getContext from './getContext';
 import FetchJob from './FetchJob';
-import Chunk, { createChunk } from './Chunk';
+import { createChunk } from './Chunk';
 import {
   FetchStrategy,
   createFetchCursor,
@@ -175,7 +174,7 @@ export default class Loader extends EventEmitter {
     const chunk = createChunk({
       index,
       clip,
-      raw: slice(uint8Array, 0, uint8Array.length),
+      raw: uint8Array,
     });
 
     if (useMediaSource()) {
