@@ -28,7 +28,7 @@ export default class Chunk {
   }
 
   concat(chunk) {
-    return concat(this.buffer(), chunk && chunk.buffer());
+    return concat(this.buffer(), chunk && chunk.raw);
   }
 }
 

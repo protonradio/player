@@ -290,24 +290,43 @@ export default class Loader extends EventEmitter {
 
 const decodeChunk = (chunk, clip) => {
   const { buffer } = chunk.buffer();
-  return getContext()
-    .decodeAudioData(buffer)
+  return decodeAudioData(buffer)
     .then(checkDecodedAudio(chunk))
     .catch(attemptDecodeRecovery(chunk, clip));
 };
+
+// Compatibility: Safari iOS
+// Mobile Safari does not implement the Promise-based AudioContext APIs, so
+// we have to wrap the callback-based version ourselves to utilize it.
+const decodeAudioData = (buffer) =>
+  new Promise((res, rej) => getContext().decodeAudioData(buffer, res, rej));
 
 const checkDecodedAudio = (chunk) => () =>
   chunk.duration > 0
     ? chunk
     : Promise.reject(new DecodingError('Got 0 frames when decoding audio buffer'));
 
-// Hack for Safari/iOS taken from:
-// http://stackoverflow.com/questions/10365335/decodeaudiodata-returning-a-null-error
+// Compatibility: Safari iOS
+// The MP3 decoding capabilities of Webkit are limited compared to other
+// browsers. When you attempt to use `decodeAudioData` on any MP3 chunk that is
+// not aligned to a frame boundary, the operation fails and calls the error
+// callback with a `null` error value. Since our chunks are fixed-size blocks
+// that do not respect frame boundaries, this will occur for nearly EVERY
+// chunk of audio.
+//
+// With this in mind, this error handler detects this specific `null` failure
+// case and realigns the chunk to the first frame header it is able to decode
+// from. Then, during playback, chunks are stitched together in a manner
+// that respects this realignment so that we never attempt to decode partial
+// or incomplete frames.
 const attemptDecodeRecovery = (chunk, clip) => (err) => {
+  if (err) {
+    return Promise.reject(err);
+  }
+
   for (let i = chunk.byteOffset; i < chunk.raw.length - 1; i++) {
     if (isFrameHeader(chunk.raw, i, clip._referenceHeader)) {
       return decodeChunk(createChunk({ ...chunk, byteOffset: i, clip }), clip);
     }
   }
-  throw err;
 };
