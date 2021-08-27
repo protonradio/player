@@ -7,8 +7,10 @@ import ClipState from './ClipState';
 import noop from './utils/noop';
 import Loader from './Loader';
 import Clip from './Clip';
-import _ from './init';
 import { getSilenceURL } from './utils/silence';
+import initializeiOSAudioEngine from './utils/initializeiOSAudioEngine';
+
+initializeiOSAudioEngine();
 
 export default class ProtonPlayer {
   constructor({ volume = 1, onReady = noop, onError = noop }) {
