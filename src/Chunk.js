@@ -1,155 +1,43 @@
-import noop from './utils/noop';
-import { debug, error } from './utils/logger';
-import { slice } from './utils/buffer';
-import isFrameHeader from './utils/isFrameHeader';
-import getFrameLength from './utils/getFrameLength';
-import DecodingError, { isFatalDecodingError } from './DecodingError';
+import { concat, slice } from './utils/buffer';
+import durationForAudioBuffer from './utils/durationForAudioBuffer';
 
+// A Chunk is a container object for working with incomplete pieces of an
+// audio source. The contained audio data may not be aligned on a frame boundary
+// at all and may not even be decoded.
 export default class Chunk {
-  constructor({ index, clip, raw, callback }) {
-    this._index = index;
-    this.context = clip.context;
+  constructor({ index, raw, duration, byteOffset = 0 }) {
+    // Index of this chunk relative to the entire audio source.
+    this.index = index;
+
+    // Raw audio data for this chunk.
     this.raw = raw;
-    this.extended = null;
-    this.duration = null;
-    this.ready = false;
-    this.invalid = false;
-    this._attached = false;
-    this._callback = callback || noop;
-    this._onReady = noop;
-    this._firstByte = 0;
 
-    const decode = (callback) => {
-      const { buffer } = slice(raw, this._firstByte, raw.length);
-      this.context.decodeAudioData(
-        buffer,
-        () => callback(),
-        (err) => {
-          if (err) {
-            if (isFatalDecodingError(err)) {
-              debug('Decoding error suppressed', err.message);
-              this.invalid = true;
-              return callback();
-            } else {
-              return callback(err);
-            }
-          }
-          this._firstByte += 1;
-          // Hack for Safari/iOS taken from http://stackoverflow.com/questions/10365335/decodeaudiodata-returning-a-null-error
-          for (; this._firstByte < raw.length - 1; this._firstByte += 1) {
-            if (isFrameHeader(raw, this._firstByte, clip._referenceHeader)) {
-              return decode(callback);
-            }
-          }
-          callback(new DecodingError('Could not decode audio buffer'));
-        }
-      );
-    };
+    // Index to start at when reading audio data from the raw byte buffer.
+    this.byteOffset = byteOffset;
 
-    decode((err) => {
-      if (err) {
-        return this._callback(err);
-      }
-      let numFrames = 0;
-      for (let i = this._firstByte; i < this.raw.length; i += 1) {
-        if (isFrameHeader(this.raw, i, clip._referenceHeader)) {
-          numFrames += 1;
-          const frameLength = getFrameLength(this.raw, i, clip.metadata);
-          i += frameLength - Math.min(frameLength, 4);
-        }
-      }
-      this.duration = (numFrames * 1152) / clip.metadata.sampleRate;
-      if (this.duration > 0) {
-        this._callback();
-      } else {
-        this._callback(new DecodingError('Got 0 frames when decoding audio buffer'));
-      }
-    });
-  }
-
-  get index() {
-    return this._index;
-  }
-
-  attach(nextChunk) {
-    this.next = nextChunk;
-    this._attached = true;
-    this._ready();
-  }
-
-  createSource(timeOffset, callback) {
-    if (!this.ready) {
-      const message = 'Something went wrong! Chunk was not ready in time for playback';
-      error(message);
-      callback(new Error(message));
-      return;
-    }
-
-    const { buffer } = slice(this.extended, 0, this.extended.length);
-    this.context.decodeAudioData(
-      buffer,
-      (decoded) => {
-        if (timeOffset) {
-          const sampleOffset = ~~(timeOffset * decoded.sampleRate);
-          const numChannels = decoded.numberOfChannels;
-          const lengthWithOffset = decoded.length - sampleOffset;
-          const length = lengthWithOffset >= 0 ? lengthWithOffset : decoded.length;
-          const offset = this.context.createBuffer(
-            numChannels,
-            length,
-            decoded.sampleRate
-          );
-          for (let chan = 0; chan < numChannels; chan += 1) {
-            const sourceData = decoded.getChannelData(chan);
-            const targetData = offset.getChannelData(chan);
-            for (let i = 0; i < sourceData.length - sampleOffset; i += 1) {
-              targetData[i] = sourceData[i + sampleOffset];
-            }
-          }
-          decoded = offset;
-        }
-        const source = this.context.createBufferSource();
-        source.buffer = decoded;
-        callback(null, source);
-      },
-      (err) => {
-        err = err || {}; // Safari might error out without an error object
-        callback(err);
-      }
-    );
-  }
-
-  onready(callback) {
-    if (this.ready) {
-      setTimeout(callback);
-    } else {
-      this._onReady = callback || noop;
-    }
-  }
-
-  _ready() {
-    if (this.ready) return;
-    if (!this._attached || this.duration === null) return;
-
-    const currentChunkBytes =
-      this._firstByte > 0 ? slice(this.raw, this._firstByte, this.raw.length) : this.raw;
-
-    if (this.next) {
-      const rawLen = currentChunkBytes.length;
-      this.extended = new Uint8Array(rawLen + this.next.raw.length);
-      this.extended.set(currentChunkBytes);
-      this.extended.set(this.next.raw, rawLen);
-    } else {
-      this.extended = currentChunkBytes;
-    }
-
-    this.ready = true;
-    this._onReady();
+    // Duration of the audio in this chunk's buffer.
+    this.duration = duration;
   }
 
   toString() {
-    return `ready: ${this.ready}, index: ${this.index}, next.index: ${
-      this.next && this.next.index
-    }`;
+    return `index: ${this.index} duration: ${this.duration}`;
+  }
+
+  buffer() {
+    return slice(this.raw, this.byteOffset, this.raw.length);
+  }
+
+  concat(chunk) {
+    return concat(this.buffer(), chunk && chunk.raw);
   }
 }
+
+// NOTE: The way that this constructor calculates the duration of the provided
+//       audio buffer is MP3-specific. Must be changed for other formats.
+export const createChunk = ({ index, clip, byteOffset, raw }) =>
+  new Chunk({
+    index,
+    byteOffset,
+    raw,
+    duration: durationForAudioBuffer(raw, clip, byteOffset),
+  });

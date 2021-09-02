@@ -30,7 +30,7 @@ export default class FetchJob {
       return Promise.reject(new Error(message));
     }
 
-    // Compatability: Safari
+    // Compatibility: Safari
     // This causes files fetched from Blob storage to omit the range header.
     // In Safari, this header is incorrectly implemented in the Service Worker
     // API and responds with a `416` error code.

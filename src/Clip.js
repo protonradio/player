@@ -6,6 +6,7 @@ import { debug, warn } from './utils/logger';
 import suppressAbortError from './utils/suppressAbortError';
 import noop from './utils/noop';
 import ClipState, { CHUNK_SIZE } from './ClipState';
+import { slice } from './utils/buffer';
 
 const OVERLAP = 0.2;
 const TIMEOUT_SAFE_OFFSET = 50;
@@ -406,6 +407,7 @@ export default class Clip extends EventEmitter {
   }
 
   _playUsingAudioContext() {
+    debug('#_playUsingAudioContext');
     this._playbackProgress = 0;
     this._scheduledEndTime = null;
 
@@ -444,7 +446,7 @@ export default class Clip extends EventEmitter {
     let previousSource;
     let currentSource;
 
-    chunk.createSource(timeOffset, (err, source) => {
+    this._createSourceFromChunk(chunk, timeOffset, (err, source) => {
       if (err) {
         err.url = this.url;
         err.customCode = 'COULD_NOT_START_PLAYBACK';
@@ -508,11 +510,11 @@ export default class Clip extends EventEmitter {
           : this._clipState.chunks[this._clipState.chunkIndex];
         chunk.isSilence = _playingSilence;
 
-        if (!chunk.ready) {
+        if (!chunk) {
           return;
         }
 
-        chunk.createSource(0, (err, source) => {
+        this._createSourceFromChunk(chunk, 0, (err, source) => {
           if (err) {
             err.url = this.url;
             err.customCode = 'COULD_NOT_CREATE_SOURCE';
@@ -610,14 +612,12 @@ export default class Clip extends EventEmitter {
     }
 
     const isChunkReady = this._clipState.isChunkReady(this._clipState.chunkIndex);
-    const isChunkInvalid = this._clipState.chunks[this._clipState.chunkIndex]?.invalid;
 
     const useSilence =
-      isChunkInvalid ||
-      (!isChunkReady &&
-        this._clipState.chunkIndex === this._initialChunk &&
-        !this._wasPlayingSilence &&
-        (this.browserName === 'safari' || this.osName === 'ios'));
+      !isChunkReady &&
+      this._clipState.chunkIndex === this._initialChunk &&
+      !this._wasPlayingSilence &&
+      (this.browserName === 'safari' || this.osName === 'ios');
 
     const chunk = useSilence
       ? this._silenceChunks[0]
@@ -697,5 +697,49 @@ export default class Clip extends EventEmitter {
     }
     this._fire('bufferchange', isBuffering);
     this._lastBufferChange = isBuffering;
+  }
+
+  _createSourceFromChunk(chunk, timeOffset, callback) {
+    debug('_createSourceFromChunk');
+    const context = getContext();
+
+    if (!chunk) {
+      const message = 'Something went wrong! Chunk was not ready in time for playback';
+      error(message);
+      callback(new Error(message));
+      return;
+    }
+
+    const nextChunk = this._clipState._chunks[chunk.index + 1];
+    const extendedBuffer = chunk.concat(nextChunk);
+    const { buffer } = slice(extendedBuffer, 0, extendedBuffer.length);
+
+    context.decodeAudioData(
+      buffer,
+      (decoded) => {
+        if (timeOffset) {
+          const sampleOffset = ~~(timeOffset * decoded.sampleRate);
+          const numChannels = decoded.numberOfChannels;
+          const lengthWithOffset = decoded.length - sampleOffset;
+          const length = lengthWithOffset >= 0 ? lengthWithOffset : decoded.length;
+          const offset = context.createBuffer(numChannels, length, decoded.sampleRate);
+          for (let chan = 0; chan < numChannels; chan += 1) {
+            const sourceData = decoded.getChannelData(chan);
+            const targetData = offset.getChannelData(chan);
+            for (let i = 0; i < sourceData.length - sampleOffset; i += 1) {
+              targetData[i] = sourceData[i + sampleOffset];
+            }
+          }
+          decoded = offset;
+        }
+        const source = context.createBufferSource();
+        source.buffer = decoded;
+        callback(null, source);
+      },
+      (err) => {
+        err = err || {}; // Safari might error out without an error object
+        callback(err);
+      }
+    );
   }
 }

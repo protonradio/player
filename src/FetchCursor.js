@@ -7,6 +7,19 @@ export const FetchStrategy = {
   LAZY: 'FETCH_STRATEGY__LAZY',
 };
 
+// A FetchCursor should be thought of as a pointer to some position within a
+// remote file. When streaming large files, it is necessary to keep track of
+// which file segments still need to be fetched. The semantics of the different
+// cursor subtypes are as follows (note that this code does not actually DO
+// the fetching, it only provides instructions on which chunks to fetch):
+//
+// ; PreloadCursor ; fetch exactly one batch of chunks, then exhaust
+// ; GreedyCursor ; fetch N chunks from the current index
+// ; LazyCursor ; fetch N chunks from the provided index (the playhead)
+// ; ExhaustedCursor ; fetch zero chunks
+//
+// !! NOTE !! The base class is never instantiated.
+//
 class FetchCursor {
   constructor(index, size, batchSize) {
     this.index = Math.min(index, size);
@@ -63,7 +76,7 @@ export const createFetchCursor = ({
     case FetchStrategy.PRELOAD_ONLY:
       return new PreloadCursor(index, size, PRELOAD_BATCH_SIZE);
     case FetchStrategy.LAZY:
-      return new LazyCursor(index, size, LOAD_BATCH_SIZE);
+      return new LazyCursor(index, size, LOAD_BATCH_SIZE * 2);
     case FetchStrategy.GREEDY:
       return new GreedyCursor(index, size, LOAD_BATCH_SIZE);
   }

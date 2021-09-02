@@ -2,18 +2,24 @@ let _cachedURL = null;
 
 export const getSilenceURL = () => {
   if (!_cachedURL) {
-    const rawMP3Bytes = hexToBytes(_RAW_SILENCE_MP3);
-    const buffer = new ArrayBuffer(rawMP3Bytes.length);
-    const bufferView = new DataView(buffer);
-
-    for (let i = 0; i < rawMP3Bytes.length; i++) {
-      bufferView.setUint8(i, rawMP3Bytes[i]);
-    }
-
-    _cachedURL = URL.createObjectURL(new Blob([buffer], { type: 'audio/mpeg' }));
+    _cachedURL = URL.createObjectURL(
+      new Blob([getRawSilenceBuffer()], { type: 'audio/mpeg' })
+    );
   }
 
   return _cachedURL;
+};
+
+export const getRawSilenceBuffer = () => {
+  const rawMP3Bytes = hexToBytes(_RAW_SILENCE_MP3);
+  const buffer = new ArrayBuffer(rawMP3Bytes.length);
+  const bufferView = new DataView(buffer);
+
+  for (let i = 0; i < rawMP3Bytes.length; i++) {
+    bufferView.setUint8(i, rawMP3Bytes[i]);
+  }
+
+  return buffer;
 };
 
 const hexToBytes = (s) =>

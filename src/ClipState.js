@@ -20,8 +20,8 @@ export default class ClipState extends EventEmitter {
   }
 
   isChunkReady(wantedChunk) {
-    const chunk = this._chunks[wantedChunk] || {};
-    return chunk.ready === true && Number.isNaN(chunk.duration) === false;
+    const chunk = this._chunks[wantedChunk];
+    return chunk && !Number.isNaN(chunk.duration);
   }
 
   getChunkIndexByPosition(position = 0) {

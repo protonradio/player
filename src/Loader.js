@@ -1,11 +1,10 @@
 import CancellableSleep, { SLEEP_CANCELLED } from './utils/CancellableSleep';
 import parseMetadata from './utils/parseMetadata';
 import EventEmitter from './EventEmitter';
-import { slice } from './utils/buffer';
 import { debug } from './utils/logger';
 import getContext from './getContext';
 import FetchJob from './FetchJob';
-import Chunk from './Chunk';
+import { createChunk } from './Chunk';
 import {
   FetchStrategy,
   createFetchCursor,
@@ -13,6 +12,9 @@ import {
   PRELOAD_BATCH_SIZE,
 } from './FetchCursor';
 import * as Bytes from './utils/bytes';
+import useMediaSource from './utils/useMediaSource';
+import DecodingError from './DecodingError';
+import isFrameHeader from './utils/isFrameHeader';
 
 const DELAY_BETWEEN_FETCHES = 400; // milliseconds
 
@@ -164,33 +166,27 @@ export default class Loader extends EventEmitter {
       return Promise.resolve(null);
     }
     this._calculateMetadata(uint8Array);
-    return new Promise((resolve, reject) => {
-      const chunk = new Chunk({
-        index,
-        clip: {
-          context: this.context,
-          metadata: this.metadata,
-          _referenceHeader: this._referenceHeader,
-        },
-        raw: slice(uint8Array, 0, uint8Array.length),
-        callback: (err) => {
-          if (err) {
-            return reject(err);
-          }
-          resolve(chunk);
-        },
-      });
+    const clip = {
+      context: this.context,
+      metadata: this.metadata,
+      _referenceHeader: this._referenceHeader,
+    };
+    const chunk = createChunk({
+      index,
+      clip,
+      raw: uint8Array,
     });
+
+    if (useMediaSource()) {
+      return Promise.resolve(chunk);
+    } else {
+      return decodeChunk(chunk, clip);
+    }
   }
 
   _onData(chunk) {
-    const lastChunk = this._chunks[chunk.index - 1];
-    if (lastChunk) lastChunk.attach(chunk);
-
-    const nextChunk = this._chunks[chunk.index + 1];
-    if (nextChunk) chunk.attach(nextChunk);
-
     this._chunks[chunk.index] = chunk;
+
     if (!this._canPlayThrough) {
       this._checkCanplaythrough();
     }
@@ -206,21 +202,16 @@ export default class Loader extends EventEmitter {
     this._fire('loadprogress', { buffered: this.buffered, total });
   }
 
-  _onLoad(lastChunk) {
-    if (lastChunk) {
-      lastChunk.attach(null);
-    }
+  _onLoad() {
     const firstChunk = this._chunks[this._initialChunk];
-    if (firstChunk) {
-      firstChunk.onready(() => {
-        if (!this._canPlayThrough) {
-          this._canPlayThrough = true;
-          this._fire('canPlayThrough');
-          debug('Can play through 2');
-        }
-        this.loaded = true;
-        this._fire('load');
-      });
+    if (firstChunk && !this.loaded) {
+      if (!this._canPlayThrough) {
+        this._canPlayThrough = true;
+        this._fire('canPlayThrough');
+        debug('Can play through 2');
+      }
+      this.loaded = true;
+      this._fire('load');
     }
   }
 
@@ -283,7 +274,7 @@ export default class Loader extends EventEmitter {
 
         const isLastChunk = chunk.index === this._clipState.totalChunksCount - 1;
         if (isLastChunk) {
-          this._onLoad(chunk);
+          this._onLoad();
         }
 
         return Promise.resolve();
@@ -296,3 +287,46 @@ export default class Loader extends EventEmitter {
       });
   }
 }
+
+const decodeChunk = (chunk, clip) => {
+  const { buffer } = chunk.buffer();
+  return decodeAudioData(buffer)
+    .then(checkDecodedAudio(chunk))
+    .catch(attemptDecodeRecovery(chunk, clip));
+};
+
+// Compatibility: Safari iOS
+// Mobile Safari does not implement the Promise-based AudioContext APIs, so
+// we have to wrap the callback-based version ourselves to utilize it.
+const decodeAudioData = (buffer) =>
+  new Promise((res, rej) => getContext().decodeAudioData(buffer, res, rej));
+
+const checkDecodedAudio = (chunk) => () =>
+  chunk.duration > 0
+    ? chunk
+    : Promise.reject(new DecodingError('Got 0 frames when decoding audio buffer'));
+
+// Compatibility: Safari iOS
+// The MP3 decoding capabilities of Webkit are limited compared to other
+// browsers. When you attempt to use `decodeAudioData` on any MP3 chunk that is
+// not aligned to a frame boundary, the operation fails and calls the error
+// callback with a `null` error value. Since our chunks are fixed-size blocks
+// that do not respect frame boundaries, this will occur for nearly EVERY
+// chunk of audio.
+//
+// With this in mind, this error handler detects this specific `null` failure
+// case and realigns the chunk to the first frame header it is able to decode
+// from. Then, during playback, chunks are stitched together in a manner
+// that respects this realignment so that we never attempt to decode partial
+// or incomplete frames.
+const attemptDecodeRecovery = (chunk, clip) => (err) => {
+  if (err) {
+    return Promise.reject(err);
+  }
+
+  for (let i = chunk.byteOffset; i < chunk.raw.length - 1; i++) {
+    if (isFrameHeader(chunk.raw, i, clip._referenceHeader)) {
+      return decodeChunk(createChunk({ ...chunk, byteOffset: i, clip }), clip);
+    }
+  }
+};
