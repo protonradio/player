@@ -12,9 +12,37 @@
 
 While the Web Audio and Mediasource APIs are both incredibly powerful tools for manipulating audio within a web browser, their specs have both grown far more quickly than browser maintainers can implement them. At the same time, device- and browser-specific implementation details and philosophical differences with respect to things such as autoplay make it impossible to "write once, run anywhere" when working with audio on the web. We needed a reliable way to support smooth MP3 streams across all modern devices and browsers without pulling our hair out.
 
+## Installation
+
+`npm install proton-player`
+
 ## Usage
 
-`insert scuffed documentation here :)`
+### Initializing a ProtonPlayer instance
+
+```typescript
+import ProtonPlayer from 'proton-player';
+
+const player = new ProtonPlayer({
+  onReady: () => any,
+  onError: (e: Error) => {},
+  volume: (Number = 1.0),
+});
+```
+
+#### Arguments
+
+##### `volume?: Number`
+
+The initial volume of the player. This should be a decimal number between `0.0` and `1.0` representing the volume as a percentage. Defaults to `1.0` (maximum volume).
+
+##### `onReady?: () => any`
+
+Called when the Player has been fully initialized and is ready to begin streaming audio. Calling `.play` before `onReady` has been called will exhibit undefined behavior.
+
+##### `onError?: (e: Error) => any`
+
+Called when the Player encounters an error at any point. The caught `Error` object will be provided to the callback.
 
 ## Acknowledgements
 
