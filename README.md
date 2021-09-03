@@ -4,9 +4,9 @@
 
 ## tl;dr
 
-- Proton Player provides the tools to create and manage smooth MP3 audio streams across many devices and browsers.
-- Our player is headless, meaning that it doesn't come packaged with any visual components or opinions on what it looks like. It includes many advanced features for building your own player, such as seeking, preloading, and gapless playback.
-- We use it to power our own React-based music player [over on Proton Radio](https://protonradio.com), so its stability is backed by a paid development team and our many happy customers. :)
+- Proton Player is an HTML5-based streaming music player optimized for compatibility across many devices and browsers.
+- The player is "headless", meaning that it doesn't come packaged with any visual components. It is meant to serve as a toolkit for building your own music player, offering features such as seeking, pausing, and preloading upcoming audio files.
+- We use it to power our own React-based music player [over on Proton Radio](https://protonradio.com), so its stability and ongoing development is backed by a paid development team and our many happy customers. :)
 
 ## Why did we make this?
 
@@ -16,33 +16,9 @@ While the Web Audio and Mediasource APIs are both incredibly powerful tools for 
 
 `npm install proton-player`
 
-## Usage
+## Documentation
 
-### Initializing a ProtonPlayer instance
-
-```typescript
-import ProtonPlayer from 'proton-player';
-
-const player = new ProtonPlayer({
-  onReady: () => any,
-  onError: (e: Error) => {},
-  volume: (Number = 1.0),
-});
-```
-
-#### Arguments
-
-##### `volume?: Number`
-
-The initial volume of the player. This should be a decimal number between `0.0` and `1.0` representing the volume as a percentage. Defaults to `1.0` (maximum volume).
-
-##### `onReady?: () => any`
-
-Called when the Player has been fully initialized and is ready to begin streaming audio. Calling `.play` before `onReady` has been called will exhibit undefined behavior.
-
-##### `onError?: (e: Error) => any`
-
-Called when the Player encounters an error at any point. The caught `Error` object will be provided to the callback.
+[API Documentation](docs.md)
 
 ## Acknowledgements
 
