@@ -1,5 +1,5 @@
 {
-  "name": "rollup-starter-lib",
+  "name": "proton-player",
   "version": "1.0.0",
   "main": "dist/proton-player.cjs.js",
   "module": "dist/proton-player.esm.js",
@@ -21,7 +21,9 @@
   "scripts": {
     "build": "rollup -c",
     "dev": "DEV=true rollup -c -w",
-    "test": "mocha --require esm"
+    "test": "mocha --require esm",
+    "patch": "./scripts/calver.js patch",
+    "release": "./scripts/calver.js release"
   },
   "files": [
     "dist"
