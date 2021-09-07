@@ -1,12 +1,12 @@
 # Proton Player API
 
 - [ProtonPlayer](#protonplayer)
-  - [.disposeAll](#.disposeall)
-  - [.pauseAll](#.pauseall)
-  - [.play](#.play)
-  - [.preLoad](#.preload)
-  - [.setPlaybackPosition](#.setplaybackposition)
-  - [.setVolume](#.setvolume)
+  - [.disposeAll](#disposeall)
+  - [.pauseAll](#pauseall)
+  - [.play](#play)
+  - [.preLoad](#preload)
+  - [.setPlaybackPosition](#setplaybackposition)
+  - [.setVolume](#setvolume)
 
 ## `ProtonPlayer`
 

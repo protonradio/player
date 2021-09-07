@@ -18,7 +18,7 @@ While the Web Audio and Mediasource APIs are both incredibly powerful tools for 
 
 ## Documentation
 
-[API Documentation](docs.md)
+[API Documentation](DOCS.md)
 
 ## Acknowledgements
 
