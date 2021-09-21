@@ -1,6 +1,9 @@
-# Proton Player
-
-![](https://img.shields.io/badge/calver-YY.MM.MICRO-blue)
+<p align="center">
+  <img width="300" height="300" src="docs/protonplayer.gif">
+</p>
+<p align="center">
+  <img src="https://img.shields.io/badge/calver-YY.MM.MICRO-blue">
+</p>
 
 ## tl;dr
 
