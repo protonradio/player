@@ -5,316 +5,226 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Proton Player</title>
     <script src="../dist/proton-player.umd.js"></script>
+    <style>
+      body {
+        background-color: #181717;
+        font-family: Arial;
+      }
+      img {
+        display: block;
+        width: 100%;
+      }
+      .Container {
+        padding: 8px;
+        width: 400px;
+        margin: auto;
+        background-color: #e26014;
+      }
+      .CurrentlyPlaying {
+        height: 50px;
+        width: 100%;
+      }
+      .ProgressBar-progress {
+        background-color: white;
+        width: 0%;
+        height: 8px;
+      }
+      #Library {
+        background-color: #181717;
+        margin: 8px 0;
+      }
+      .Track {
+        font-size: 20px;
+        color: #eee;
+        padding: 8px;
+        border-bottom: 1px #e26014 solid;
+        display: flex;
+      }
+      .Track-playing {
+        border-left: 4px solid #eee;
+        background-color: #eee;
+        color: #e26014;
+      }
+      .Track-paused {
+        animation: blinker 1s linear infinite;
+      }
+      .Track:hover {
+        color: #e26014;
+        cursor: pointer;
+      }
+      .Instructions {
+        text-align: center;
+        padding: 8px;
+      }
+
+      @keyframes blinker {
+        50% {
+          color: rgba(255, 255, 255, 0);
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="container" style="display: flex; flex-direction: column">
-      <input
-        id="stop-btn"
-        class="btn"
-        type="button"
-        value="Stop"
-        style="
-          background-color: #ff4e33;
-          border: none;
-          color: #000;
-          padding: 16px 32px;
-          text-decoration: none;
-          margin: 4px 2px;
-          cursor: pointer;
-        "
-        disabled
-      />
-      <input
-        id="pause-btn"
-        class="btn"
-        type="button"
-        value="Pause"
-        style="
-          background-color: #ffe662;
-          border: none;
-          color: #000;
-          padding: 16px 32px;
-          text-decoration: none;
-          margin: 4px 2px;
-          cursor: pointer;
-        "
-        disabled
-      />
+    <div class="Container">
+      <img src="/example/ProtonPlayer.gif" />
+      <div class="CurrentlyPlaying">
+        <div class="ProgressBar">
+          <div id="ProgressBar" class="ProgressBar-progress"></div>
+        </div>
+      </div>
+      <div id="Library"></div>
+      <div class="Instructions">Click any track to start playing!</div>
     </div>
-    <h5>Buffered:</h5>
-    <div
-      id="buffer-display"
-      style="width: 100%; height: 10px; border: 1px solid black"
-    ></div>
-    <h5>Playback Position (use it to seek!):</h5>
-    <div
-      id="playback-position-display"
-      style="width: 100%; height: 10px; border: 1px solid black"
-    ></div>
-    <h5>Volume:</h5>
-    <input id="volume-range" type="range" min="0" max="100" value="75" />
-    <h5 id="audio-engine-text" style="width: 100%; text-align: center"></h5>
-    <p id="console"></p>
     <script>
-      const $console = document.getElementById('console');
-      window.console = ((nativeConsole) => {
-        if (navigator.platform !== 'iPhone') {
-          return nativeConsole;
-        }
-        const overload = (nativeFunc, ...args) => {
-          nativeFunc(...args);
-          $console.innerHTML = args.join(' ') + '<br/>' + $console.innerHTML;
-        };
-        return {
-          log: overload.bind(window, nativeConsole.log),
-          info: overload.bind(window, nativeConsole.info),
-          warn: overload.bind(window, nativeConsole.warn),
-          error: overload.bind(window, nativeConsole.error),
-        };
-      })(window.console);
+      const MEDIA_SERVER_URL = 'https://proton-assets.appspot.com/demo?fn=mp3-128%2F';
 
-      const $container = document.getElementById('container');
-      const $stopBtn = document.getElementById('stop-btn');
-      const $pauseBtn = document.getElementById('pause-btn');
-      const $volumeRange = document.getElementById('volume-range');
-      const $bufferDisplay = document.getElementById('buffer-display');
-      const $playbackPositionDisplay = document.getElementById(
-        'playback-position-display'
-      );
-
-      const onReady = () => {
-        const $audioEngineText = document.getElementById('audio-engine-text');
-        if (typeof window.MediaSource !== 'undefined') {
-          $audioEngineText.textContent = 'Using MediaSource API';
-        } else {
-          $audioEngineText.textContent = 'Using AudioContext API';
-        }
-
-        const $btns = document.getElementsByClassName('btn');
-        for (let $btn of $btns) {
-          $btn.removeAttribute('disabled');
-        }
-      };
-
-      const onError = (err) => console.error(err);
-
-      // const baseURL = 'https://proton-assets.appspot.com'; // production
-      const baseURL = 'https://media-server-staging-dot-proton-assets.appspot.com'; // staging
-      // const baseURL = 'http://127.0.0.1:3003'; // development
-
-      const player = new ProtonPlayer({
-        volume: getVolume(),
-        onReady,
-        onError,
-      });
-
-      const token =
-        'eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjo4LCJwaHBiYl91c2VyIjp7InVzZXJfYWN0aXZlIjp0cnVlLCJ1c2VybmFtZSI6ImpheWVwb2NoIiwiYXV0aGVudGljYXRpb25fdG9rZW4iOiJ3ZGZYZXNGR1UwY3hSOFl5MWlTTSIsInByb3Rvbl9zdWJzY3JpYmUiOnRydWV9LCJ1c2VyIjp7ImlkIjoyLCJhY2Nlc3NsZXZlbCI6MH0sInByaXZhdGVfYWxnb2xpYV9rZXkiOiJiZDRlNDQ0MDNmYzNkMjdhMzI4MDE0NmM2Y2JkNjQyNCIsImV4cCI6MTYwNzExMDczOSwiaWF0IjoxNjA3MDI0MzM5fQ.fJvyX-DncEHoRLhsCXNcREFOJzJeEm-NXN2JiguUQEk';
-
-      const audios = [
+      const TRACKS = [
         {
-          name: 'Track 1 | 96 kbps | Skyscrapers Praveen Achary (Extended Dub Edition)',
-          url: `${baseURL}/single?fn=${encodeURIComponent(
-            'mp3-96/1144331_322956_Skyscrapers_Praveen_Achary_Extended_Dub_Edition_96k.mp3'
-          )}&md5=${encodeURIComponent(
-            'urgwWw4oxEUp6NoCjDeunQ=='
-          )}&player_id=1559854170445&token=${token}`,
-          fileSize: 7543327,
-          preLoad: false,
+          id: 0,
+          name: 'End of an Era (Doyeq Remix)',
+          url: `${MEDIA_SERVER_URL}1408293_380907_End_of_an_Era_Doyeq_Remix_128k.mp3`,
+          fileSize: 8348315,
         },
         {
-          name: 'Track 2 | 128 kbps | La Alegria (Original Mix)',
-          url: `${baseURL}/single?fn=${encodeURIComponent(
-            'mp3-128/1144327_324075_La_Alegria_Original_Mix_128k.mp3'
-          )}&md5=${encodeURIComponent(
-            'z9C6QXJm4ux1BGsC0jEItw=='
-          )}&player_id=1559854235788&token=${token}`,
-          fileSize: 3357465,
-          preLoadOnHover: false,
+          id: 1,
+          name: 'Sounds of Freedom (Alex Orion Remix)',
+          url: `${MEDIA_SERVER_URL}1475602_379536_Sounds_of_Freedom_Alex_ORion_Remix_128k.mp3`,
+          fileSize: 8321148,
         },
         {
-          name: 'Track 3 | 128 kbps | Gnosis (Matt Black Remix)',
-          url: `${baseURL}/single?fn=${encodeURIComponent(
-            'mp3-128/754475_253204_Gnosis_Matt_Black_Remix_128k.mp3'
-          )}&md5=${encodeURIComponent(
-            '123slGyfBJ826Udcm1W6Lg=='
-          )}&player_id=1559854500653&token=${token}`,
-          fileSize: 7233200,
-        },
-        {
-          name: 'Track 4 | 192 kbps | Gated Echos (Original Mix)',
-          url: `${baseURL}/single?fn=${encodeURIComponent(
-            'TEST_Hxtc_-_Gated_Echos_192k.mp3'
-          )}&md5=${encodeURIComponent(
-            'QKBk2H7/wmib9Hbg2oZxQA=='
-          )}&player_id=1559818900653&token=${token}`,
-          fileSize: 8548936,
-        },
-        {
-          name: 'Track 5 | 320 kbps | Song for Eliae (Frezel Remix)',
-          url: `${baseURL}/single?fn=${encodeURIComponent(
-            'mp3-320/1358200_371875_Song_for_Eliae_Frezel_Remix_320k.mp3'
-          )}&md5=${encodeURIComponent(
-            'KAHIjeIXwvMDggM7bii4DQ=='
-          )}&player_id=1559818900653&token=${token}`,
-          fileSize: 18891754,
-        },
-        {
-          name: 'Mix 1 | Embliss - Mind Over Matter 127',
-          url: `${baseURL}/stream?fn=${encodeURIComponent(
-            '1144329_Mind_Over_Matter_(2019-09-28)_Part_1_-_Embliss_-_Mind_Over_Matter_127.mp3'
-          )}&md5=${encodeURIComponent(
-            'c/RGi+lC2DbxhYhe6dk8vA=='
-          )}&player_id=1559854282509&token=${token}`,
-          fileSize: 86353292,
-          preLoad: false,
-        },
-        {
-          name: 'Mix 2 | Bedroom Bedlam (2019-09-28) Part 1 - Rohit Bangera',
-          url: `${baseURL}/stream?fn=${encodeURIComponent(
-            '1144250_Bedroom_Bedlam_(2019-09-28)_Part_1_-_Rohit_Bangera.mp3'
-          )}&md5=${encodeURIComponent(
-            'Zz/o7fvoHU0IAUlnrnshXA=='
-          )}&player_id=1559854370708&token=${token}`,
-          fileSize: 86387146,
-          preLoadOnHover: false,
-        },
-        {
-          name: 'Mix 3 | Drumcode Live (2019-09-29) Part 1 - Adam Beyer - DRCD 478',
-          url: `${baseURL}/stream?fn=${encodeURIComponent(
-            '1143927_Drumcode_Live_(2019-09-29)_Part_1_-_Adam_Beyer_-_DRCD_478_Live__Connect.mp3'
-          )}&md5=${encodeURIComponent(
-            'RNYFr9b5I5uRHu3U00owHQ=='
-          )}&player_id=1559854549060&token=${token}`,
-          fileSize: 83519528,
+          id: 2,
+          name: 'Mara (GMJ and Matter Intro Mix)',
+          url: `${MEDIA_SERVER_URL}1597266_423256_Mara_GMJ_and_Matter_Intro_Mix_128k.mp3`,
+          fileSize: 7969226,
         },
       ];
 
-      $stopBtn.onclick = () => stopAll();
+      const STATE = {
+        // Is the Player ready to begin playing audio?
+        ready: false,
 
-      $pauseBtn.onclick = () => player.pauseAll();
+        // What is the ID of the currently active track?
+        currentTrackID: null,
 
-      $playbackPositionDisplay.onclick = (event) => {
-        const percent =
-          (event.pageX - event.currentTarget.offsetLeft) /
-          event.currentTarget.offsetWidth;
-        player.setPlaybackPosition(percent);
+        // What % of the way through the current track are we?
+        progress: 0.0,
+
+        // Is the current track playing or paused?
+        playbackState: null,
       };
 
-      $volumeRange.onchange = (event) => {
-        const volume = getVolume();
-        player.setVolume(volume);
+      const isPlayerState = (state) => () => STATE.playbackState === state;
+
+      const isPlaying = isPlayerState('PLAYING');
+      const isPaused = isPlayerState('PAUSED');
+
+      // Here we actually initialize the Player. It doesn't require any
+      // arguments, but most people will want to pass in at least a couple of
+      // handlers to interact with its errors and ready state.
+      const player = new ProtonPlayer({
+        onReady: () => {
+          STATE.ready = true;
+        },
+        onError: (e) => console.error(e),
+      });
+
+      // Preloading all three MP3s ensures that a small buffer of each track's
+      // data is available for immediate playback. This is helpful for ensuring
+      // smooth playback between consecutive tracks such as in a queue or
+      // playlist system.
+      TRACKS.forEach((audio) => {
+        player.preLoad(audio.url, audio.fileSize);
+      });
+
+      // Whenever the playhead updates, we want to update the length of the
+      // progress bar. This callback is not called aggressively, so the
+      // resulting progress bar will have a "ticking" behavior versus smooth
+      // updates.
+      const onPlaybackProgress = (progress) => {
+        STATE.progress = progress * 100;
+        render();
       };
 
-      function stopAll(exceptUrls = []) {
-        player.disposeAllExcept(exceptUrls);
-        audios.forEach((audio) => {
-          if (exceptUrls.indexOf(audio.url) >= 0) return;
-          audio.preloaded = false;
-          audio.$btn.setAttribute('value', audio.name);
+      // When playback ends, we attempt to play the next track in the queue.
+      const onPlaybackEnded = () => {
+        const nextTrackID = STATE.currentTrackID + 1;
+        if (nextTrackID < TRACKS.length) {
+          playTrack(TRACKS[nextTrackID]);
+        }
+        render();
+      };
+
+      // When the user clicks a track in the UI, either pause or play depending
+      // on the current state of the player.
+      const onTrackClicked = (e) => {
+        if (!STATE.ready) return;
+
+        const clickedTrackID = Number(e.target.dataset.id);
+        if (clickedTrackID === STATE.currentTrackID) {
+          togglePlayerState();
+        } else {
+          playTrack(TRACKS[clickedTrackID]);
+        }
+
+        render();
+      };
+
+      // Flips the current playing/paused state.
+      const togglePlayerState = () => {
+        if (isPlaying()) {
+          STATE.playbackState = 'PAUSED';
+          player.pauseAll();
+        } else {
+          STATE.playbackState = 'PLAYING';
+          playTrack(TRACKS[state.currentTrackID]);
+        }
+      };
+
+      // Sets the provided track as the currently playing one and begins
+      // playing it. Can be used to either "unpause" or mount an entirely
+      // new track.
+      const playTrack = (track) => {
+        STATE.currentTrackID = track.id;
+        STATE.playbackState = 'PLAYING';
+
+        player.play({
+          fileSize: track.fileSize,
+          url: track.url,
+          onPlaybackProgress,
+          onPlaybackEnded,
         });
-      }
+      };
 
-      function getVolume() {
-        return parseInt($volumeRange.value) / 100;
-      }
-
-      async function preLoadAudio(audio) {
-        const { $btn, name, url, fileSize } = audio;
-        if (audio.preloaded) return Promise.resolve();
-        audio.preloaded = true;
-
-        $btn.setAttribute('value', `${name} (loading...)`);
-
-        await player.preLoad(url, fileSize, 0).then(() => {
-          $btn.removeAttribute('disabled');
-          $btn.setAttribute('value', name + ' (preloaded)');
-        });
-      }
-
-      function init() {
-        audios.forEach((file) => {
-          const $btn = document.createElement('input');
-          $btn.setAttribute('class', 'btn play-btn');
-          $btn.setAttribute('type', 'button');
-          $btn.setAttribute(
-            'value',
-            file.preLoad ? `${file.name} (loading...)` : file.name
-          );
-          $btn.setAttribute('disabled', file.preLoad ? 'disabled' : '');
-          $btn.setAttribute(
-            'style',
-            'background-color: #000; border: none; color: white; padding: 16px 32px; text-decoration: none; margin: 4px 2px; cursor: pointer;'
-          );
-
-          file.$btn = $btn;
-
-          const { url, fileSize, preLoad, preLoadOnHover } = file;
-
-          if (preLoad) {
-            preLoadAudio(file);
+      // Manually triggered to refresh the UI after state changes.
+      const render = () => {
+        const trackElements = Array.from(document.getElementsByClassName('Track'));
+        trackElements.forEach((e) => {
+          if (STATE.currentTrackID === Number(e.dataset.id)) {
+            if (isPlaying()) {
+              e.classList.add('Track-playing');
+              e.classList.remove('Track-paused');
+            } else {
+              e.classList.add('Track-paused');
+            }
+          } else {
+            e.classList.remove('Track-playing', 'Track-paused');
           }
-
-          if (preLoadOnHover) {
-            $btn.onmouseover = () => preLoadAudio(file);
-          }
-
-          $btn.onclick = () => {
-            const onBufferChange = (isBuffering) => {
-              if (isBuffering) {
-                $playbackPositionDisplay.style.borderColor = 'red';
-              } else {
-                $playbackPositionDisplay.style.borderColor = 'black';
-              }
-            };
-
-            const onBufferProgress = (initialPosition, progress) => {
-              const start = Math.min(initialPosition, 1) * 100;
-              const end = Math.min(progress, 1) * 100;
-              $bufferDisplay.style.background = `linear-gradient(
-                to right,
-                white, white ${start}%,
-                #efe3af ${start}%, #efe3af ${end}%,
-                white ${end}%, white ${end}%
-              )`;
-            };
-
-            const onPlaybackEnded = () => {
-              $playbackPositionDisplay.style.background =
-                'linear-gradient(to right, green 100%, #ffffff 100%)';
-            };
-
-            const onPlaybackProgress = (progress) => {
-              const percent = Math.min(progress, 1) * 100;
-              $playbackPositionDisplay.style.background = `linear-gradient(to right, #efe3af ${percent}%, #ffffff ${percent}%)`;
-            };
-
-            stopAll([file.url]);
-
-            // preLoadAudio(file).then(async () => {
-            //   for (let i = 0; i < audios.length; i++) {
-            //     const audio = audios[i];
-            //     if (audio.url === url) continue;
-            //     await preLoadAudio(audio);
-            //   }
-            // });
-
-            player.play({
-              url,
-              fileSize,
-              onBufferChange,
-              onBufferProgress,
-              onPlaybackProgress,
-              onPlaybackEnded,
-              initialPosition: 0,
-            });
-          };
-
-          $container.appendChild($btn);
         });
-      }
 
-      init();
+        const progressBarElement = document.getElementById('ProgressBar');
+        progressBarElement.style.width = String(STATE.progress) + '%';
+      };
+
+      // The following is just some dynamic initial setup for the DOM.
+      const libraryElement = document.getElementById('Library');
+      const trackElements = TRACKS.forEach((track) => {
+        const element = document.createElement('div');
+        element.classList.add('Track');
+        element.dataset.id = track.id;
+        element.textContent = track.name;
+        element.addEventListener('click', onTrackClicked);
+        libraryElement.appendChild(element);
+      });
     </script>
   </body>
 </html>
