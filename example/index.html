@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Proton Player</title>
-    <script src="../dist/proton-player.umd.js"></script>
+    <script src="./proton-player.umd.js"></script>
     <style>
       @import url('https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@300;700&display=swap');
       html,
@@ -102,7 +102,7 @@
         );
       }
       .Track--track0:hover {
-        transition: background-color 0 ease;
+        transition: background-color 0 ease; */
         background: rgba(32, 191, 107, 1);
       }
       .Track-playing.Track--track1 {
@@ -163,7 +163,7 @@
   <body>
     <div class="Container">
       <div id="Library">
-        <img src="/example/ProtonPlayer.gif" />
+        <img src="./ProtonPlayer.gif" />
       </div>
       <!-- <div class="Instructions">Click any track to start playing!</div> -->
     </div>
@@ -251,10 +251,10 @@
 
       // When the user clicks a track in the UI, either pause or play depending
       // on the current state of the player.
-      const onTrackClicked = (e) => {
+      const onTrackClicked = (clickedID) => {
         if (!STATE.ready) return;
 
-        const clickedTrackID = Number(e.target.dataset.id);
+        const clickedTrackID = Number(clickedID);
         if (clickedTrackID === STATE.currentTrackID) {
           togglePlayerState();
         } else {
@@ -264,15 +264,9 @@
         render();
       };
 
-      const onProgressBarClicked = (e) => {
-        e.stopPropagation();
-
-        const currentProgressBar = document.getElementById('ProgressBar');
-        const progressBarBounds = currentProgressBar.getBoundingClientRect();
-        const playbackProgress = e.offsetX / (progressBarBounds.width - 8);
-        player.setPlaybackPosition(playbackProgress);
-
-        STATE.progress = playbackProgress * 100;
+      const onProgressBarClicked = (targetPosition) => {
+        player.setPlaybackPosition(targetPosition);
+        STATE.progress = targetPosition * 100;
 
         render();
       };
@@ -343,7 +337,15 @@
         const progressBarElement = document.createElement('div');
         progressBarElement.id = 'ProgressBar';
         progressBarElement.classList.add('ProgressBar');
-        progressBarElement.addEventListener('click', onProgressBarClicked);
+        progressBarElement.addEventListener('click', (e) => {
+          e.stopPropagation();
+
+          const currentProgressBar = document.getElementById('ProgressBar');
+          const progressBarBounds = currentProgressBar.getBoundingClientRect();
+          const clickedPosition = e.offsetX / (progressBarBounds.width - 16);
+
+          onProgressBarClicked(clickedPosition);
+        });
         const progressElement = document.createElement('div');
         progressElement.classList.add('ProgressBar-progress');
         progressBarElement.appendChild(progressElement);
@@ -361,7 +363,11 @@
         element.classList.add('Track', `Track--track${track.id}`);
         element.dataset.id = track.id;
         element.textContent = track.name;
-        element.addEventListener('click', onTrackClicked);
+        element.addEventListener('click', (e) => {
+          e.stopPropagation();
+
+          onTrackClicked(track.id);
+        });
 
         const artistElement = document.createElement('div');
         artistElement.classList.add('Track_Artist');
