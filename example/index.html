@@ -21,9 +21,8 @@
       }
       img {
         display: block;
-        width: 232px;
-        height: 232px;
-        flex: 0 0 auto;
+        width: 40%;
+        flex: 1 1 232px;
         border: 4px solid #eee;
         border-radius: 4px;
         margin: 4px;
@@ -61,8 +60,8 @@
       .TrackContainer {
         border: 4px solid #eee;
         border-radius: 4px;
-        flex: 0 0 auto;
-        width: 232px;
+        flex: 1 0 232px;
+        /* width: 232px; */
         height: 232px;
         font-size: 18px;
         color: #eee;
@@ -79,6 +78,7 @@
       }
       .Track {
         height: 200px;
+        width: 100%;
         padding: 16px;
         display: flex;
         justify-content: center;
@@ -101,8 +101,8 @@
           rgba(32, 191, 107, 0.5) 100%
         );
       }
-      .Track--track0:hover {
-        transition: background-color 0 ease; */
+      .Track--track0:not(.Track-playing):hover {
+        transition: background-color 0 ease;
         background: rgba(32, 191, 107, 1);
       }
       .Track-playing.Track--track1 {
@@ -113,7 +113,7 @@
           rgba(15, 185, 177, 0.5) 100%
         );
       }
-      .Track--track1:hover {
+      .Track--track1:not(.Track-playing):hover {
         transition: background-color 0 ease;
         background: rgba(15, 185, 177, 1);
       }
@@ -125,13 +125,12 @@
           rgba(136, 84, 208, 0.5) 100%
         );
       }
-      .Track--track2:hover {
+      .Track--track2:not(.Track-playing):hover {
         transition: background-color 0 ease;
         background: rgba(136, 84, 208, 1);
       }
 
-      .Track-playing {
-        color: #eee;
+      .Track-playing:not(.Track-paused) {
         animation: playing-blinker 1s linear infinite;
       }
       .Track-paused {
@@ -147,15 +146,15 @@
 
       @keyframes blinker {
         50% {
-          color: rgba(255, 255, 255, 0);
-          border-color: rgba(255, 255, 255, 0);
+          color: rgba(255, 255, 255, 0.2);
+          border-color: rgba(255, 255, 255, 0.2);
           background-color: rgba(32, 32, 32, 0.3);
         }
       }
 
       @keyframes playing-blinker {
         50% {
-          background-color: rgba(32, 32, 32, 0.3);
+          background-color: rgba(32, 32, 32, 0.4);
         }
       }
     </style>

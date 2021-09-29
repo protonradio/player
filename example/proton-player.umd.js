@@ -1767,8 +1767,6 @@
 	      .catch((error) => {
 	        if (error instanceof axios.Cancel) return;
 
-	        console.log('ERROR ERROR TYPE', error.toJSON());
-
 	        const timedOut = error.code === 'ECONNABORTED';
 	        const networkError = error.message === 'Network Error';
 	        const decodingError = error instanceof DecodingError;
