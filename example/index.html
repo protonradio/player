@@ -6,23 +6,45 @@
     <title>Proton Player</title>
     <script src="../dist/proton-player.umd.js"></script>
     <style>
+      @import url('https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@300;700&display=swap');
+      html,
       body {
+        height: 100%;
         background-color: #181717;
-        font-family: Arial;
+        background-color: #e26014;
+        font-family: 'Josefin Sans', sans-serif;
+      }
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
       img {
         display: block;
-        width: 100%;
+        width: 232px;
+        height: 232px;
+        flex: 0 0 auto;
+        border: 4px solid #eee;
+        border-radius: 4px;
+        margin: 4px;
       }
       .Container {
         padding: 8px;
-        width: 400px;
         margin: auto;
-        background-color: #e26014;
+        display: flex;
+        justify-content: center;
+        align-items: center;
       }
-      .CurrentlyPlaying {
-        height: 50px;
-        width: 100%;
+      .ProgressBar {
+        position: absolute;
+        width: 80%;
+        height: 8px;
+        background-color: rgba(255, 255, 255, 0.1);
+        border: 8px solid rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+        flex: 0 0;
+        bottom: 0;
+        margin-bottom: 8px;
       }
       .ProgressBar-progress {
         background-color: white;
@@ -30,26 +52,92 @@
         height: 8px;
       }
       #Library {
-        background-color: #181717;
-        margin: 8px 0;
+        max-width: 500px;
+        display: flex;
+        flex-flow: row wrap;
+        align-items: center;
+        align-self: center;
+      }
+      .TrackContainer {
+        border: 4px solid #eee;
+        border-radius: 4px;
+        flex: 0 0 auto;
+        width: 232px;
+        height: 232px;
+        font-size: 18px;
+        color: #eee;
+        display: flex;
+        font-weight: 700;
+        margin: 4px;
+        justify-content: center;
+        align-items: center;
+        text-transform: uppercase;
+        line-height: 24px;
+        text-align: center;
+        background-color: #111;
+        transition: background-color 0.2s ease;
       }
       .Track {
-        font-size: 20px;
-        color: #eee;
-        padding: 8px;
-        border-bottom: 1px #e26014 solid;
+        height: 200px;
+        padding: 16px;
         display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-flow: column nowrap;
+        background-color: #e26014;
+        position: relative;
       }
+      .Track_Artist {
+        font-size: 14px;
+        font-weight: 300;
+      }
+      .Track-playing.Track--track0 {
+        /* background-color: #20bf6b; */
+        /* rgba(32, 191, 107,1.0) */
+        background: rgb(32, 191, 107); /* rgb(250, 130, 49); */
+        background: radial-gradient(
+          circle,
+          rgba(32, 191, 107, 1) 0%,
+          rgba(32, 191, 107, 0.5) 100%
+        );
+      }
+      .Track--track0:hover {
+        transition: background-color 0 ease;
+        background: rgba(32, 191, 107, 1);
+      }
+      .Track-playing.Track--track1 {
+        background: rgba(15, 185, 177, 1);
+        background: radial-gradient(
+          circle,
+          rgba(15, 185, 177, 1) 0%,
+          rgba(15, 185, 177, 0.5) 100%
+        );
+      }
+      .Track--track1:hover {
+        transition: background-color 0 ease;
+        background: rgba(15, 185, 177, 1);
+      }
+      .Track-playing.Track--track2 {
+        background: rgba(136, 84, 208, 1);
+        background: radial-gradient(
+          circle,
+          rgba(136, 84, 208, 1) 0%,
+          rgba(136, 84, 208, 0.5) 100%
+        );
+      }
+      .Track--track2:hover {
+        transition: background-color 0 ease;
+        background: rgba(136, 84, 208, 1);
+      }
+
       .Track-playing {
-        border-left: 4px solid #eee;
-        background-color: #eee;
-        color: #e26014;
+        color: #eee;
+        animation: playing-blinker 1s linear infinite;
       }
       .Track-paused {
         animation: blinker 1s linear infinite;
       }
       .Track:hover {
-        color: #e26014;
         cursor: pointer;
       }
       .Instructions {
@@ -60,20 +148,24 @@
       @keyframes blinker {
         50% {
           color: rgba(255, 255, 255, 0);
+          border-color: rgba(255, 255, 255, 0);
+          background-color: rgba(32, 32, 32, 0.3);
+        }
+      }
+
+      @keyframes playing-blinker {
+        50% {
+          background-color: rgba(32, 32, 32, 0.3);
         }
       }
     </style>
   </head>
   <body>
     <div class="Container">
-      <img src="/example/ProtonPlayer.gif" />
-      <div class="CurrentlyPlaying">
-        <div class="ProgressBar">
-          <div id="ProgressBar" class="ProgressBar-progress"></div>
-        </div>
+      <div id="Library">
+        <img src="/example/ProtonPlayer.gif" />
       </div>
-      <div id="Library"></div>
-      <div class="Instructions">Click any track to start playing!</div>
+      <!-- <div class="Instructions">Click any track to start playing!</div> -->
     </div>
     <script>
       const MEDIA_SERVER_URL = 'https://proton-assets.appspot.com/demo?fn=mp3-128%2F';
@@ -84,18 +176,21 @@
           name: 'End of an Era (Doyeq Remix)',
           url: `${MEDIA_SERVER_URL}1408293_380907_End_of_an_Era_Doyeq_Remix_128k.mp3`,
           fileSize: 8348315,
+          artist: 'Davide Ferrario',
         },
         {
           id: 1,
-          name: 'Sounds of Freedom (Alex Orion Remix)',
+          name: "Sounds of Freedom (Alex O'Rion Remix)",
           url: `${MEDIA_SERVER_URL}1475602_379536_Sounds_of_Freedom_Alex_ORion_Remix_128k.mp3`,
           fileSize: 8321148,
+          artist: 'Juan Deminicis',
         },
         {
           id: 2,
           name: 'Mara (GMJ and Matter Intro Mix)',
           url: `${MEDIA_SERVER_URL}1597266_423256_Mara_GMJ_and_Matter_Intro_Mix_128k.mp3`,
           fileSize: 7969226,
+          artist: 'Pole Folder',
         },
       ];
 
@@ -169,6 +264,19 @@
         render();
       };
 
+      const onProgressBarClicked = (e) => {
+        e.stopPropagation();
+
+        const currentProgressBar = document.getElementById('ProgressBar');
+        const progressBarBounds = currentProgressBar.getBoundingClientRect();
+        const playbackProgress = e.offsetX / (progressBarBounds.width - 8);
+        player.setPlaybackPosition(playbackProgress);
+
+        STATE.progress = playbackProgress * 100;
+
+        render();
+      };
+
       // Flips the current playing/paused state.
       const togglePlayerState = () => {
         if (isPlaying()) {
@@ -176,7 +284,7 @@
           player.pauseAll();
         } else {
           STATE.playbackState = 'PLAYING';
-          playTrack(TRACKS[state.currentTrackID]);
+          playTrack(TRACKS[STATE.currentTrackID]);
         }
       };
 
@@ -203,27 +311,65 @@
             if (isPlaying()) {
               e.classList.add('Track-playing');
               e.classList.remove('Track-paused');
+              e.parentElement.classList.add('Track-playing');
+              e.parentElement.classList.remove('Track-paused');
             } else {
               e.classList.add('Track-paused');
+              e.parentElement.classList.add('Track-paused');
             }
           } else {
             e.classList.remove('Track-playing', 'Track-paused');
+            e.parentElement.classList.remove('Track-playing', 'Track-paused');
           }
         });
 
-        const progressBarElement = document.getElementById('ProgressBar');
-        progressBarElement.style.width = String(STATE.progress) + '%';
+        const currentTrackElement = trackElements[STATE.currentTrackID];
+        const currentProgressBar =
+          currentTrackElement.getElementsByClassName('ProgressBar');
+        const progressBarElement = renderProgressBar();
+        if (!currentProgressBar.length) {
+          currentTrackElement.appendChild(progressBarElement);
+        }
+
+        progressBarElement.children[0].style.width = String(STATE.progress) + '%';
+      };
+
+      const renderProgressBar = () => {
+        const currentProgressBar = document.getElementById('ProgressBar');
+        if (currentProgressBar) {
+          return currentProgressBar;
+        }
+
+        const progressBarElement = document.createElement('div');
+        progressBarElement.id = 'ProgressBar';
+        progressBarElement.classList.add('ProgressBar');
+        progressBarElement.addEventListener('click', onProgressBarClicked);
+        const progressElement = document.createElement('div');
+        progressElement.classList.add('ProgressBar-progress');
+        progressBarElement.appendChild(progressElement);
+
+        return progressBarElement;
       };
 
       // The following is just some dynamic initial setup for the DOM.
       const libraryElement = document.getElementById('Library');
       const trackElements = TRACKS.forEach((track) => {
+        const wrapper = document.createElement('div');
+        wrapper.classList.add('TrackContainer');
+
         const element = document.createElement('div');
-        element.classList.add('Track');
+        element.classList.add('Track', `Track--track${track.id}`);
         element.dataset.id = track.id;
         element.textContent = track.name;
         element.addEventListener('click', onTrackClicked);
-        libraryElement.appendChild(element);
+
+        const artistElement = document.createElement('div');
+        artistElement.classList.add('Track_Artist');
+        artistElement.textContent = track.artist;
+
+        wrapper.appendChild(element);
+        element.appendChild(artistElement);
+        libraryElement.appendChild(wrapper);
       });
     </script>
   </body>
