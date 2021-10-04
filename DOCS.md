@@ -7,7 +7,7 @@
   - [.preLoad](#preload)
   - [.setPlaybackPosition](#setplaybackposition)
   - [.setVolume](#setvolume)
-- [Hosting MP3 files](#hosting)
+- [Hosting MP3 files](#hosting-mp3-files)
 
 ## `ProtonPlayer`
 
@@ -171,4 +171,5 @@ The new desired volume represented as a percentage between `0` and `1`.
 Proton Player uses the `Range` HTTP header to request specific chunks of an
 audio file. This header is not supported out-of-the-box by most common web
 servers and will need to be enabled for Proton Player to stream files from that
-server.
+server. Please reference the documentation for your particular web server to
+learn how to enable support for additional headers.
