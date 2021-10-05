@@ -5,9 +5,9 @@
   <a href="https://badge.fury.io/js/@protonradio%2Fplayer">
     <img src="https://badge.fury.io/js/@protonradio%2Fplayer.svg" alt="npm version" height="18">
   </a>
-</p>
-<p align="center">
-  <img src="https://img.shields.io/badge/calver-YY.MM.MICRO-blue">
+  <a href="https://calver.org/">
+    <img src="https://img.shields.io/badge/calver-YY.MM.MICRO-blue">
+  </a>
 </p>
 
 ## tl;dr
