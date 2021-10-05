@@ -23,6 +23,10 @@ While the Web Audio and Mediasource APIs are both incredibly powerful tools for 
 
 [API Documentation](DOCS.md)
 
+## Example
+
+[Player Demo](https://protonradio.github.io/player/)
+
 ## Acknowledgements
 
 - [Rich-Harris/phonograph](https://github.com/Rich-Harris/phonograph) The initial version of Proton Player was adapted from this tool. Phonograph taught us a lot about how to handle the problems inherent in streaming audio on mobile devices.
