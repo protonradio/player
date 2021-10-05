@@ -1,6 +1,6 @@
 {
   "name": "@protonradio/player",
-  "version": "21.10.0",
+  "version": "21.10.1",
   "main": "dist/proton-player.cjs.js",
   "module": "dist/proton-player.esm.js",
   "browser": "dist/proton-player.umd.js",
@@ -19,12 +19,11 @@
     "rollup": "^2.36.0"
   },
   "scripts": {
-    "install": "npm run build",
     "build": "rollup -c",
     "dev": "DEV=true rollup -c -w",
     "test": "mocha --require esm",
-    "patch": "./scripts/calver.js patch",
-    "release": "./scripts/calver.js release"
+    "patch": "npm run build && ./scripts/calver.js patch",
+    "release": "npm run build && ./scripts/calver.js release"
   },
   "files": [
     "dist"
