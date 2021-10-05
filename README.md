@@ -2,6 +2,11 @@
   <img width="300" height="300" src="docs/protonplayer.gif">
 </p>
 <p align="center">
+  <a href="https://badge.fury.io/js/@protonradio%2Fplayer">
+    <img src="https://badge.fury.io/js/@protonradio%2Fplayer.svg" alt="npm version" height="18">
+  </a>
+</p>
+<p align="center">
   <img src="https://img.shields.io/badge/calver-YY.MM.MICRO-blue">
 </p>
 
@@ -17,7 +22,7 @@ While the Web Audio and Mediasource APIs are both incredibly powerful tools for 
 
 ## Installation
 
-`npm install proton-player`
+`npm install @protonradio/player`
 
 ## Documentation
 

@@ -1,6 +1,6 @@
 {
-  "name": "proton-player",
-  "version": "1.0.0",
+  "name": "@protonradio/player",
+  "version": "21.10.0",
   "main": "dist/proton-player.cjs.js",
   "module": "dist/proton-player.esm.js",
   "browser": "dist/proton-player.umd.js",
@@ -19,6 +19,7 @@
     "rollup": "^2.36.0"
   },
   "scripts": {
+    "install": "npm run build",
     "build": "rollup -c",
     "dev": "DEV=true rollup -c -w",
     "test": "mocha --require esm",
