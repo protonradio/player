@@ -1,5 +1,5 @@
 <p align="center">
-  <img width="300" height="300" src="docs/protonplayer.gif">
+  <img width="300" height="300" src="https://github.com/protonradio/player/raw/master/docs/protonplayer.gif">
 </p>
 <p align="center">
   <a href="https://badge.fury.io/js/@protonradio%2Fplayer">
@@ -26,7 +26,7 @@ While the Web Audio and Mediasource APIs are both incredibly powerful tools for 
 
 ## Documentation
 
-[API Documentation](DOCS.md)
+[API Documentation](https://github.com/protonradio/player/blob/master/DOCS.md)
 
 ## Example
 
