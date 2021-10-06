@@ -1,8 +1,13 @@
 <p align="center">
-  <img width="300" height="300" src="docs/protonplayer.gif">
+  <img width="300" height="300" src="https://github.com/protonradio/player/raw/master/docs/protonplayer.gif">
 </p>
 <p align="center">
-  <img src="https://img.shields.io/badge/calver-YY.MM.MICRO-blue">
+  <a href="https://badge.fury.io/js/@protonradio%2Fplayer">
+    <img src="https://badge.fury.io/js/@protonradio%2Fplayer.svg" alt="npm version" height="18">
+  </a>
+  <a href="https://calver.org/">
+    <img src="https://img.shields.io/badge/calver-YY.MM.MICRO-blue">
+  </a>
 </p>
 
 ## tl;dr
@@ -17,11 +22,11 @@ While the Web Audio and Mediasource APIs are both incredibly powerful tools for 
 
 ## Installation
 
-`npm install proton-player`
+`npm install @protonradio/player`
 
 ## Documentation
 
-[API Documentation](DOCS.md)
+[API Documentation](https://github.com/protonradio/player/blob/master/DOCS.md)
 
 ## Example
 
