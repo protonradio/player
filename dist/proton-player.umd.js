@@ -3447,7 +3447,15 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	initializeiOSAudioEngine$1();
 
 	class ProtonPlayer {
-	  constructor({ volume = 1, onReady = noop, onError = noop }) {
+	  constructor({
+	    volume = 1,
+	    onReady = noop,
+	    onError = noop,
+	    onBufferChange = noop,
+	    onBufferProgress = noop,
+	    onPlaybackProgress = noop,
+	    onPlaybackEnded = noop,
+	  }) {
 
 	    const browser = Bowser.getParser(window.navigator.userAgent);
 	    this.browserName = browser.getBrowserName().toLowerCase();
@@ -3469,6 +3477,11 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 
 	    this._onReady = onReady;
 	    this._onError = onError;
+	    this._onBufferChange = onBufferChange;
+	    this._onBufferProgress = onBufferProgress;
+	    this._onPlaybackProgress = onPlaybackProgress;
+	    this._onPlaybackEnded = onPlaybackEnded;
+
 	    this._volume = volume;
 	    this._ready = false;
 	    const silenceChunkSize = 64 * 64;
@@ -3495,14 +3508,14 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 
 	      audioElement.addEventListener('waiting', () => {
 	        if (this._currentlyPlaying) {
-	          this._currentlyPlaying.onBufferChange(true);
+	          this._onBufferChange(true);
 	        }
 	      });
 
 	      ['canplay', 'canplaythrough', 'playing'].forEach((eventName) => {
 	        audioElement.addEventListener(eventName, () => {
 	          if (this._currentlyPlaying) {
-	            this._currentlyPlaying.onBufferChange(false);
+	            this._onBufferChange(false);
 	          }
 	        });
 	      });
@@ -3546,10 +3559,6 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  play({
 	    url,
 	    fileSize,
-	    onBufferChange = noop,
-	    onBufferProgress = noop,
-	    onPlaybackProgress = noop,
-	    onPlaybackEnded = noop,
 	    initialPosition = 0,
 	    lastAllowedPosition = 1,
 	    audioMetadata = {},
@@ -3571,8 +3580,8 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	      return this._currentlyPlaying.clip.resume() || Promise.resolve();
 	    }
 
-	    onBufferProgress(0, 0);
-	    onPlaybackProgress(initialPosition);
+	    this._onBufferProgress(0, 0);
+	    this._onPlaybackProgress(initialPosition);
 
 	    this.stopAll();
 
@@ -3589,25 +3598,21 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	        clip,
 	        url,
 	        fileSize,
-	        onBufferChange,
-	        onBufferProgress,
-	        onPlaybackProgress,
-	        onPlaybackEnded,
 	        lastAllowedPosition,
 	        lastReportedProgress: initialPosition,
 	      };
 
 	      clip.on('loadprogress', ({ initialPosition, progress }) =>
-	        onBufferProgress(initialPosition, progress)
+	        this._onBufferProgress(initialPosition, progress)
 	      );
 
 	      clip.once('ended', () => {
 	        this.stopAll();
-	        onPlaybackProgress(1);
-	        onPlaybackEnded();
+	        this._onPlaybackProgress(1);
+	        this._onPlaybackEnded();
 	      });
 
-	      clip.on('bufferchange', (isBuffering) => onBufferChange(isBuffering));
+	      clip.on('bufferchange', (isBuffering) => this._onBufferChange(isBuffering));
 
 	      this._playbackPositionInterval = setInterval(() => {
 	        const { duration, currentTime } = clip;
@@ -3628,7 +3633,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	        }
 
 	        this._currentlyPlaying.lastReportedProgress = progress;
-	        onPlaybackProgress(progress);
+	        this._onPlaybackProgress(progress);
 	      }, 250);
 
 	      return clip.play() || Promise.resolve();
@@ -3689,15 +3694,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 
 	    this._currentlyPlaying.lastReportedProgress = percent;
 
-	    const {
-	      url,
-	      fileSize,
-	      onBufferChange,
-	      onBufferProgress,
-	      onPlaybackProgress,
-	      onPlaybackEnded,
-	      lastAllowedPosition,
-	    } = this._currentlyPlaying;
+	    const { url, fileSize, lastAllowedPosition } = this._currentlyPlaying;
 
 	    newLastAllowedPosition = newLastAllowedPosition || lastAllowedPosition;
 
@@ -3716,10 +3713,6 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    return this.play({
 	      url,
 	      fileSize,
-	      onBufferChange,
-	      onBufferProgress,
-	      onPlaybackProgress,
-	      onPlaybackEnded,
 	      audioMetadata,
 	      initialPosition: percent,
 	      lastAllowedPosition: newLastAllowedPosition,

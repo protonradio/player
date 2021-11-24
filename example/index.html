@@ -271,29 +271,12 @@
       const isPlaying = isPlayerState('PLAYING');
       const isPaused = isPlayerState('PAUSED');
 
-      // Here we actually initialize the Player. It doesn't require any
-      // arguments, but most people will want to pass in at least a couple of
-      // handlers to interact with its errors and ready state.
-      const player = new ProtonPlayer({
-        onReady: () => {
-          STATE.ready = true;
-        },
-        onError: (e) => console.error(e),
-      });
-
-      // Preloading all three MP3s ensures that a small buffer of each track's
-      // data is available for immediate playback. This is helpful for ensuring
-      // smooth playback between consecutive tracks such as in a queue or
-      // playlist system.
-      TRACKS.forEach((audio) => {
-        player.preLoad(audio.url, audio.fileSize);
-      });
-
       // Whenever the playhead updates, we want to update the length of the
       // progress bar. This callback is not called aggressively, so the
       // resulting progress bar will have a "ticking" behavior versus smooth
       // updates.
       const onPlaybackProgress = (progress) => {
+        console.log('PROGRESS', progress);
         STATE.progress = progress * 100;
         render();
       };
@@ -350,10 +333,28 @@
         player.play({
           fileSize: track.fileSize,
           url: track.url,
-          onPlaybackProgress,
-          onPlaybackEnded,
         });
       };
+
+      // Here we actually initialize the Player. It doesn't require any
+      // arguments, but most people will want to pass in at least a couple of
+      // handlers to interact with its errors and ready state.
+      const player = new ProtonPlayer({
+        onReady: () => {
+          STATE.ready = true;
+        },
+        onError: (e) => console.error(e),
+        onPlaybackProgress,
+        onPlaybackEnded,
+      });
+
+      // Preloading all three MP3s ensures that a small buffer of each track's
+      // data is available for immediate playback. This is helpful for ensuring
+      // smooth playback between consecutive tracks such as in a queue or
+      // playlist system.
+      TRACKS.forEach((audio) => {
+        player.preLoad(audio.url, audio.fileSize);
+      });
 
       // Manually triggered to refresh the UI after state changes.
       const render = () => {

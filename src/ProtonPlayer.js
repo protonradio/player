@@ -13,7 +13,15 @@ import initializeiOSAudioEngine from './utils/initializeiOSAudioEngine';
 initializeiOSAudioEngine();
 
 export default class ProtonPlayer {
-  constructor({ volume = 1, onReady = noop, onError = noop }) {
+  constructor({
+    volume = 1,
+    onReady = noop,
+    onError = noop,
+    onBufferChange = noop,
+    onBufferProgress = noop,
+    onPlaybackProgress = noop,
+    onPlaybackEnded = noop,
+  }) {
     debug('ProtonPlayer#constructor');
 
     const browser = Bowser.getParser(window.navigator.userAgent);
@@ -36,6 +44,11 @@ export default class ProtonPlayer {
 
     this._onReady = onReady;
     this._onError = onError;
+    this._onBufferChange = onBufferChange;
+    this._onBufferProgress = onBufferProgress;
+    this._onPlaybackProgress = onPlaybackProgress;
+    this._onPlaybackEnded = onPlaybackEnded;
+
     this._volume = volume;
     this._ready = false;
     const silenceChunkSize = 64 * 64;
@@ -62,14 +75,14 @@ export default class ProtonPlayer {
 
       audioElement.addEventListener('waiting', () => {
         if (this._currentlyPlaying) {
-          this._currentlyPlaying.onBufferChange(true);
+          this._onBufferChange(true);
         }
       });
 
       ['canplay', 'canplaythrough', 'playing'].forEach((eventName) => {
         audioElement.addEventListener(eventName, () => {
           if (this._currentlyPlaying) {
-            this._currentlyPlaying.onBufferChange(false);
+            this._onBufferChange(false);
           }
         });
       });
@@ -115,10 +128,6 @@ export default class ProtonPlayer {
   play({
     url,
     fileSize,
-    onBufferChange = noop,
-    onBufferProgress = noop,
-    onPlaybackProgress = noop,
-    onPlaybackEnded = noop,
     initialPosition = 0,
     lastAllowedPosition = 1,
     audioMetadata = {},
@@ -142,8 +151,8 @@ export default class ProtonPlayer {
       return this._currentlyPlaying.clip.resume() || Promise.resolve();
     }
 
-    onBufferProgress(0, 0);
-    onPlaybackProgress(initialPosition);
+    this._onBufferProgress(0, 0);
+    this._onPlaybackProgress(initialPosition);
 
     this.stopAll();
 
@@ -160,25 +169,21 @@ export default class ProtonPlayer {
         clip,
         url,
         fileSize,
-        onBufferChange,
-        onBufferProgress,
-        onPlaybackProgress,
-        onPlaybackEnded,
         lastAllowedPosition,
         lastReportedProgress: initialPosition,
       };
 
       clip.on('loadprogress', ({ initialPosition, progress }) =>
-        onBufferProgress(initialPosition, progress)
+        this._onBufferProgress(initialPosition, progress)
       );
 
       clip.once('ended', () => {
         this.stopAll();
-        onPlaybackProgress(1);
-        onPlaybackEnded();
+        this._onPlaybackProgress(1);
+        this._onPlaybackEnded();
       });
 
-      clip.on('bufferchange', (isBuffering) => onBufferChange(isBuffering));
+      clip.on('bufferchange', (isBuffering) => this._onBufferChange(isBuffering));
 
       this._playbackPositionInterval = setInterval(() => {
         const { duration, currentTime } = clip;
@@ -199,7 +204,7 @@ export default class ProtonPlayer {
         }
 
         this._currentlyPlaying.lastReportedProgress = progress;
-        onPlaybackProgress(progress);
+        this._onPlaybackProgress(progress);
       }, 250);
 
       return clip.play() || Promise.resolve();
@@ -266,15 +271,7 @@ export default class ProtonPlayer {
 
     this._currentlyPlaying.lastReportedProgress = percent;
 
-    const {
-      url,
-      fileSize,
-      onBufferChange,
-      onBufferProgress,
-      onPlaybackProgress,
-      onPlaybackEnded,
-      lastAllowedPosition,
-    } = this._currentlyPlaying;
+    const { url, fileSize, lastAllowedPosition } = this._currentlyPlaying;
 
     newLastAllowedPosition = newLastAllowedPosition || lastAllowedPosition;
 
@@ -293,10 +290,6 @@ export default class ProtonPlayer {
     return this.play({
       url,
       fileSize,
-      onBufferChange,
-      onBufferProgress,
-      onPlaybackProgress,
-      onPlaybackEnded,
       audioMetadata,
       initialPosition: percent,
       lastAllowedPosition: newLastAllowedPosition,
