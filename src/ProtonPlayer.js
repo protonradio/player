@@ -7,6 +7,7 @@ import ClipState from './ClipState';
 import noop from './utils/noop';
 import Loader from './Loader';
 import Clip from './Clip';
+import PlaybackState from './PlaybackState';
 import { getSilenceURL } from './utils/silence';
 import initializeiOSAudioEngine from './utils/initializeiOSAudioEngine';
 
@@ -48,6 +49,13 @@ export default class ProtonPlayer {
     this._onBufferProgress = onBufferProgress;
     this._onPlaybackProgress = onPlaybackProgress;
     this._onPlaybackEnded = onPlaybackEnded;
+
+    // TODO: This will temporarily accumulate state from `Clip` and serve as an
+    // interface to the audio engine logic stored there until this refactor
+    // is complete.
+    this._state = {
+      playback: new PlaybackState(),
+    };
 
     this._volume = volume;
     this._ready = false;
@@ -178,9 +186,27 @@ export default class ProtonPlayer {
       );
 
       clip.once('ended', () => {
+        this._state.playback = this._state.playback.stop();
+
         this.stopAll();
         this._onPlaybackProgress(1);
         this._onPlaybackEnded();
+      });
+
+      clip.on('positionchange', () => {
+        this._state.playback = this._state.playback.play();
+      });
+
+      clip.on('stop', () => {
+        this._state.playback = this._state.playback.stop();
+      });
+
+      clip.on('playing', () => {
+        this._state.playback = this._state.playback.play();
+      });
+
+      clip.on('paused', () => {
+        this._state.playback = this._state.playback.pause();
       });
 
       clip.on('bufferchange', (isBuffering) => this._onBufferChange(isBuffering));
@@ -336,6 +362,7 @@ export default class ProtonPlayer {
       osName: this.osName,
       browserName: this.browserName,
       useMediaSource: this._useMediaSource,
+      playerState: this._state,
     });
 
     clip.on('loaderror', (err) => {

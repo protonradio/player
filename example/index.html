@@ -276,7 +276,6 @@
       // resulting progress bar will have a "ticking" behavior versus smooth
       // updates.
       const onPlaybackProgress = (progress) => {
-        console.log('PROGRESS', progress);
         STATE.progress = progress * 100;
         render();
       };

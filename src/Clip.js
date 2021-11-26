@@ -6,16 +6,11 @@ import { debug, warn } from './utils/logger';
 import suppressAbortError from './utils/suppressAbortError';
 import noop from './utils/noop';
 import ClipState, { CHUNK_SIZE } from './ClipState';
+import AudioContextEngine from './AudioContextEngine';
+import MediaSourceEngine from './MediaSourceEngine';
 import { slice } from './utils/buffer';
 
-const OVERLAP = 0.2;
 const TIMEOUT_SAFE_OFFSET = 50;
-
-const PLAYBACK_STATE = {
-  STOPPED: 'STOPPED',
-  PLAYING: 'PLAYING',
-  PAUSED: 'PAUSED',
-};
 
 export default class Clip extends EventEmitter {
   constructor({
@@ -29,6 +24,7 @@ export default class Clip extends EventEmitter {
     osName,
     browserName,
     useMediaSource,
+    playerState,
   }) {
     super();
 
@@ -46,10 +42,11 @@ export default class Clip extends EventEmitter {
 
     this.length = 0;
     this.loaded = false;
-    this._playbackState = PLAYBACK_STATE.STOPPED;
     this.ended = false;
     this.url = url;
     this.volume = volume;
+
+    this._state = playerState;
     this._silenceChunks = silenceChunks;
     this._lastPlayedChunk = null;
     this._tickTimeout = null;
@@ -201,7 +198,7 @@ export default class Clip extends EventEmitter {
   }
 
   play() {
-    if (this._playbackState === PLAYBACK_STATE.PLAYING) {
+    if (this._state.playback.isPlaying()) {
       const message = `clip.play() was called on a clip that was already playing (${this.url})`;
       warn(message);
       return Promise.reject(message);
@@ -216,7 +213,7 @@ export default class Clip extends EventEmitter {
       this._mediaSource = new MediaSource();
       this._mediaSource.addEventListener('sourceopen', function () {
         self._sourceBuffer = this.addSourceBuffer('audio/mpeg');
-        self._playUsingMediaSource();
+        MediaSourceEngine.play(self);
       });
       this._audioElement.src = URL.createObjectURL(this._mediaSource);
       promise = this._audioElement.play().catch(suppressAbortError);
@@ -224,12 +221,12 @@ export default class Clip extends EventEmitter {
       this._gain = this.context.createGain();
       this._gain.connect(this.context.destination);
       this.context.resume();
-      this._playUsingAudioContext();
+      AudioContextEngine.play(this);
       promise = Promise.resolve();
     }
 
     this.volume = this._volume;
-    this._playbackState = PLAYBACK_STATE.PLAYING;
+    this._fire('playing');
     this.ended = false;
     return promise;
   }
@@ -243,29 +240,29 @@ export default class Clip extends EventEmitter {
       this._gain = this.context.createGain();
       this._gain.connect(this.context.destination);
       this.context.resume();
-      this._playUsingAudioContext();
+      AudioContextEngine.play(this);
       promise = Promise.resolve();
     }
-    this._playbackState = PLAYBACK_STATE.PLAYING;
+    this._fire('playing');
     return promise;
   }
 
   pause() {
     if (this._useMediaSource) {
-      this._pauseUsingMediaSource();
+      MediaSourceEngine.pause(this);
     } else {
-      this._stopUsingAudioContext();
+      AudioContextEngine.stop(this);
     }
-    this._playbackState = PLAYBACK_STATE.PAUSED;
+    this._fire('paused');
   }
 
   stop() {
     this._shouldStopBuffering = true;
 
     if (this._useMediaSource) {
-      this._stopUsingMediaSource();
+      MediaSourceEngine.stop(this);
     } else {
-      this._stopUsingAudioContext();
+      AudioContextEngine.stop(this);
     }
 
     if (this._loader) {
@@ -274,7 +271,6 @@ export default class Clip extends EventEmitter {
 
     this._preBuffering = false;
     this._buffering = false;
-    this._playbackState = PLAYBACK_STATE.STOPPED;
     this._fire('stop');
 
     return this;
@@ -282,8 +278,7 @@ export default class Clip extends EventEmitter {
 
   playbackEnded() {
     debug('Clip#playbackEnded');
-    if (this._playbackState === PLAYBACK_STATE.PLAYING) {
-      this._playbackState = PLAYBACK_STATE.STOPPED;
+    if (this._state.playback.isPlaying()) {
       this.ended = true;
       this._fire('ended');
     }
@@ -291,12 +286,11 @@ export default class Clip extends EventEmitter {
 
   setCurrentPosition(position = 0, lastAllowedPosition = 1) {
     if (this._useMediaSource) {
-      this._stopUsingMediaSource();
+      MediaSourceEngine.stop(this);
     } else {
-      this._stopUsingAudioContext();
+      AudioContextEngine.stop(this);
     }
 
-    this._playbackState = PLAYBACK_STATE.STOPPED;
     this._fire('stop');
 
     this._initialChunk = this._clipState.getChunkIndexByPosition(position);
@@ -312,24 +306,24 @@ export default class Clip extends EventEmitter {
       const self = this;
       this._mediaSource.addEventListener('sourceopen', function () {
         self._sourceBuffer = this.addSourceBuffer('audio/mpeg');
-        self._playUsingMediaSource();
+        MediaSourceEngine.play(self);
       });
     } else {
       this._gain = this.context.createGain();
       this._gain.connect(this.context.destination);
       this.context.resume();
-      this._playUsingAudioContext();
+      AudioContextEngine.play(this);
       promise = Promise.resolve();
     }
 
     this.volume = this._volume;
-    this._playbackState = PLAYBACK_STATE.PLAYING;
+    this._fire('positionchange');
     this.ended = false;
     return promise;
   }
 
   get currentTime() {
-    if (this._playbackState !== PLAYBACK_STATE.PLAYING) {
+    if (!this._state.playback.isPlaying()) {
       return 0;
     }
 
@@ -384,7 +378,7 @@ export default class Clip extends EventEmitter {
   }
 
   get paused() {
-    return this._playbackState === PLAYBACK_STATE.PAUSED;
+    return this._state.playback.isPaused();
   }
 
   get volume() {
@@ -404,269 +398,6 @@ export default class Clip extends EventEmitter {
   get audioMetadata() {
     if (!this._loader) return {};
     return this._loader.audioMetadata;
-  }
-
-  _playUsingAudioContext() {
-    debug('#_playUsingAudioContext');
-    this._playbackProgress = 0;
-    this._scheduledEndTime = null;
-
-    if (this._playbackState !== PLAYBACK_STATE.PAUSED) {
-      this._bufferingOffset = 0;
-    }
-
-    const timeOffset = 0;
-    let playing = true;
-
-    const stopSources = () => {
-      try {
-        if (previousSource) previousSource.stop();
-        if (currentSource) currentSource.stop();
-      } catch (e) {
-        if (e.name === 'InvalidStateError') {
-          warn(`Ignored error: ${e.toString()}`);
-        } else {
-          throw e;
-        }
-      }
-    };
-
-    const stopListener = this.on('stop', () => {
-      playing = false;
-      stopSources();
-      stopListener.cancel();
-    });
-
-    let _playingSilence = !this._clipState.isChunkReady(this._clipState.chunkIndex);
-    let chunk = _playingSilence
-      ? this._silenceChunks[0]
-      : this._clipState.chunks[this._clipState.chunkIndex];
-    chunk.isSilence = _playingSilence;
-
-    let previousSource;
-    let currentSource;
-
-    this._createSourceFromChunk(chunk, timeOffset, (err, source) => {
-      if (err) {
-        err.url = this.url;
-        err.customCode = 'COULD_NOT_START_PLAYBACK';
-        this._fire('playbackerror', err);
-        return;
-      }
-
-      if (Number.isNaN(chunk.duration)) {
-        this._fire(
-          'playbackerror',
-          'Error playing initial chunk because duration is NaN'
-        );
-        return;
-      }
-
-      source.loop = chunk.isSilence;
-      currentSource = source;
-
-      let nextStart;
-
-      try {
-        const gain = this.context.createGain();
-        gain.connect(this._gain);
-
-        this._contextTimeAtStart = this.context.currentTime;
-        nextStart = this._contextTimeAtStart + (chunk.duration - timeOffset);
-        if (!chunk.isSilence) {
-          this._scheduledEndTime = nextStart + OVERLAP;
-        }
-
-        gain.gain.setValueAtTime(0, nextStart + OVERLAP);
-        source.connect(gain);
-        source.start(this._contextTimeAtStart);
-      } catch (e) {
-        if (e.name === 'TypeError') {
-          warn(`Ignored error: ${e.toString()}`);
-        } else {
-          throw e;
-        }
-      }
-
-      this._lastPlayedChunk =
-        _playingSilence && this._clipState.chunkIndex === this._initialChunk
-          ? null
-          : this._clipState.chunkIndex;
-
-      const advance = () => {
-        if (!playing) return;
-
-        if (!_playingSilence && this._lastPlayedChunk === this._clipState.chunkIndex) {
-          this._clipState.chunkIndex += 1;
-        }
-
-        if (this._clipState.chunksBufferingFinished) {
-          this._scheduledEndTime = null;
-          return;
-        }
-
-        chunk = _playingSilence
-          ? this._silenceChunks[0]
-          : this._clipState.chunks[this._clipState.chunkIndex];
-        chunk.isSilence = _playingSilence;
-
-        if (!chunk) {
-          return;
-        }
-
-        this._createSourceFromChunk(chunk, 0, (err, source) => {
-          if (err) {
-            err.url = this.url;
-            err.customCode = 'COULD_NOT_CREATE_SOURCE';
-            this._fire('playbackerror', err);
-            return;
-          }
-
-          if (Number.isNaN(chunk.duration)) {
-            this._fire('playbackerror', 'Error playing chunk because duration is NaN');
-            return;
-          }
-
-          source.loop = chunk.isSilence;
-
-          if (this._wasPlayingSilence && !_playingSilence) {
-            this._wasPlayingSilence = false;
-            stopSources();
-            this._contextTimeAtStart = this.context.currentTime;
-            nextStart = this.context.currentTime;
-          }
-
-          previousSource = currentSource;
-          currentSource = source;
-
-          try {
-            const gain = this.context.createGain();
-            gain.connect(this._gain);
-            gain.gain.setValueAtTime(0, nextStart);
-            gain.gain.setValueAtTime(1, nextStart + OVERLAP);
-            source.connect(gain);
-            source.start(nextStart);
-            nextStart += chunk.duration;
-            if (!chunk.isSilence) {
-              this._scheduledEndTime = nextStart + OVERLAP;
-            }
-            gain.gain.setValueAtTime(0, nextStart + OVERLAP);
-          } catch (e) {
-            if (e.name === 'TypeError') {
-              warn(`Ignored error: ${e.toString()}`);
-            } else {
-              throw e;
-            }
-          }
-
-          this._lastPlayedChunk =
-            _playingSilence && this._clipState.chunkIndex === this._initialChunk
-              ? null
-              : this._clipState.chunkIndex;
-        });
-      };
-
-      const tick = (scheduledAt = 0, scheduledTimeout = 0) => {
-        if (
-          this._playbackState !== PLAYBACK_STATE.PLAYING ||
-          this._clipState.chunksBufferingFinished
-        ) {
-          return;
-        }
-
-        const i =
-          this._lastPlayedChunk === this._clipState.chunkIndex
-            ? this._clipState.chunkIndex + 1
-            : this._clipState.chunkIndex;
-
-        _playingSilence = !this._clipState.isChunkReady(i);
-
-        if (_playingSilence) {
-          this._wasPlayingSilence = true;
-        } else {
-          advance();
-        }
-
-        const timeout = this._calculateNextChunkTimeout(i, scheduledAt, scheduledTimeout);
-        this._tickTimeout = setTimeout(tick.bind(this, Date.now(), timeout), timeout);
-      };
-
-      const frame = () => {
-        if (this._playbackState !== PLAYBACK_STATE.PLAYING) return;
-        requestAnimationFrame(frame);
-        this._fire('progress');
-      };
-
-      tick();
-      frame();
-    });
-  }
-
-  _playUsingMediaSource() {
-    if (this._playbackState === PLAYBACK_STATE.STOPPED) return;
-
-    if (this._clipState.chunksBufferingFinished) {
-      debug('this._mediaSource.endOfStream()');
-      this._mediaSource.endOfStream();
-      return;
-    }
-
-    const isChunkReady = this._clipState.isChunkReady(this._clipState.chunkIndex);
-
-    const useSilence =
-      !isChunkReady &&
-      this._clipState.chunkIndex === this._initialChunk &&
-      !this._wasPlayingSilence &&
-      (this.browserName === 'safari' || this.osName === 'ios');
-
-    const chunk = useSilence
-      ? this._silenceChunks[0]
-      : isChunkReady && this._clipState.chunks[this._clipState.chunkIndex];
-
-    if (chunk) {
-      try {
-        this._sourceBuffer.appendBuffer(chunk.raw);
-        if (isChunkReady) {
-          this._clipState.chunkIndex += 1;
-          this._wasPlayingSilence = false;
-        } else if (useSilence) {
-          this._wasPlayingSilence = true;
-        }
-      } catch (e) {
-        // SourceBuffer might be full, remove segments that have already been played.
-        debug('Exception when running SourceBuffer#appendBuffer', e);
-        try {
-          this._sourceBuffer.remove(0, this._audioElement.currentTime);
-        } catch (e) {
-          debug('Exception when running SourceBuffer#remove', e);
-        }
-      }
-    }
-
-    const timeout = isChunkReady ? Math.min(500, chunk.duration * 1000) : 100;
-    this._mediaSourceTimeout = setTimeout(this._playUsingMediaSource.bind(this), timeout);
-  }
-
-  _pauseUsingMediaSource() {
-    if (this._playbackState === PLAYBACK_STATE.PLAYING) {
-      this._audioElement.pause();
-      this._audioElement.volume = 0;
-    }
-  }
-
-  _stopUsingMediaSource() {
-    clearTimeout(this._mediaSourceTimeout);
-    this._pauseUsingMediaSource();
-  }
-
-  _stopUsingAudioContext() {
-    this._bufferingOffset = this._playbackProgress;
-    clearTimeout(this._tickTimeout);
-    if (this._playbackState === PLAYBACK_STATE.PLAYING) {
-      this._gain.gain.value = 0;
-      this._gain.disconnect(this.context.destination);
-      this._gain = null;
-    }
   }
 
   _calculateNextChunkTimeout(chunkIndex = 0, scheduledAt = 0, scheduledTimeout = 0) {
