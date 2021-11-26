@@ -3,7 +3,6 @@ import EventEmitter from './EventEmitter';
 import ProtonPlayerError from './ProtonPlayerError';
 import getContext from './getContext';
 import { debug, warn } from './utils/logger';
-import suppressAbortError from './utils/suppressAbortError';
 import noop from './utils/noop';
 import ClipState, { CHUNK_SIZE } from './ClipState';
 import AudioContextEngine from './AudioContextEngine';
@@ -33,7 +32,9 @@ export default class Clip extends EventEmitter {
     this._useMediaSource = useMediaSource;
 
     if (this._useMediaSource) {
-      this._audioElement = document.querySelector('audio');
+      this.engine = new MediaSourceEngine({
+        audioElement: document.querySelector('audio'),
+      });
     } else {
       this.context = getContext();
       this._gain = this.context.createGain();
@@ -50,7 +51,6 @@ export default class Clip extends EventEmitter {
     this._silenceChunks = silenceChunks;
     this._lastPlayedChunk = null;
     this._tickTimeout = null;
-    this._mediaSourceTimeout = null;
 
     this._lastContextTimeAtStart = null;
     this._scheduledEndTime = null;
@@ -209,14 +209,7 @@ export default class Clip extends EventEmitter {
     let promise;
 
     if (this._useMediaSource) {
-      const self = this;
-      this._mediaSource = new MediaSource();
-      this._mediaSource.addEventListener('sourceopen', function () {
-        self._sourceBuffer = this.addSourceBuffer('audio/mpeg');
-        MediaSourceEngine.play(self);
-      });
-      this._audioElement.src = URL.createObjectURL(this._mediaSource);
-      promise = this._audioElement.play().catch(suppressAbortError);
+      promise = this.engine.play(this);
     } else {
       this._gain = this.context.createGain();
       this._gain.connect(this.context.destination);
@@ -234,8 +227,8 @@ export default class Clip extends EventEmitter {
   resume() {
     let promise;
     if (this._useMediaSource) {
-      this._audioElement.volume = this.volume;
-      promise = this._audioElement.play().catch(suppressAbortError);
+      this.engine.setVolume(this.volume);
+      promise = this.engine.resume();
     } else {
       this._gain = this.context.createGain();
       this._gain.connect(this.context.destination);
@@ -249,7 +242,7 @@ export default class Clip extends EventEmitter {
 
   pause() {
     if (this._useMediaSource) {
-      MediaSourceEngine.pause(this);
+      this.engine.pause();
     } else {
       AudioContextEngine.stop(this);
     }
@@ -260,7 +253,7 @@ export default class Clip extends EventEmitter {
     this._shouldStopBuffering = true;
 
     if (this._useMediaSource) {
-      MediaSourceEngine.stop(this);
+      this.engine.stop();
     } else {
       AudioContextEngine.stop(this);
     }
@@ -286,7 +279,7 @@ export default class Clip extends EventEmitter {
 
   setCurrentPosition(position = 0, lastAllowedPosition = 1) {
     if (this._useMediaSource) {
-      MediaSourceEngine.stop(this);
+      this.engine.stop();
     } else {
       AudioContextEngine.stop(this);
     }
@@ -300,14 +293,7 @@ export default class Clip extends EventEmitter {
     let promise;
 
     if (this._useMediaSource) {
-      this._mediaSource = new MediaSource();
-      this._audioElement.src = URL.createObjectURL(this._mediaSource);
-      promise = this._audioElement.play().catch(suppressAbortError);
-      const self = this;
-      this._mediaSource.addEventListener('sourceopen', function () {
-        self._sourceBuffer = this.addSourceBuffer('audio/mpeg');
-        MediaSourceEngine.play(self);
-      });
+      promise = this.engine.play(this);
     } else {
       this._gain = this.context.createGain();
       this._gain.connect(this.context.destination);
@@ -331,7 +317,7 @@ export default class Clip extends EventEmitter {
     const offset = averageChunkDuration * this._initialChunk;
 
     if (this._useMediaSource) {
-      return offset + this._audioElement.currentTime;
+      return offset + this.engine.audioElement.currentTime;
     }
 
     const isPlayingSilence =
@@ -388,8 +374,8 @@ export default class Clip extends EventEmitter {
   set volume(volume) {
     this._volume = volume;
 
-    if (this._useMediaSource && this._audioElement) {
-      this._audioElement.volume = this._volume;
+    if (this._useMediaSource) {
+      this.engine.setVolume(this._volume);
     } else if (this._gain && this._gain.gain) {
       this._gain.gain.value = this._volume;
     }

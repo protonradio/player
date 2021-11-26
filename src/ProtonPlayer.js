@@ -233,6 +233,9 @@ export default class ProtonPlayer {
         this._onPlaybackProgress(progress);
       }, 250);
 
+      // TODO: Basically we want this to turn into audioEngine.play(clip)
+      // .     And all of the above subscriptions to be to the audio engine.
+      //       Where does that imply playback state should live tho?
       return clip.play() || Promise.resolve();
     } catch (err) {
       this._onError(err);
