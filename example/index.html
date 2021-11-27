@@ -307,6 +307,7 @@
       const onProgressBarClicked = (targetPosition) => {
         player.setPlaybackPosition(targetPosition);
         STATE.progress = targetPosition * 100;
+        STATE.playbackState = 'PLAYING';
 
         render();
       };
@@ -315,7 +316,7 @@
       const togglePlayerState = () => {
         if (isPlaying()) {
           STATE.playbackState = 'PAUSED';
-          player.pauseAll();
+          player.pause();
         } else {
           STATE.playbackState = 'PLAYING';
           playTrack(TRACKS[STATE.currentTrackID]);
@@ -326,13 +327,17 @@
       // playing it. Can be used to either "unpause" or mount an entirely
       // new track.
       const playTrack = (track) => {
-        STATE.currentTrackID = track.id;
-        STATE.playbackState = 'PLAYING';
+        if (STATE.currentTrackID === track.id && isPlayerState('PAUSED')) {
+          player.resume();
+        } else {
+          STATE.currentTrackID = track.id;
+          player.play({
+            fileSize: track.fileSize,
+            url: track.url,
+          });
+        }
 
-        player.play({
-          fileSize: track.fileSize,
-          url: track.url,
-        });
+        STATE.playbackState = 'PLAYING';
       };
 
       // Here we actually initialize the Player. It doesn't require any

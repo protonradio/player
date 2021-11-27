@@ -10,6 +10,8 @@ import Clip from './Clip';
 import PlaybackState from './PlaybackState';
 import { getSilenceURL } from './utils/silence';
 import initializeiOSAudioEngine from './utils/initializeiOSAudioEngine';
+import MediaSourceInterface from './interface/MediaSource';
+import AudioContextInterface from './interface/AudioContext';
 
 initializeiOSAudioEngine();
 
@@ -96,6 +98,11 @@ export default class ProtonPlayer {
       });
     }
 
+    this.audioInterface = this._useMediaSource
+      ? MediaSourceInterface
+      : AudioContextInterface;
+    this.audioInterface.initialize({ volume });
+
     const silenceLoader = new Loader(
       silenceChunkSize,
       getSilenceURL(),
@@ -149,16 +156,6 @@ export default class ProtonPlayer {
       return Promise.reject(message);
     }
 
-    if (
-      this._currentlyPlaying &&
-      this._currentlyPlaying.clip &&
-      this._currentlyPlaying.url === url &&
-      fromSetPlaybackPosition === false
-    ) {
-      debug('ProtonPlayer#play -> resume');
-      return this._currentlyPlaying.clip.resume() || Promise.resolve();
-    }
-
     this._onBufferProgress(0, 0);
     this._onPlaybackProgress(initialPosition);
 
@@ -193,26 +190,11 @@ export default class ProtonPlayer {
         this._onPlaybackEnded();
       });
 
-      clip.on('positionchange', () => {
-        this._state.playback = this._state.playback.play();
-      });
-
-      clip.on('stop', () => {
-        this._state.playback = this._state.playback.stop();
-      });
-
-      clip.on('playing', () => {
-        this._state.playback = this._state.playback.play();
-      });
-
-      clip.on('paused', () => {
-        this._state.playback = this._state.playback.pause();
-      });
-
       clip.on('bufferchange', (isBuffering) => this._onBufferChange(isBuffering));
 
       this._playbackPositionInterval = setInterval(() => {
-        const { duration, currentTime } = clip;
+        const { duration } = clip;
+        const currentTime = this.audioInterface.__TEMP__currentTime(clip);
         if (duration === 0 || duration < currentTime) return;
         let progress = currentTime / duration;
 
@@ -233,26 +215,35 @@ export default class ProtonPlayer {
         this._onPlaybackProgress(progress);
       }, 250);
 
-      // TODO: Basically we want this to turn into audioEngine.play(clip)
-      // .     And all of the above subscriptions to be to the audio engine.
-      //       Where does that imply playback state should live tho?
-      return clip.play() || Promise.resolve();
+      clip.play();
+      return this.audioInterface.play(clip).then(() => {
+        this._state.playback = this._state.playback.play();
+      });
     } catch (err) {
       this._onError(err);
       return Promise.reject(err.toString());
     }
   }
 
-  pauseAll() {
-    debug('ProtonPlayer#pauseAll');
+  // TODO:docs Add documentation for this new API function.
+  resume() {
+    debug('ProtonPlayer#resume');
+    this._state.playback = this._state.playback.play();
+    this.audioInterface.resume();
+  }
 
-    if (this._currentlyPlaying && this._currentlyPlaying.clip) {
-      this._currentlyPlaying.clip.pause();
-    }
+  // TODO:docs Add documentation for this name change.
+  pause() {
+    debug('ProtonPlayer#pauseAll');
+    this._state.playback = this._state.playback.pause();
+    this.audioInterface.pause();
   }
 
   stopAll() {
     debug('ProtonPlayer#stopAll');
+
+    this._state.playback = this._state.playback.stop();
+    this.audioInterface.stop();
 
     this._currentlyPlaying = null;
     this._clearIntervals();
@@ -307,9 +298,11 @@ export default class ProtonPlayer {
     const clip = this._clips[url];
 
     if (clip) {
-      return (
-        clip.setCurrentPosition(percent, newLastAllowedPosition) || Promise.resolve()
-      );
+      clip.setCurrentPosition(percent, newLastAllowedPosition);
+
+      return this.audioInterface.play(clip).then(() => {
+        this._state.playback = this._state.playback.play();
+      });
     }
 
     const audioMetadata = clip && clip.audioMetadata;
@@ -364,7 +357,6 @@ export default class ProtonPlayer {
       volume: this._volume,
       osName: this.osName,
       browserName: this.browserName,
-      useMediaSource: this._useMediaSource,
       playerState: this._state,
     });
 

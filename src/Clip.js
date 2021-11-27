@@ -1,13 +1,9 @@
 import Loader from './Loader';
 import EventEmitter from './EventEmitter';
 import ProtonPlayerError from './ProtonPlayerError';
-import getContext from './getContext';
 import { debug, warn } from './utils/logger';
 import noop from './utils/noop';
 import ClipState, { CHUNK_SIZE } from './ClipState';
-import AudioContextEngine from './AudioContextEngine';
-import MediaSourceEngine from './MediaSourceEngine';
-import { slice } from './utils/buffer';
 
 const TIMEOUT_SAFE_OFFSET = 50;
 
@@ -22,24 +18,12 @@ export default class Clip extends EventEmitter {
     audioMetadata = {},
     osName,
     browserName,
-    useMediaSource,
     playerState,
   }) {
     super();
 
     this.osName = osName;
     this.browserName = browserName;
-    this._useMediaSource = useMediaSource;
-
-    if (this._useMediaSource) {
-      this.engine = new MediaSourceEngine({
-        audioElement: document.querySelector('audio'),
-      });
-    } else {
-      this.context = getContext();
-      this._gain = this.context.createGain();
-      this._gain.connect(this.context.destination);
-    }
 
     this.length = 0;
     this.loaded = false;
@@ -49,9 +33,8 @@ export default class Clip extends EventEmitter {
 
     this._state = playerState;
     this._silenceChunks = silenceChunks;
-    this._lastPlayedChunk = null;
-    this._tickTimeout = null;
 
+    this._lastPlayedChunk = null;
     this._lastContextTimeAtStart = null;
     this._scheduledEndTime = null;
     this._playbackProgress = 0;
@@ -173,19 +156,6 @@ export default class Clip extends EventEmitter {
       });
   }
 
-  connect(destination, output, input) {
-    if (!this._connected) {
-      this._gain.disconnect();
-      this._connected = true;
-    }
-    this._gain.connect(destination, output, input);
-    return this;
-  }
-
-  disconnect(destination, output, input) {
-    this._gain.disconnect(destination, output, input);
-  }
-
   dispose() {
     this.stop();
     this._preBuffering = false;
@@ -204,59 +174,17 @@ export default class Clip extends EventEmitter {
       return Promise.reject(message);
     }
 
-    this.buffer().then(noop).catch(noop);
-
-    let promise;
-
-    if (this._useMediaSource) {
-      promise = this.engine.play(this);
-    } else {
-      this._gain = this.context.createGain();
-      this._gain.connect(this.context.destination);
-      this.context.resume();
-      AudioContextEngine.play(this);
-      promise = Promise.resolve();
-    }
-
-    this.volume = this._volume;
-    this._fire('playing');
-    this.ended = false;
-    return promise;
-  }
-
-  resume() {
-    let promise;
-    if (this._useMediaSource) {
-      this.engine.setVolume(this.volume);
-      promise = this.engine.resume();
-    } else {
-      this._gain = this.context.createGain();
-      this._gain.connect(this.context.destination);
-      this.context.resume();
-      AudioContextEngine.play(this);
-      promise = Promise.resolve();
-    }
-    this._fire('playing');
-    return promise;
-  }
-
-  pause() {
-    if (this._useMediaSource) {
-      this.engine.pause();
-    } else {
-      AudioContextEngine.stop(this);
-    }
-    this._fire('paused');
+    return this.buffer()
+      .then(() => {
+        this._fire('playing');
+        this.ended = false;
+      })
+      .catch(noop);
   }
 
   stop() {
     this._shouldStopBuffering = true;
-
-    if (this._useMediaSource) {
-      this.engine.stop();
-    } else {
-      AudioContextEngine.stop(this);
-    }
+    this._bufferingOffset = this._playbackProgress;
 
     if (this._loader) {
       this._loader.cancel();
@@ -278,84 +206,13 @@ export default class Clip extends EventEmitter {
   }
 
   setCurrentPosition(position = 0, lastAllowedPosition = 1) {
-    if (this._useMediaSource) {
-      this.engine.stop();
-    } else {
-      AudioContextEngine.stop(this);
-    }
-
     this._fire('stop');
 
     this._initialChunk = this._clipState.getChunkIndexByPosition(position);
     this._clipState.lastAllowedChunkIndex = lastAllowedPosition;
     this._clipState.chunkIndex = this._initialChunk;
 
-    let promise;
-
-    if (this._useMediaSource) {
-      promise = this.engine.play(this);
-    } else {
-      this._gain = this.context.createGain();
-      this._gain.connect(this.context.destination);
-      this.context.resume();
-      AudioContextEngine.play(this);
-      promise = Promise.resolve();
-    }
-
-    this.volume = this._volume;
-    this._fire('positionchange');
     this.ended = false;
-    return promise;
-  }
-
-  get currentTime() {
-    if (!this._state.playback.isPlaying()) {
-      return 0;
-    }
-
-    const averageChunkDuration = this._loader ? this._loader.averageChunkDuration : 0;
-    const offset = averageChunkDuration * this._initialChunk;
-
-    if (this._useMediaSource) {
-      return offset + this.engine.audioElement.currentTime;
-    }
-
-    const isPlayingSilence =
-      this._scheduledEndTime == null || this.context.currentTime > this._scheduledEndTime;
-
-    if (isPlayingSilence) {
-      if (this._clipState.chunksBufferingFinished) {
-        // Playback has finished.
-        this.playbackEnded();
-        return averageChunkDuration * this._clipState.totalChunksCount;
-      }
-
-      // Player is buffering.
-      this._onBufferChange(true);
-
-      if (this._scheduledEndTime != null) {
-        this._bufferingOffset = this._playbackProgress;
-      }
-
-      return offset + this._playbackProgress;
-    }
-
-    // Player is playing back.
-    this._onBufferChange(false);
-
-    if (this._contextTimeAtStart === this._lastContextTimeAtStart) {
-      this._playbackProgress +=
-        this.context.currentTime -
-        this._contextTimeAtStart -
-        this._playbackProgress +
-        this._bufferingOffset;
-    } else {
-      this._playbackProgress = this._bufferingOffset;
-    }
-
-    this._lastContextTimeAtStart = this._contextTimeAtStart;
-
-    return offset + this._playbackProgress;
   }
 
   get duration() {
@@ -365,20 +222,6 @@ export default class Clip extends EventEmitter {
 
   get paused() {
     return this._state.playback.isPaused();
-  }
-
-  get volume() {
-    return this._volume;
-  }
-
-  set volume(volume) {
-    this._volume = volume;
-
-    if (this._useMediaSource) {
-      this.engine.setVolume(this._volume);
-    } else if (this._gain && this._gain.gain) {
-      this._gain.gain.value = this._volume;
-    }
   }
 
   get audioMetadata() {
@@ -414,49 +257,5 @@ export default class Clip extends EventEmitter {
     }
     this._fire('bufferchange', isBuffering);
     this._lastBufferChange = isBuffering;
-  }
-
-  _createSourceFromChunk(chunk, timeOffset, callback) {
-    debug('_createSourceFromChunk');
-    const context = getContext();
-
-    if (!chunk) {
-      const message = 'Something went wrong! Chunk was not ready in time for playback';
-      error(message);
-      callback(new Error(message));
-      return;
-    }
-
-    const nextChunk = this._clipState._chunks[chunk.index + 1];
-    const extendedBuffer = chunk.concat(nextChunk);
-    const { buffer } = slice(extendedBuffer, 0, extendedBuffer.length);
-
-    context.decodeAudioData(
-      buffer,
-      (decoded) => {
-        if (timeOffset) {
-          const sampleOffset = ~~(timeOffset * decoded.sampleRate);
-          const numChannels = decoded.numberOfChannels;
-          const lengthWithOffset = decoded.length - sampleOffset;
-          const length = lengthWithOffset >= 0 ? lengthWithOffset : decoded.length;
-          const offset = context.createBuffer(numChannels, length, decoded.sampleRate);
-          for (let chan = 0; chan < numChannels; chan += 1) {
-            const sourceData = decoded.getChannelData(chan);
-            const targetData = offset.getChannelData(chan);
-            for (let i = 0; i < sourceData.length - sampleOffset; i += 1) {
-              targetData[i] = sourceData[i + sampleOffset];
-            }
-          }
-          decoded = offset;
-        }
-        const source = context.createBufferSource();
-        source.buffer = decoded;
-        callback(null, source);
-      },
-      (err) => {
-        err = err || {}; // Safari might error out without an error object
-        callback(err);
-      }
-    );
   }
 }
