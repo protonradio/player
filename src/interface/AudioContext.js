@@ -1,13 +1,24 @@
 import getContext from '../getContext';
+import PlaybackState from '../PlaybackState';
 
 import { slice } from '../utils/buffer';
 import { warn } from '../utils/logger';
 
 const OVERLAP = 0.2;
 
+// A reference to the current AudioContext.
 let context = null;
+
+// A reference to the GainNode which is wired up to globally control the gain
+// of the resulting audio stream. This only exists when audio is actively being
+// played.
 let gain = null;
+
+// The timeout ID for the internal audio playback loop.
 let tickTimeout = null;
+
+// A reference to the `Clip` that is currently loaded for playback. This only
+// exists when the player is not stopped.
 let currentClip = null;
 
 function initialize({ volume = 1.0 }) {
@@ -63,20 +74,20 @@ function setVolume(volume) {
 }
 
 function isPlaying() {
-  return getPlaybackState() === 'PLAYING';
+  return getPlaybackState() === PlaybackState.Playing;
 }
 
 function getPlaybackState() {
-  if (currentClip === null) return 'STOPPED';
-  if (gain === null) return 'PAUSED';
-  return 'PLAYING';
+  if (currentClip === null) return PlaybackState.Stopped;
+  if (gain === null) return PlaybackState.Paused;
+  return PlaybackState.Playing;
 }
 
 function _play(clip) {
   clip._playbackProgress = 0;
   clip._scheduledEndTime = null;
 
-  if (getPlaybackState() !== 'PAUSED') {
+  if (getPlaybackState() !== PlaybackState.Paused) {
     clip._bufferingOffset = 0;
   }
 

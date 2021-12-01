@@ -1,3 +1,5 @@
+import PlaybackState from '../PlaybackState';
+
 import { debug } from '../utils/logger';
 import suppressAbortError from '../utils/suppressAbortError';
 
@@ -106,13 +108,13 @@ function setVolume(volume) {
 }
 
 function isPlaying() {
-  return getPlaybackState() === 'PLAYING';
+  return getPlaybackState() === PlaybackState.Playing;
 }
 
 function getPlaybackState() {
-  if (audioElement.paused) return 'PAUSED';
-  if (sourceBuffer === null) return 'STOPPED';
-  return 'PLAYING';
+  if (audioElement.paused) return PlaybackState.Paused;
+  if (sourceBuffer === null) return PlaybackState.Stopped;
+  return PlaybackState.Playing;
 }
 
 function __TEMP__currentTime(clip) {
