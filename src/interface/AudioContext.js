@@ -40,13 +40,14 @@ function stop() {
 }
 
 function pause() {
-  clearTimeout(tickTimeout);
-
   if (gain) {
     gain.gain.value = 0;
     gain.disconnect(context.destination);
     gain = null;
   }
+
+  clearTimeout(tickTimeout);
+  tickTimeout = null;
 }
 
 function resume() {
@@ -62,14 +63,20 @@ function setVolume(volume) {
 }
 
 function isPlaying() {
-  return !!gain;
+  return getPlaybackState() === 'PLAYING';
+}
+
+function getPlaybackState() {
+  if (currentClip === null) return 'STOPPED';
+  if (gain === null) return 'PAUSED';
+  return 'PLAYING';
 }
 
 function _play(clip) {
   clip._playbackProgress = 0;
   clip._scheduledEndTime = null;
 
-  if (!clip._state.playback.isPaused()) {
+  if (getPlaybackState() !== 'PAUSED') {
     clip._bufferingOffset = 0;
   }
 
@@ -222,7 +229,7 @@ function _play(clip) {
     };
 
     const tick = (scheduledAt = 0, scheduledTimeout = 0) => {
-      if (!clip._state.playback.isPlaying() || clip._clipState.chunksBufferingFinished) {
+      if (!isPlaying() || clip._clipState.chunksBufferingFinished) {
         return;
       }
 
@@ -244,7 +251,7 @@ function _play(clip) {
     };
 
     const frame = () => {
-      if (!clip._state.playback.isPlaying()) return;
+      if (!isPlaying()) return;
       requestAnimationFrame(frame);
       clip._fire('progress');
     };
@@ -295,9 +302,8 @@ function _createSourceFromChunk(clip, chunk, timeOffset, callback) {
   );
 }
 
-// TODO: This was moved from the `Clip` entity and needs to be refactored.
 function __TEMP__currentTime(clip) {
-  if (!clip._state.playback.isPlaying()) {
+  if (!isPlaying()) {
     return 0;
   }
 
@@ -341,10 +347,6 @@ function __TEMP__currentTime(clip) {
 
   return offset + clip._playbackProgress;
 }
-
-// TODO: Something seems really weird with `_gain`. I feel like a string of
-//       gain nodes are being created, which would explain the strange gain
-//       behavior I have experienced before with the AudioContext API.
 
 export default {
   initialize,

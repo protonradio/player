@@ -33,6 +33,7 @@ function initialize({ volume = 1.0 }) {
 function play(clip) {
   source = new MediaSource();
   source.addEventListener('sourceopen', function () {
+    console.log('source open');
     sourceBuffer = this.addSourceBuffer('audio/mpeg');
     _play(clip);
   });
@@ -94,8 +95,10 @@ function pause() {
 }
 
 function stop() {
-  clearTimeout(sourceTimeout);
   pause();
+
+  clearTimeout(sourceTimeout);
+  sourceTimeout = null;
 }
 
 function setVolume(volume) {
@@ -103,11 +106,17 @@ function setVolume(volume) {
 }
 
 function isPlaying() {
-  return !audioElement.paused;
+  return getPlaybackState() === 'PLAYING';
+}
+
+function getPlaybackState() {
+  if (audioElement.paused) return 'PAUSED';
+  if (sourceBuffer === null) return 'STOPPED';
+  return 'PLAYING';
 }
 
 function __TEMP__currentTime(clip) {
-  if (!clip._state.playback.isPlaying()) {
+  if (!isPlaying()) {
     return 0;
   }
 

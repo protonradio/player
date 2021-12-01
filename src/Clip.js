@@ -168,11 +168,11 @@ export default class Clip extends EventEmitter {
   }
 
   play() {
-    if (this._state.playback.isPlaying()) {
-      const message = `clip.play() was called on a clip that was already playing (${this.url})`;
-      warn(message);
-      return Promise.reject(message);
-    }
+    // if (this._state.playback.isPlaying()) {
+    //   const message = `clip.play() was called on a clip that was already playing (${this.url})`;
+    //   warn(message);
+    //   return Promise.reject(message);
+    // }
 
     return this.buffer()
       .then(() => {
@@ -199,10 +199,8 @@ export default class Clip extends EventEmitter {
 
   playbackEnded() {
     debug('Clip#playbackEnded');
-    if (this._state.playback.isPlaying()) {
-      this.ended = true;
-      this._fire('ended');
-    }
+    this.ended = true;
+    this._fire('ended');
   }
 
   setCurrentPosition(position = 0, lastAllowedPosition = 1) {
@@ -218,10 +216,6 @@ export default class Clip extends EventEmitter {
   get duration() {
     if (!this._loader) return 0;
     return (this._clipState.fileSize / CHUNK_SIZE) * this._loader.averageChunkDuration;
-  }
-
-  get paused() {
-    return this._state.playback.isPaused();
   }
 
   get audioMetadata() {

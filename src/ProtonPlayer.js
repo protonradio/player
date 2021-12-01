@@ -7,7 +7,6 @@ import ClipState from './ClipState';
 import noop from './utils/noop';
 import Loader from './Loader';
 import Clip from './Clip';
-import PlaybackState from './PlaybackState';
 import { getSilenceURL } from './utils/silence';
 import initializeiOSAudioEngine from './utils/initializeiOSAudioEngine';
 import MediaSourceInterface from './interface/MediaSource';
@@ -51,13 +50,6 @@ export default class ProtonPlayer {
     this._onBufferProgress = onBufferProgress;
     this._onPlaybackProgress = onPlaybackProgress;
     this._onPlaybackEnded = onPlaybackEnded;
-
-    // TODO: This will temporarily accumulate state from `Clip` and serve as an
-    // interface to the audio engine logic stored there until this refactor
-    // is complete.
-    this._state = {
-      playback: new PlaybackState(),
-    };
 
     this._volume = volume;
     this._ready = false;
@@ -183,8 +175,6 @@ export default class ProtonPlayer {
       );
 
       clip.once('ended', () => {
-        this._state.playback = this._state.playback.stop();
-
         this.stopAll();
         this._onPlaybackProgress(1);
         this._onPlaybackEnded();
@@ -216,9 +206,7 @@ export default class ProtonPlayer {
       }, 250);
 
       clip.play();
-      return this.audioInterface.play(clip).then(() => {
-        this._state.playback = this._state.playback.play();
-      });
+      return this.audioInterface.play(clip);
     } catch (err) {
       this._onError(err);
       return Promise.reject(err.toString());
@@ -228,21 +216,18 @@ export default class ProtonPlayer {
   // TODO:docs Add documentation for this new API function.
   resume() {
     debug('ProtonPlayer#resume');
-    this._state.playback = this._state.playback.play();
     this.audioInterface.resume();
   }
 
   // TODO:docs Add documentation for this name change.
   pause() {
     debug('ProtonPlayer#pauseAll');
-    this._state.playback = this._state.playback.pause();
     this.audioInterface.pause();
   }
 
   stopAll() {
     debug('ProtonPlayer#stopAll');
 
-    this._state.playback = this._state.playback.stop();
     this.audioInterface.stop();
 
     this._currentlyPlaying = null;
@@ -292,17 +277,12 @@ export default class ProtonPlayer {
     this._currentlyPlaying.lastReportedProgress = percent;
 
     const { url, fileSize, lastAllowedPosition } = this._currentlyPlaying;
-
     newLastAllowedPosition = newLastAllowedPosition || lastAllowedPosition;
 
     const clip = this._clips[url];
-
     if (clip) {
       clip.setCurrentPosition(percent, newLastAllowedPosition);
-
-      return this.audioInterface.play(clip).then(() => {
-        this._state.playback = this._state.playback.play();
-      });
+      return this.audioInterface.play(clip);
     }
 
     const audioMetadata = clip && clip.audioMetadata;
