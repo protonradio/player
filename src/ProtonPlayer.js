@@ -7,6 +7,7 @@ import ClipState from './ClipState';
 import noop from './utils/noop';
 import Loader from './Loader';
 import Clip from './Clip';
+import Queue from './Queue';
 import { getSilenceURL } from './utils/silence';
 import initializeiOSAudioEngine from './utils/initializeiOSAudioEngine';
 import MediaSourceInterface from './interface/MediaSource';
@@ -63,6 +64,8 @@ export default class ProtonPlayer {
       typeof window.MediaSource.isTypeSupported === 'function' &&
       window.MediaSource.isTypeSupported('audio/mpeg');
 
+    this._useMediaSource = false;
+
     if (this._useMediaSource) {
       const audioElement = document.createElement('audio');
       audioElement.autoplay = false;
@@ -94,6 +97,7 @@ export default class ProtonPlayer {
       ? MediaSourceInterface
       : AudioContextInterface;
     this.audioInterface.initialize({ volume });
+    this.queue = new Queue();
 
     const silenceLoader = new Loader(
       silenceChunkSize,
@@ -132,6 +136,11 @@ export default class ProtonPlayer {
     }
   }
 
+  enqueue(track) {
+    const clip = this._getClip(track.url, track.fileSize);
+    this.queue.push(clip);
+  }
+
   play({
     url,
     fileSize,
@@ -162,6 +171,9 @@ export default class ProtonPlayer {
         audioMetadata
       );
 
+      this.queue = new Queue();
+      this.queue.push(clip);
+
       this._currentlyPlaying = {
         clip,
         url,
@@ -175,7 +187,6 @@ export default class ProtonPlayer {
       );
 
       clip.once('ended', () => {
-        this.stopAll();
         this._onPlaybackProgress(1);
         this._onPlaybackEnded();
       });
@@ -206,7 +217,7 @@ export default class ProtonPlayer {
       }, 250);
 
       clip.play();
-      return this.audioInterface.play(clip);
+      return this.audioInterface.play(this.queue);
     } catch (err) {
       this._onError(err);
       return Promise.reject(err.toString());
@@ -282,7 +293,7 @@ export default class ProtonPlayer {
     const clip = this._clips[url];
     if (clip) {
       clip.setCurrentPosition(percent, newLastAllowedPosition);
-      return this.audioInterface.play(clip);
+      return this.audioInterface.play(this.queue);
     }
 
     const audioMetadata = clip && clip.audioMetadata;

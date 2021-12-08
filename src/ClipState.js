@@ -48,6 +48,10 @@ export default class ClipState extends EventEmitter {
     );
   }
 
+  isExhausted() {
+    return this._chunkIndex === this._lastAllowedChunkIndex - 1;
+  }
+
   get fileSize() {
     return this._fileSize;
   }

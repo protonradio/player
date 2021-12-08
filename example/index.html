@@ -335,6 +335,8 @@
             fileSize: track.fileSize,
             url: track.url,
           });
+          player.enqueue(TRACKS[1]);
+          player.enqueue(TRACKS[2]);
         }
 
         STATE.playbackState = 'PLAYING';

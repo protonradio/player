@@ -32,11 +32,11 @@ function initialize({ volume = 1.0 }) {
   setVolume(volume);
 }
 
-function play(clip) {
+function play(queue) {
   source = new MediaSource();
   source.addEventListener('sourceopen', function () {
     sourceBuffer = this.addSourceBuffer('audio/mpeg');
-    _play(clip);
+    _play(queue);
   });
 
   audioElement.src = URL.createObjectURL(source);
@@ -44,8 +44,10 @@ function play(clip) {
   return audioElement.play().catch(suppressAbortError);
 }
 
-function _play(clip) {
-  if (clip._clipState.chunksBufferingFinished) {
+function _play(queue) {
+  const clip = queue.currentClip();
+
+  if (!clip) {
     debug('MediaSourceEngine endOfStream()');
     source.endOfStream();
     return;
@@ -84,7 +86,7 @@ function _play(clip) {
   }
 
   const timeout = isChunkReady ? Math.min(500, chunk.duration * 1000) : 100;
-  sourceTimeout = setTimeout(() => _play(clip), timeout);
+  sourceTimeout = setTimeout(() => _play(queue), timeout);
 }
 
 function resume() {
