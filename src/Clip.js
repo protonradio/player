@@ -168,12 +168,6 @@ export default class Clip extends EventEmitter {
   }
 
   play() {
-    // if (this._state.playback.isPlaying()) {
-    //   const message = `clip.play() was called on a clip that was already playing (${this.url})`;
-    //   warn(message);
-    //   return Promise.reject(message);
-    // }
-
     return this.buffer()
       .then(() => {
         this._fire('playing');

@@ -35,7 +35,6 @@ function initialize({ volume = 1.0 }) {
 function play(clip) {
   source = new MediaSource();
   source.addEventListener('sourceopen', function () {
-    console.log('source open');
     sourceBuffer = this.addSourceBuffer('audio/mpeg');
     _play(clip);
   });
