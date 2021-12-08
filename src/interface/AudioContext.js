@@ -32,15 +32,15 @@ function initialize({ volume = 1.0 }) {
   currentClip = null;
 }
 
-function play(clip) {
+function play(queue) {
   gain = context.createGain();
   gain.connect(context.destination);
   context.resume();
 
+  const clip = queue.currentClip();
   setVolume(clip.volume);
-
   currentClip = clip;
-  _play(clip);
+  _play(queue);
 
   return Promise.resolve();
 }
@@ -83,7 +83,9 @@ function getPlaybackState() {
   return PlaybackState.Playing;
 }
 
-function _play(clip) {
+function _play(queue) {
+  let clip = queue.currentClip();
+
   clip._playbackProgress = 0;
   clip._scheduledEndTime = null;
 
@@ -168,6 +170,8 @@ function _play(clip) {
 
     const advance = () => {
       if (!playing) return;
+
+      clip = queue.currentClip();
 
       if (!_playingSilence && clip._lastPlayedChunk === clip._clipState.chunkIndex) {
         clip._clipState.chunkIndex += 1;
