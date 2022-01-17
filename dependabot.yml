@@ -1,0 +1,9 @@
+version: 2
+updates:
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+
+    # Do not automatically check for security issues with dev dependencies.
+    allow: 'production'
