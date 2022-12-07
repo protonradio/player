@@ -24,6 +24,7 @@
     "build": "rollup -c",
     "dev": "DEV=true rollup -c -w",
     "test": "mocha --require @babel/register",
+    "test:watch": "mocha --require @babel/register --watch --watch-files src/**/*.js,test/*.js",
     "patch": "npm run build && ./scripts/calver.js patch",
     "release": "npm run build && ./scripts/calver.js release"
   },

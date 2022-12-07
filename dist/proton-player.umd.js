@@ -29,6 +29,9 @@
 	}
 
 	function debug(...args) {
+	  {
+	    console.log(`%c[ProtonPlayer]`, 'color: #e26014; font-weight: bold;', ...args);
+	  }
 	}
 
 	function warn(...args) {
@@ -3263,6 +3266,12 @@
 	          if (!networkError && retryCount >= 10) {
 	            throw new Error(`Chunk fetch/decode failed after ${retryCount} retries`);
 	          }
+	          const message = timedOut
+	            ? `Timed out fetching chunk`
+	            : decodingError
+	            ? `Decoding error when creating chunk`
+	            : `Too many requests when fetching chunk`;
+	          debug(`${message}. Retrying...`);
 	          const timeout = tooManyRequests ? seconds(10) : seconds(retryCount); // TODO: use `X-RateLimit-Reset` header if error was "tooManyRequests"
 	          this._sleep = new CancellableSleep(timeout);
 	          return this._sleep
@@ -3272,6 +3281,8 @@
 	              if (err !== SLEEP_CANCELLED) throw err;
 	            });
 	        }
+
+	        debug(`Unexpected error when fetching chunk`);
 	        throw error;
 	      });
 	  }
@@ -3592,6 +3603,7 @@
 	      if (++loadedChunksCount >= preloadBatchSize) {
 	        this._canPlayThrough = true;
 	        this._fire('canPlayThrough');
+	        debug('Can play through 1');
 	        break;
 	      }
 	    }
@@ -3631,6 +3643,7 @@
 
 	  _createChunk(uint8Array, index) {
 	    if (!uint8Array || !Number.isInteger(index)) {
+	      debug('Loader#_createChunk: Invalid arguments. Resolving with null.');
 	      return Promise.resolve(null);
 	    }
 	    this._calculateMetadata(uint8Array);
@@ -3676,6 +3689,7 @@
 	      if (!this._canPlayThrough) {
 	        this._canPlayThrough = true;
 	        this._fire('canPlayThrough');
+	        debug('Can play through 2');
 	      }
 	      this.loaded = true;
 	      this._fire('load');
@@ -4083,6 +4097,7 @@
 	  }
 
 	  playbackEnded() {
+	    debug('Clip#playbackEnded');
 	    if (this._playbackState === PLAYBACK_STATE.PLAYING) {
 	      this._playbackState = PLAYBACK_STATE.STOPPED;
 	      this.ended = true;
@@ -4208,6 +4223,7 @@
 	  }
 
 	  _playUsingAudioContext() {
+	    debug('#_playUsingAudioContext');
 	    this._playbackProgress = 0;
 	    this._scheduledEndTime = null;
 
@@ -4406,6 +4422,7 @@
 	    if (this._playbackState === PLAYBACK_STATE.STOPPED) return;
 
 	    if (this._clipState.chunksBufferingFinished) {
+	      debug('this._mediaSource.endOfStream()');
 	      this._mediaSource.endOfStream();
 	      return;
 	    }
@@ -4432,9 +4449,12 @@
 	          this._wasPlayingSilence = true;
 	        }
 	      } catch (e) {
+	        // SourceBuffer might be full, remove segments that have already been played.
+	        debug('Exception when running SourceBuffer#appendBuffer', e);
 	        try {
 	          this._sourceBuffer.remove(0, this._audioElement.currentTime);
 	        } catch (e) {
+	          debug('Exception when running SourceBuffer#remove', e);
 	        }
 	      }
 	    }
@@ -4496,6 +4516,7 @@
 	  }
 
 	  _createSourceFromChunk(chunk, timeOffset, callback) {
+	    debug('_createSourceFromChunk');
 	    const context = getContext();
 
 	    if (!chunk) {
@@ -4615,11 +4636,15 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	function initializeiOSAudioEngine() {
 	  if (iOSAudioIsInitialized) return;
 
+	  debug('Initializing iOS Web Audio API');
+
 	  const audioElement = new Audio(getSilenceURL());
 	  audioElement.play();
 
 	  iOSAudioIsInitialized = true;
 	  window.removeEventListener('touchstart', initializeiOSAudioEngine, false);
+
+	  debug('iOS Web Audio API successfully initialized');
 	}
 
 	function initializeiOSAudioEngine$1 () {
@@ -4636,7 +4661,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 
 	  prepend(a) {
-	    return new Queue([a].concat(this.xs));
+	    return new Queue((Array.isArray(a) ? a : [a]).concat(this.xs));
 	  }
 
 	  pop() {
@@ -4650,6 +4675,20 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  clear() {
 	    return new Queue();
 	  }
+
+	  unwrap() {
+	    // This should really be a `structuredClone` or a custom object clone
+	    // implementation.
+	    return this.xs.map((x) => (is_object(x) ? Object.assign({}, x) : x));
+	  }
+
+	  _contents() {
+	    return this.xs;
+	  }
+	}
+
+	function is_object(a) {
+	  return a != null && typeof a === 'object';
 	}
 
 	class Track {
@@ -4683,6 +4722,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    onPlaybackProgress = noop$1,
 	    onPlaybackEnded = noop$1,
 	  }) {
+	    debug('ProtonPlayer#constructor');
 
 	    const browser = Bowser.getParser(window.navigator.userAgent);
 	    this.browserName = browser.getBrowserName().toLowerCase();
@@ -4768,6 +4808,8 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	      return Promise.resolve();
 	    }
 
+	    debug('ProtonPlayer#preLoad', url);
+
 	    try {
 	      return this._getClip(
 	        url,
@@ -4791,6 +4833,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    audioMetadata = {},
 	    fromSetPlaybackPosition = false,
 	  }) {
+	    debug('ProtonPlayer#playTrack', url);
 
 	    if (!this._ready) {
 	      const message = 'Player not ready';
@@ -4804,6 +4847,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	      this._currentlyPlaying.url === url &&
 	      fromSetPlaybackPosition === false
 	    ) {
+	      debug('ProtonPlayer#play -> resume');
 	      return this._currentlyPlaying.clip.resume() || Promise.resolve();
 	    }
 
@@ -4845,6 +4889,16 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	          this._queue = nextQueue;
 
 	          this.play(nextTrack);
+
+	          let followingTrack = this._queue.peek();
+	          if (followingTrack) {
+	            this.preLoad(
+	              followingTrack.url,
+	              followingTrack.fileSize,
+	              followingTrack.initialPosition,
+	              followingTrack.lastAllowedPosition
+	            );
+	          }
 	        }
 	      });
 
@@ -4880,6 +4934,8 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 
 	  play() {
+	    debug('ProtonPlayer#play');
+
 	    if (!this._currentlyPlaying && this._queue.peek()) {
 	      let [nextTrack, nextQueue] = this._queue.pop();
 	      this._queue = nextQueue;
@@ -4891,11 +4947,19 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 
 	  playNext(track) {
+	    debug('ProtonPlayer#playNext');
 
 	    this._queue = this._queue.prepend(new Track(track));
+	    this.preLoad(
+	      track.url,
+	      track.fileSize,
+	      track.initialPosition,
+	      track.lastAllowedPosition
+	    );
 	  }
 
-	  enqueue(tracks) {
+	  playLater(tracks) {
+	    debug('ProtonPlayer#playLater');
 
 	    if (!Array.isArray(tracks)) {
 	      tracks = [tracks];
@@ -4905,6 +4969,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 
 	  skip() {
+	    debug('ProtonPlayer#skip');
 
 	    if (this._queue.peek()) {
 	      let [nextTrack, nextQueue] = this._queue.pop();
@@ -4917,11 +4982,18 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 
 	  clearQueue() {
+	    debug('ProtonPlayer#clearQueue');
 
 	    this._queue = this._queue.clear();
 	  }
 
+	  queue() {
+	    debug('ProtonPlayer#queue');
+	    return this._queue.unwrap();
+	  }
+
 	  pauseAll() {
+	    debug('ProtonPlayer#pauseAll');
 
 	    if (this._currentlyPlaying && this._currentlyPlaying.clip) {
 	      this._currentlyPlaying.clip.pause();
@@ -4929,6 +5001,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 
 	  stopAll() {
+	    debug('ProtonPlayer#stopAll');
 
 	    this._currentlyPlaying = null;
 	    this._clearIntervals();
@@ -4939,6 +5012,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 
 	  dispose(url) {
+	    debug('ProtonPlayer#dispose', url);
 
 	    if (this._currentlyPlaying && this._currentlyPlaying.url === url) {
 	      this._currentlyPlaying = null;
@@ -4953,11 +5027,13 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 
 	  disposeAll() {
+	    debug('ProtonPlayer#disposeAll');
 
 	    this.disposeAllExcept();
 	  }
 
 	  disposeAllExcept(urls = []) {
+	    debug('ProtonPlayer#disposeAllExcept', urls);
 
 	    Object.keys(this._clips)
 	      .filter((k) => urls.indexOf(k) < 0)
@@ -4965,6 +5041,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 
 	  setPlaybackPosition(percent, newLastAllowedPosition = null) {
+	    debug('ProtonPlayer#setPlaybackPosition', percent);
 
 	    if (!this._currentlyPlaying || percent > 1) {
 	      return Promise.resolve();
@@ -5011,6 +5088,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 
 	  setVolume(volume = 1) {
+	    debug('ProtonPlayer#setVolume', volume);
 
 	    this._volume = volume;
 	    Object.keys(this._clips).forEach((k) => {

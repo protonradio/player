@@ -8,7 +8,7 @@ export default class Queue {
   }
 
   prepend(a) {
-    return new Queue([a].concat(this.xs));
+    return new Queue((Array.isArray(a) ? a : [a]).concat(this.xs));
   }
 
   pop() {
@@ -26,6 +26,14 @@ export default class Queue {
   unwrap() {
     // This should really be a `structuredClone` or a custom object clone
     // implementation.
-    return this.xs.map((x) => Object.assign({}, x));
+    return this.xs.map((x) => (is_object(x) ? Object.assign({}, x) : x));
   }
+
+  _contents() {
+    return this.xs;
+  }
+}
+
+function is_object(a) {
+  return a != null && typeof a === 'object';
 }
