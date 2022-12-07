@@ -1,5 +1,5 @@
 import CancellableSleep, { SLEEP_CANCELLED } from './utils/CancellableSleep';
-import axios, { Cancel, CancelToken } from 'axios';
+import axios from 'axios';
 import { debug, error } from './utils/logger';
 import DecodingError from './DecodingError';
 import seconds from './utils/seconds';
@@ -12,12 +12,14 @@ export default class FetchJob {
     this._start = start;
     this._end = end;
     this._cancelled = false;
-    this._cancelTokenSource = CancelToken.source();
+    // TODO(rocco): Reimplement request cancellation using current API. The
+    // CancelToken API was deprecated.
+    // this._cancelTokenSource = CancelToken.source();
   }
 
   cancel() {
     this._cancelled = true;
-    this._cancelTokenSource.cancel();
+    // this._cancelTokenSource.cancel();
     this._sleep && this._sleep.cancel();
   }
 
@@ -42,8 +44,8 @@ export default class FetchJob {
       headers,
       timeout: seconds(5),
       responseType: 'arraybuffer',
-      cancelToken: this._cancelTokenSource.token,
     };
+
     return axios
       .get(this._url, options)
       .then((response) => {

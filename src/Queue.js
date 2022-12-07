@@ -1,0 +1,31 @@
+export default class Queue {
+  constructor(xs = []) {
+    this.xs = xs;
+  }
+
+  append(a) {
+    return new Queue(this.xs.concat(a));
+  }
+
+  prepend(a) {
+    return new Queue([a].concat(this.xs));
+  }
+
+  pop() {
+    return [this.xs[0], new Queue(this.xs.slice(1))];
+  }
+
+  peek() {
+    return this.xs[0];
+  }
+
+  clear() {
+    return new Queue();
+  }
+
+  unwrap() {
+    // This should really be a `structuredClone` or a custom object clone
+    // implementation.
+    return this.xs.map((x) => Object.assign({}, x));
+  }
+}

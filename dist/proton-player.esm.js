@@ -1,5 +1,5 @@
 import Bowser from 'bowser';
-import axios, { CancelToken, Cancel } from 'axios';
+import axios from 'axios';
 
 class ProtonPlayerError extends Error {
   constructor(message) {
@@ -245,12 +245,14 @@ class FetchJob {
     this._start = start;
     this._end = end;
     this._cancelled = false;
-    this._cancelTokenSource = CancelToken.source();
+    // TODO(rocco): Reimplement request cancellation using current API. The
+    // CancelToken API was deprecated.
+    // this._cancelTokenSource = CancelToken.source();
   }
 
   cancel() {
     this._cancelled = true;
-    this._cancelTokenSource.cancel();
+    // this._cancelTokenSource.cancel();
     this._sleep && this._sleep.cancel();
   }
 
@@ -275,8 +277,8 @@ class FetchJob {
       headers,
       timeout: seconds(5),
       responseType: 'arraybuffer',
-      cancelToken: this._cancelTokenSource.token,
     };
+
     return axios
       .get(this._url, options)
       .then((response) => {
@@ -1661,10 +1663,63 @@ function initializeiOSAudioEngine$1 () {
   window.addEventListener('touchstart', initializeiOSAudioEngine, false);
 }
 
+class Queue {
+  constructor(xs = []) {
+    this.xs = xs;
+  }
+
+  append(a) {
+    return new Queue(this.xs.concat(a));
+  }
+
+  prepend(a) {
+    return new Queue([a].concat(this.xs));
+  }
+
+  pop() {
+    return [this.xs[0], new Queue(this.xs.slice(1))];
+  }
+
+  peek() {
+    return this.xs[0];
+  }
+
+  clear() {
+    return new Queue();
+  }
+}
+
+class Track {
+  constructor({
+    // A URL that points to a valid audio resource.
+    url,
+    // The filesize of the audio resource in bytes.
+    fileSize,
+    // What percentage of the way through the track should playback begin?
+    initialPosition = 0,
+    // What percentage of the way through the track should playback end?
+    lastAllowedPosition = 1,
+    // A scratchpad object for any track-level metadata required by the user.
+    meta = {},
+  }) {
+    this.url = url;
+    this.fileSize = fileSize;
+    this.initialPosition = initialPosition;
+    this.lastAllowedPosition = lastAllowedPosition;
+    this.meta = meta;
+  }
+}
+
 initializeiOSAudioEngine$1();
 
 class ProtonPlayer {
-  constructor({ volume = 1, onReady = noop, onError = noop }) {
+  constructor({
+    volume = 1,
+    onReady = noop,
+    onError = noop,
+    onPlaybackProgress = noop,
+    onPlaybackEnded = noop,
+  }) {
 
     const browser = Bowser.getParser(window.navigator.userAgent);
     this.browserName = browser.getBrowserName().toLowerCase();
@@ -1686,6 +1741,8 @@ class ProtonPlayer {
 
     this._onReady = onReady;
     this._onError = onError;
+    this._onPlaybackProgress = onPlaybackProgress;
+    this._onPlaybackEnded = onPlaybackEnded;
     this._volume = volume;
     this._ready = false;
     const silenceChunkSize = 64 * 64;
@@ -1697,6 +1754,7 @@ class ProtonPlayer {
       typeof window.MediaSource !== 'undefined' &&
       typeof window.MediaSource.isTypeSupported === 'function' &&
       window.MediaSource.isTypeSupported('audio/mpeg');
+    this._queue = new Queue();
 
     if (this._useMediaSource) {
       const audioElement = document.createElement('audio');
@@ -1760,13 +1818,11 @@ class ProtonPlayer {
     }
   }
 
-  play({
+  playTrack({
     url,
     fileSize,
     onBufferChange = noop,
     onBufferProgress = noop,
-    onPlaybackProgress = noop,
-    onPlaybackEnded = noop,
     initialPosition = 0,
     lastAllowedPosition = 1,
     audioMetadata = {},
@@ -1789,7 +1845,7 @@ class ProtonPlayer {
     }
 
     onBufferProgress(0, 0);
-    onPlaybackProgress(initialPosition);
+    this._onPlaybackProgress(initialPosition);
 
     this.stopAll();
 
@@ -1808,8 +1864,6 @@ class ProtonPlayer {
         fileSize,
         onBufferChange,
         onBufferProgress,
-        onPlaybackProgress,
-        onPlaybackEnded,
         lastAllowedPosition,
         lastReportedProgress: initialPosition,
       };
@@ -1820,8 +1874,15 @@ class ProtonPlayer {
 
       clip.once('ended', () => {
         this.stopAll();
-        onPlaybackProgress(1);
-        onPlaybackEnded();
+        this._onPlaybackProgress(1);
+        this._onPlaybackEnded();
+
+        if (this._queue.peek()) {
+          let [nextTrack, nextQueue] = this._queue.pop();
+          this._queue = nextQueue;
+
+          this.play(nextTrack);
+        }
       });
 
       clip.on('bufferchange', (isBuffering) => onBufferChange(isBuffering));
@@ -1845,7 +1906,7 @@ class ProtonPlayer {
         }
 
         this._currentlyPlaying.lastReportedProgress = progress;
-        onPlaybackProgress(progress);
+        this._onPlaybackProgress(progress);
       }, 250);
 
       return clip.play() || Promise.resolve();
@@ -1853,6 +1914,48 @@ class ProtonPlayer {
       this._onError(err);
       return Promise.reject(err.toString());
     }
+  }
+
+  play() {
+    if (!this._currentlyPlaying && this._queue.peek()) {
+      let [nextTrack, nextQueue] = this._queue.pop();
+      this._queue = nextQueue;
+
+      return this.playTrack(nextTrack);
+    } else if (this._currentlyPlaying) {
+      return this.playTrack(this._currentlyPlaying);
+    }
+  }
+
+  playNext(track) {
+
+    this._queue = this._queue.prepend(new Track(track));
+  }
+
+  enqueue(tracks) {
+
+    if (!Array.isArray(tracks)) {
+      tracks = [tracks];
+    }
+
+    this._queue = this._queue.append(tracks.map((t) => new Track(t)));
+  }
+
+  skip() {
+
+    if (this._queue.peek()) {
+      let [nextTrack, nextQueue] = this._queue.pop();
+      this._queue = nextQueue;
+
+      this.playTrack(nextTrack);
+    } else {
+      this.stopAll();
+    }
+  }
+
+  clearQueue() {
+
+    this._queue = this._queue.clear();
   }
 
   pauseAll() {

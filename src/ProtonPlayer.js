@@ -9,11 +9,19 @@ import Loader from './Loader';
 import Clip from './Clip';
 import { getSilenceURL } from './utils/silence';
 import initializeiOSAudioEngine from './utils/initializeiOSAudioEngine';
+import Queue from './Queue';
+import Track from './Track';
 
 initializeiOSAudioEngine();
 
 export default class ProtonPlayer {
-  constructor({ volume = 1, onReady = noop, onError = noop }) {
+  constructor({
+    volume = 1,
+    onReady = noop,
+    onError = noop,
+    onPlaybackProgress = noop,
+    onPlaybackEnded = noop,
+  }) {
     debug('ProtonPlayer#constructor');
 
     const browser = Bowser.getParser(window.navigator.userAgent);
@@ -36,6 +44,8 @@ export default class ProtonPlayer {
 
     this._onReady = onReady;
     this._onError = onError;
+    this._onPlaybackProgress = onPlaybackProgress;
+    this._onPlaybackEnded = onPlaybackEnded;
     this._volume = volume;
     this._ready = false;
     const silenceChunkSize = 64 * 64;
@@ -47,6 +57,7 @@ export default class ProtonPlayer {
       typeof window.MediaSource !== 'undefined' &&
       typeof window.MediaSource.isTypeSupported === 'function' &&
       window.MediaSource.isTypeSupported('audio/mpeg');
+    this._queue = new Queue();
 
     if (this._useMediaSource) {
       const audioElement = document.createElement('audio');
@@ -112,19 +123,17 @@ export default class ProtonPlayer {
     }
   }
 
-  play({
+  playTrack({
     url,
     fileSize,
     onBufferChange = noop,
     onBufferProgress = noop,
-    onPlaybackProgress = noop,
-    onPlaybackEnded = noop,
     initialPosition = 0,
     lastAllowedPosition = 1,
     audioMetadata = {},
     fromSetPlaybackPosition = false,
   }) {
-    debug('ProtonPlayer#play', url);
+    debug('ProtonPlayer#playTrack', url);
 
     if (!this._ready) {
       const message = 'Player not ready';
@@ -143,7 +152,7 @@ export default class ProtonPlayer {
     }
 
     onBufferProgress(0, 0);
-    onPlaybackProgress(initialPosition);
+    this._onPlaybackProgress(initialPosition);
 
     this.stopAll();
 
@@ -162,8 +171,6 @@ export default class ProtonPlayer {
         fileSize,
         onBufferChange,
         onBufferProgress,
-        onPlaybackProgress,
-        onPlaybackEnded,
         lastAllowedPosition,
         lastReportedProgress: initialPosition,
       };
@@ -174,8 +181,25 @@ export default class ProtonPlayer {
 
       clip.once('ended', () => {
         this.stopAll();
-        onPlaybackProgress(1);
-        onPlaybackEnded();
+        this._onPlaybackProgress(1);
+        this._onPlaybackEnded();
+
+        if (this._queue.peek()) {
+          let [nextTrack, nextQueue] = this._queue.pop();
+          this._queue = nextQueue;
+
+          this.play(nextTrack);
+
+          let followingTrack = this._queue.peek();
+          if (followingTrack) {
+            this.preLoad(
+              followingTrack.url,
+              followingTrack.fileSize,
+              followingTrack.initialPosition,
+              followingTrack.lastAllowedPosition
+            );
+          }
+        }
       });
 
       clip.on('bufferchange', (isBuffering) => onBufferChange(isBuffering));
@@ -199,7 +223,7 @@ export default class ProtonPlayer {
         }
 
         this._currentlyPlaying.lastReportedProgress = progress;
-        onPlaybackProgress(progress);
+        this._onPlaybackProgress(progress);
       }, 250);
 
       return clip.play() || Promise.resolve();
@@ -207,6 +231,65 @@ export default class ProtonPlayer {
       this._onError(err);
       return Promise.reject(err.toString());
     }
+  }
+
+  play() {
+    debug('ProtonPlayer#play');
+
+    if (!this._currentlyPlaying && this._queue.peek()) {
+      let [nextTrack, nextQueue] = this._queue.pop();
+      this._queue = nextQueue;
+
+      return this.playTrack(nextTrack);
+    } else if (this._currentlyPlaying) {
+      return this.playTrack(this._currentlyPlaying);
+    }
+  }
+
+  playNext(track) {
+    debug('ProtonPlayer#playNext');
+
+    this._queue = this._queue.prepend(new Track(track));
+    this.preLoad(
+      track.url,
+      track.fileSize,
+      track.initialPosition,
+      track.lastAllowedPosition
+    );
+  }
+
+  playLater(tracks) {
+    debug('ProtonPlayer#playLater');
+
+    if (!Array.isArray(tracks)) {
+      tracks = [tracks];
+    }
+
+    this._queue = this._queue.append(tracks.map((t) => new Track(t)));
+  }
+
+  skip() {
+    debug('ProtonPlayer#skip');
+
+    if (this._queue.peek()) {
+      let [nextTrack, nextQueue] = this._queue.pop();
+      this._queue = nextQueue;
+
+      this.playTrack(nextTrack);
+    } else {
+      this.stopAll();
+    }
+  }
+
+  clearQueue() {
+    debug('ProtonPlayer#clearQueue');
+
+    this._queue = this._queue.clear();
+  }
+
+  queue() {
+    debug('ProtonPlayer#queue');
+    return this._queue.unwrap();
   }
 
   pauseAll() {
