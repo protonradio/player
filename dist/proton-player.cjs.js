@@ -2033,11 +2033,12 @@ class ProtonPlayer {
 
   queue() {
     debug('ProtonPlayer#queue');
+
     return this._queue.unwrap();
   }
 
-  pauseAll() {
-    debug('ProtonPlayer#pauseAll');
+  pause() {
+    debug('ProtonPlayer#pause');
 
     if (this._currentlyPlaying && this._currentlyPlaying.clip) {
       this._currentlyPlaying.clip.pause();
@@ -2055,9 +2056,15 @@ class ProtonPlayer {
     });
   }
 
-  dispose(url) {
-    debug('ProtonPlayer#dispose', url);
+  dispose(urls = []) {
+    debug('ProtonPlayer#dispose', urls);
 
+    Object.keys(this._clips)
+      .filter((k) => urls.indexOf(k) < 0)
+      .forEach((k) => this._dispose(k));
+  }
+
+  _dispose(url) {
     if (this._currentlyPlaying && this._currentlyPlaying.url === url) {
       this._currentlyPlaying = null;
       this._clearIntervals();
@@ -2068,20 +2075,6 @@ class ProtonPlayer {
     this._clips[url].offAll('loadprogress');
     this._clips[url].dispose();
     delete this._clips[url];
-  }
-
-  disposeAll() {
-    debug('ProtonPlayer#disposeAll');
-
-    this.disposeAllExcept();
-  }
-
-  disposeAllExcept(urls = []) {
-    debug('ProtonPlayer#disposeAllExcept', urls);
-
-    Object.keys(this._clips)
-      .filter((k) => urls.indexOf(k) < 0)
-      .forEach((k) => this.dispose(k));
   }
 
   setPlaybackPosition(percent, newLastAllowedPosition = null) {
