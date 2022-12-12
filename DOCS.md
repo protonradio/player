@@ -15,6 +15,8 @@
     - [.clear](#clear)
     - [.queue](#queue)
   - [Deprecated methods](#deprecated-methods)
+    - [.playTrack](#playtrack)
+    - [.preLoad](#preload)
 - [Hosting MP3 files](#hosting-mp3-files)
 
 ## `ProtonPlayer`
@@ -190,7 +192,7 @@ In previous versions of Proton Player there was no internally managed queue. All
 
 ### `.playTrack`
 
-Begins streaming the audio file described by `url` and `fileSize`. This clears the internal queue.
+Begins streaming the audio file described by `url` and `fileSize`. This ignores the internal queue.
 
 ```typescript
 player.playTrack({
@@ -236,6 +238,35 @@ The point in the provided URL to begin playing from (as a percentage). This is u
 ##### `lastAllowedPosition?: Number` (between `0` and `1`)
 
 The point in the provided URL at which to stop playback (as a percentage). Defaults to `1`, which allows the entire track to be played.
+
+### `.preLoad`
+
+Fetches the first few chunks of an audio file and caches them. If the file is played via `.play` after it has been preloaded, playback can start immediately instead of waiting for the first chunks to arrive over the network.
+
+```typescript
+player.preLoad(
+  url,
+  fileSize,
+  initialPosition,
+  lastAllowedPosition,
+})
+```
+
+##### `url: String`
+
+A valid URL that points to an MP3 file. The server that this is hosted on must support the `Range` HTTP header.
+
+##### `fileSize: Number`
+
+The size of the file pointed to by `url` in bytes.
+
+##### `initialPosition: Number`
+
+The point in the provided URL to begin preloading from (as a percentage). Defaults to `0.0`.
+
+##### `lastAllowedPosition: Number`
+
+The point in the provided URL at which to stop playback (as a percentage). Defaults to `1.0`.
 
 ## Hosting MP3 files
 
