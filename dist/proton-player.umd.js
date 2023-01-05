@@ -4888,7 +4888,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	          let [nextTrack, nextQueue] = this._queue.pop();
 	          this._queue = nextQueue;
 
-	          this.play(nextTrack);
+	          this.playTrack(nextTrack);
 
 	          let followingTrack = this._queue.peek();
 	          if (followingTrack) {
@@ -4946,15 +4946,19 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    }
 	  }
 
-	  playNext(track) {
+	  playNext(tracks) {
 	    debug('ProtonPlayer#playNext');
 
-	    this._queue = this._queue.prepend(new Track(track));
+	    if (!Array.isArray(tracks)) {
+	      tracks = [tracks];
+	    }
+
+	    this._queue = this._queue.prepend(tracks.map((t) => new Track(t)));
 	    this.preLoad(
-	      track.url,
-	      track.fileSize,
-	      track.initialPosition,
-	      track.lastAllowedPosition
+	      tracks[0].url,
+	      tracks[0].fileSize,
+	      tracks[0].initialPosition,
+	      tracks[0].lastAllowedPosition
 	    );
 	  }
 
@@ -4985,6 +4989,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    debug('ProtonPlayer#clearQueue');
 
 	    this._queue = this._queue.clear();
+	    this.dispose();
 	  }
 
 	  queue() {
@@ -5066,7 +5071,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 
 	    this.dispose(url);
 
-	    return this.play({
+	    return this.playTrack({
 	      url,
 	      fileSize,
 	      onBufferChange,
