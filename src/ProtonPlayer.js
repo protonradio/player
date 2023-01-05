@@ -16,11 +16,11 @@ initializeiOSAudioEngine();
 
 export default class ProtonPlayer {
   constructor({
-    volume = 1,
     onReady = noop,
     onError = noop,
     onPlaybackProgress = noop,
     onPlaybackEnded = noop,
+    volume = 1,
   }) {
     debug('ProtonPlayer#constructor');
 
@@ -42,24 +42,30 @@ export default class ProtonPlayer {
       );
     }
 
+    // Constructor params.
     this._onReady = onReady;
     this._onError = onError;
     this._onPlaybackProgress = onPlaybackProgress;
     this._onPlaybackEnded = onPlaybackEnded;
     this._volume = volume;
+
+    // Is the player ready to begin playing audio?
     this._ready = false;
-    const silenceChunkSize = 64 * 64;
-    this._silenceChunksClipState = new ClipState(silenceChunkSize);
+
+    // Database of cached audio data and track metadata.
     this._clips = {};
-    this._currentlyPlaying = null;
-    this._playbackPositionInterval = null;
-    this._useMediaSource =
-      typeof window.MediaSource !== 'undefined' &&
-      typeof window.MediaSource.isTypeSupported === 'function' &&
-      window.MediaSource.isTypeSupported('audio/mpeg');
+
+    // A queue of tracks scheduled to be played in the future.
     this._queue = new Queue();
 
-    if (this._useMediaSource) {
+    // Properties related to the currently playing track.
+    this._currentlyPlaying = null;
+
+    // A `setInterval` identifier for near-realtime status updates such as the
+    // current position of the playhead.
+    this._playbackPositionInterval = null;
+
+    if (canUseMediaSourceAPI()) {
       const audioElement = document.createElement('audio');
       audioElement.autoplay = false;
 
@@ -85,6 +91,9 @@ export default class ProtonPlayer {
         });
       });
     }
+
+    const silenceChunkSize = 64 * 64;
+    this._silenceChunksClipState = new ClipState(silenceChunkSize);
 
     const silenceLoader = new Loader(
       silenceChunkSize,
@@ -423,7 +432,7 @@ export default class ProtonPlayer {
       volume: this._volume,
       osName: this.osName,
       browserName: this.browserName,
-      useMediaSource: this._useMediaSource,
+      useMediaSource: canUseMediaSourceAPI(),
     });
 
     clip.on('loaderror', (err) => {
@@ -442,3 +451,8 @@ export default class ProtonPlayer {
     clearInterval(this._playbackPositionInterval);
   }
 }
+
+const canUseMediaSourceAPI = () =>
+  typeof window.MediaSource !== 'undefined' &&
+  typeof window.MediaSource.isTypeSupported === 'function' &&
+  window.MediaSource.isTypeSupported('audio/mpeg');
