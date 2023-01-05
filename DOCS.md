@@ -31,6 +31,8 @@ import ProtonPlayer from 'proton-player';
 const player = new ProtonPlayer({
   onReady: () => any,
   onError: (e: Error) => {},
+  onPlaybackProgress: (progress: Number) => {},
+  onPlaybackEnded: () => {},
   volume: (Number = 1.0),
 });
 ```
@@ -46,6 +48,14 @@ Called when the Player has been fully initialized and is ready to begin streamin
 ##### `onError?: (e: Error) => any`
 
 Called when the Player encounters an error at any point. The caught `Error` object will be provided to the callback.
+
+##### `onPlaybackProgress?: (progress: Number) => {}`
+
+Called whenever the playhead advances, no more than once every 250ms.
+
+##### `onPlaybackEnded?: () => {}`
+
+Called whenever the current track is done playing.
 
 ### `.dispose`
 
@@ -200,8 +210,6 @@ player.playTrack({
   fileSize: Number,
   onBufferChange: () => {},
   onBufferProgress: (initialPosition: Number, progress: Number) => {},
-  onPlaybackProgress: (progress: Number) => {},
-  onPlaybackEnded: () => {},
   initialPosition: (Number = 0),
   lastAllowedPosition: (Number = 1),
 });
@@ -222,14 +230,6 @@ Called whenever the currently buffered content changes. This may be due to a new
 ##### `onBufferProgress?: (initialPosition: Number, progress: Number) => {}`
 
 Called whenever a new chunk of data arrives over the network. Both arguments are percentages represented as a number between 0 and 1.
-
-##### `onPlaybackProgress?: (progress: Number) => {}`
-
-Called whenever the playhead advances, no more than once every 250ms.
-
-##### `onPlaybackEnded?: () => {}`
-
-Called whenever the current track is done playing.
 
 ##### `initialPosition?: Number` (between `0` and `1`)
 

@@ -258,30 +258,6 @@
         },
       ];
 
-      // const TRACKS = [
-      //   {
-      //     id: 0,
-      //     name: 'End of an Era (Doyeq Remix)',
-      //     url: `${MEDIA_SERVER_URL}1408293_380907_End_of_an_Era_Doyeq_Remix_128k.mp3`,
-      //     fileSize: 8348315,
-      //     artist: 'Davide Ferrario',
-      //   },
-      //   {
-      //     id: 1,
-      //     name: "Sounds of Freedom (Alex O'Rion Remix)",
-      //     url: `${MEDIA_SERVER_URL}1475602_379536_Sounds_of_Freedom_Alex_ORion_Remix_128k.mp3`,
-      //     fileSize: 8321148,
-      //     artist: 'Juan Deminicis',
-      //   },
-      //   {
-      //     id: 2,
-      //     name: 'Mara (GMJ and Matter Intro Mix)',
-      //     url: `${MEDIA_SERVER_URL}1597266_423256_Mara_GMJ_and_Matter_Intro_Mix_128k.mp3`,
-      //     fileSize: 7969226,
-      //     artist: 'Pole Folder',
-      //   },
-      // ];
-
       const STATE = {
         // Is the Player ready to begin playing audio?
         ready: false,
@@ -301,15 +277,6 @@
       const isPlaying = isPlayerState('PLAYING');
       const isPaused = isPlayerState('PAUSED');
 
-      // Preloading all three MP3s ensures that a small buffer of each track's
-      // data is available for immediate playback. This is helpful for ensuring
-      // smooth playback between consecutive tracks such as in a queue or
-      // playlist system.
-      // player.playNext(TRACKS);
-      // TRACKS.forEach((audio) => {
-      //   player.preLoad(audio.url, audio.fileSize);
-      // });
-
       // Whenever the playhead updates, we want to update the length of the
       // progress bar. This callback is not called aggressively, so the
       // resulting progress bar will have a "ticking" behavior versus smooth
@@ -319,12 +286,8 @@
         render();
       };
 
-      // When playback ends, we attempt to play the next track in the queue.
+      // When playback ends, we just refresh the UI.
       const onPlaybackEnded = () => {
-        // const nextTrackID = STATE.currentTrackID + 1;
-        // if (nextTrackID < TRACKS.length) {
-        //   playTrack(TRACKS[nextTrackID]);
-        // }
         render();
       };
 
@@ -369,33 +332,15 @@
       const togglePlayerState = () => {
         if (isPlaying()) {
           STATE.playbackState = 'PAUSED';
-          // player.pauseAll();
           player.pause();
         } else {
           STATE.playbackState = 'PLAYING';
-          // playTrack(TRACKS[STATE.currentTrackID]);
           player.play();
         }
       };
 
-      // Sets the provided track as the currently playing one and begins
-      // playing it. Can be used to either "unpause" or mount an entirely
-      // new track.
-      // const playTrack = (track) => {
-      //   STATE.currentTrackID = track.id;
-      //   STATE.playbackState = 'PLAYING';
-
-      //   player.play({
-      //     fileSize: track.fileSize,
-      //     url: track.url,
-      //     onPlaybackProgress,
-      //     onPlaybackEnded,
-      //   });
-      // };
-
       // Manually triggered to refresh the UI after state changes.
       const render = () => {
-        console.log('RENDER', STATE);
         const trackElements = Array.from(document.getElementsByClassName('Track'));
         trackElements.forEach((e) => {
           if (STATE.currentTrackID === Number(e.dataset.id)) {
