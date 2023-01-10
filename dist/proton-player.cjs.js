@@ -39,145 +39,159 @@ function getContext() {
   return context;
 }
 
-class EventEmitter {
-  constructor() {
-    this.callbacks = {};
-  }
-
-  offAll(eventName) {
-    if (this.callbacks[eventName]) {
-      this.callbacks[eventName] = [];
-    }
-  }
-
-  off(eventName, cb) {
-    const callbacks = this.callbacks[eventName];
-    if (!callbacks) return;
-    const index = callbacks.indexOf(cb);
-    if (~index) callbacks.splice(index, 1);
-  }
-
-  on(eventName, cb) {
-    const callbacks = this.callbacks[eventName] || (this.callbacks[eventName] = []);
-    callbacks.push(cb);
-    return {
-      cancel: () => this.off(eventName, cb),
-    };
-  }
-
-  once(eventName, cb) {
-    const _cb = (data) => {
-      cb(data);
-      this.off(eventName, _cb);
-    };
-    return this.on(eventName, _cb);
-  }
-
-  _fire(eventName, data) {
-    const callbacks = this.callbacks[eventName];
-    if (!callbacks) return;
-    callbacks.slice().forEach((cb) => cb(data));
-  }
-}
-
-const CHUNK_SIZE = 64 * 1024;
-
-class ClipState extends EventEmitter {
-  constructor(fileSize, initialPosition = 0, lastAllowedPosition = 1) {
-    super();
-    this.reset();
-    this._fileSize = fileSize;
-    this._totalChunksCount = Math.ceil(fileSize / CHUNK_SIZE);
-    this._chunkIndex = this.getChunkIndexByPosition(initialPosition);
-    this._lastAllowedChunkIndex = this.getLastChunkIndexByPosition(lastAllowedPosition);
-  }
-
-  reset() {
-    this._chunks = [];
-    this._chunkIndex = 0;
-    this._chunksBufferingFinished = false;
-  }
-
-  isChunkReady(wantedChunk) {
-    const chunk = this._chunks[wantedChunk];
-    return chunk && !Number.isNaN(chunk.duration);
-  }
-
-  getChunkIndexByPosition(position = 0) {
-    const initialChunk = Math.floor(this._totalChunksCount * position);
-    return initialChunk >= this._totalChunksCount
-      ? this._totalChunksCount - 1
-      : initialChunk;
-  }
-
-  getLastChunkIndexByPosition(position = 1) {
-    return Math.max(
-      Math.min(Math.ceil(this._totalChunksCount * position), this._totalChunksCount - 1),
-      1
-    );
-  }
-
-  logChunks() {
-    debug(
-      '\n' +
-        this._chunks
-          .map((chunk, index) => `[${index}] = ` + chunk.toString())
-          .filter((val) => !!val)
-          .join('\n')
-    );
-  }
-
-  get fileSize() {
-    return this._fileSize;
-  }
-
-  get totalChunksCount() {
-    return this._totalChunksCount;
-  }
-
-  get lastAllowedChunkIndex() {
-    return this._lastAllowedChunkIndex;
-  }
-
-  get chunks() {
-    return this._chunks;
-  }
-
-  get chunkIndex() {
-    return this._chunkIndex;
-  }
-
-  get chunksBufferingFinished() {
-    return this._chunksBufferingFinished;
-  }
-
-  set chunkIndex(index) {
-    this._chunksBufferingFinished =
-      index >= this._totalChunksCount || index >= this._lastAllowedChunkIndex;
-    if (this._chunksBufferingFinished) {
-      return;
-    }
-    const diff = index - this._chunkIndex;
-    this._chunkIndex = index;
-    if (diff !== 1) {
-      this._fire('chunkIndexManuallyChanged', this._chunkIndex);
-    }
-  }
-
-  set lastAllowedChunkIndex(position) {
-    const newLastAllowedChunkIndex = this.getLastChunkIndexByPosition(position);
-    if (
-      this._chunksBufferingFinished &&
-      newLastAllowedChunkIndex > this._lastAllowedChunkIndex &&
-      newLastAllowedChunkIndex < this._totalChunksCount
-    ) {
-      this._chunksBufferingFinished = false;
-    }
-    this._lastAllowedChunkIndex = newLastAllowedChunkIndex;
-  }
-}
-
 function noop() {}
+
+let _cachedURL = null;
+
+const getSilenceURL = () => {
+  if (!_cachedURL) {
+    _cachedURL = URL.createObjectURL(
+      new Blob([getRawSilenceBuffer()], { type: 'audio/mpeg' })
+    );
+  }
+
+  return _cachedURL;
+};
+
+const getRawSilenceBuffer = () => {
+  const rawMP3Bytes = hexToBytes(_RAW_SILENCE_MP3);
+  const buffer = new ArrayBuffer(rawMP3Bytes.length);
+  const bufferView = new DataView(buffer);
+
+  for (let i = 0; i < rawMP3Bytes.length; i++) {
+    bufferView.setUint8(i, rawMP3Bytes[i]);
+  }
+
+  return buffer;
+};
+
+const hexToBytes = (s) =>
+  s
+    .split('\n')
+    .join('')
+    .match(/.{1,2}/g)
+    .map((x) => parseInt(x, 16));
+
+/**
+ * An extremely short hex-encoded MP3 file containing only silence.
+ */
+const _RAW_SILENCE_MP3 = `
+fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
+332e39382e3455555555555555555555555555555555555555555555555555555555555555555555
+4c414d45332e39382e34555555555555555555555555555555555555555555555555555555555555
+55555555555555555555555555555555555555555555555555555555555555555555555555555555
+55555555555555555555555555555555555555555555555555555555555555555555555555555555
+55555555555555555555555555555555555555555555555555555555555555555555555555555555
+55555555555555555555555555555555555555555555555555555555555555555555555555555555
+555555555555555555555555555555555555555555555555555555555555555555fffb72047u48ff
+00000690000000800000d20000001000001a40000002000003480000004555555555555555555555
+55555555555555555555555555555555555555555555555555555555555555555554c414d45332e3
+9382e345555555555555555555555555555555555555555555555555555555555555555555555555
+55555555555555555555555555555555555555555555555555555555555555555555555555555555
+55555555555555555555555555555555555555555555555555555555555555555555555555555555
+55555555555555555555555555555555555555555555555555555555555555555555555555555555
+55555555555555555555555555555555555555555555555555555555555555555555555555555555
+555555555555555555555555555555555555555555555555555555555555
+`;
+
+// Compatibility: Safari iOS
+// There are many restrictions around how you are able to use the Web Audio
+// API on a mobile device, especially on iOS. One of those restrictions is that
+// initial playback must be initiated within a user gesture handler (`click` or
+// `touchstart`). Since many applications today use things like synthetic
+// event systems, it can be difficult and/or messy to guarantee that the
+// Web Audio API is properly initialized. Worse, when it is not properly
+// initialized, it does not fail loudly: the entire API works, the audio simply
+// does not play.
+//
+// This "hack" hooks into a raw DOM event for the `touchstart` gesture and
+// initializes the Web Audio API by playing a silent audio file. It is
+// guaranteed to trigger when the user interacts with the page, even if the
+// Player itself has not been initialized yet. After the API has been used
+// ONCE within a user gesture handler, it can then be freely utilized in any
+// context across the app.
+//
+
+let iOSAudioIsInitialized = false;
+
+function initializeiOSAudioEngine() {
+  if (iOSAudioIsInitialized) return;
+
+  debug('Initializing iOS Web Audio API');
+
+  const audioElement = new Audio(getSilenceURL());
+  audioElement.play();
+
+  iOSAudioIsInitialized = true;
+  window.removeEventListener('touchstart', initializeiOSAudioEngine, false);
+
+  debug('iOS Web Audio API successfully initialized');
+}
+
+function initializeiOSAudioEngine$1 () {
+  window.addEventListener('touchstart', initializeiOSAudioEngine, false);
+}
+
+class Queue {
+  constructor(xs = []) {
+    this.xs = xs;
+  }
+
+  append(a) {
+    return new Queue(this.xs.concat(a));
+  }
+
+  prepend(a) {
+    return new Queue((Array.isArray(a) ? a : [a]).concat(this.xs));
+  }
+
+  pop() {
+    return [this.xs[0], new Queue(this.xs.slice(1))];
+  }
+
+  peek() {
+    return this.xs[0];
+  }
+
+  clear() {
+    return new Queue();
+  }
+
+  unwrap() {
+    // This should really be a `structuredClone` or a custom object clone
+    // implementation.
+    return this.xs.map((x) => (is_object(x) ? Object.assign({}, x) : x));
+  }
+
+  _contents() {
+    return this.xs;
+  }
+}
+
+function is_object(a) {
+  return a != null && typeof a === 'object';
+}
+
+class Track {
+  constructor({
+    // A URL that points to a valid audio resource.
+    url,
+    // The filesize of the audio resource in bytes.
+    fileSize,
+    // What percentage of the way through the track should playback begin?
+    initialPosition = 0,
+    // What percentage of the way through the track should playback end?
+    lastAllowedPosition = 1,
+    // A scratchpad object for any track-level metadata required by the user.
+    meta = {},
+  }) {
+    this.url = url;
+    this.fileSize = fileSize;
+    this.initialPosition = initialPosition;
+    this.lastAllowedPosition = lastAllowedPosition;
+    this.meta = meta;
+  }
+}
 
 const SLEEP_CANCELLED = 'SLEEP_CANCELLED';
 
@@ -234,6 +248,47 @@ function parseMetadata(metadata) {
     sampleRate: sampleRateLookup[metadata.sampleRate >> 2] / mpegVersion,
     channelMode: channelModeLookup[metadata.channelMode >> 6],
   };
+}
+
+class EventEmitter {
+  constructor() {
+    this.callbacks = {};
+  }
+
+  offAll(eventName) {
+    if (this.callbacks[eventName]) {
+      this.callbacks[eventName] = [];
+    }
+  }
+
+  off(eventName, cb) {
+    const callbacks = this.callbacks[eventName];
+    if (!callbacks) return;
+    const index = callbacks.indexOf(cb);
+    if (~index) callbacks.splice(index, 1);
+  }
+
+  on(eventName, cb) {
+    const callbacks = this.callbacks[eventName] || (this.callbacks[eventName] = []);
+    callbacks.push(cb);
+    return {
+      cancel: () => this.off(eventName, cb),
+    };
+  }
+
+  once(eventName, cb) {
+    const _cb = (data) => {
+      cb(data);
+      this.off(eventName, _cb);
+    };
+    return this.on(eventName, _cb);
+  }
+
+  _fire(eventName, data) {
+    const callbacks = this.callbacks[eventName];
+    if (!callbacks) return;
+    callbacks.slice().forEach((cb) => cb(data));
+  }
 }
 
 class DecodingError extends Error {
@@ -865,6 +920,103 @@ function suppressAbortError (e) {
     debug('AbortError suppressed', e.message);
   } else {
     throw e;
+  }
+}
+
+const CHUNK_SIZE = 64 * 1024;
+
+class ClipState extends EventEmitter {
+  constructor(fileSize, initialPosition = 0, lastAllowedPosition = 1) {
+    super();
+    this.reset();
+    this._fileSize = fileSize;
+    this._totalChunksCount = Math.ceil(fileSize / CHUNK_SIZE);
+    this._chunkIndex = this.getChunkIndexByPosition(initialPosition);
+    this._lastAllowedChunkIndex = this.getLastChunkIndexByPosition(lastAllowedPosition);
+  }
+
+  reset() {
+    this._chunks = [];
+    this._chunkIndex = 0;
+    this._chunksBufferingFinished = false;
+  }
+
+  isChunkReady(wantedChunk) {
+    const chunk = this._chunks[wantedChunk];
+    return chunk && !Number.isNaN(chunk.duration);
+  }
+
+  getChunkIndexByPosition(position = 0) {
+    const initialChunk = Math.floor(this._totalChunksCount * position);
+    return initialChunk >= this._totalChunksCount
+      ? this._totalChunksCount - 1
+      : initialChunk;
+  }
+
+  getLastChunkIndexByPosition(position = 1) {
+    return Math.max(
+      Math.min(Math.ceil(this._totalChunksCount * position), this._totalChunksCount - 1),
+      1
+    );
+  }
+
+  logChunks() {
+    debug(
+      '\n' +
+        this._chunks
+          .map((chunk, index) => `[${index}] = ` + chunk.toString())
+          .filter((val) => !!val)
+          .join('\n')
+    );
+  }
+
+  get fileSize() {
+    return this._fileSize;
+  }
+
+  get totalChunksCount() {
+    return this._totalChunksCount;
+  }
+
+  get lastAllowedChunkIndex() {
+    return this._lastAllowedChunkIndex;
+  }
+
+  get chunks() {
+    return this._chunks;
+  }
+
+  get chunkIndex() {
+    return this._chunkIndex;
+  }
+
+  get chunksBufferingFinished() {
+    return this._chunksBufferingFinished;
+  }
+
+  set chunkIndex(index) {
+    this._chunksBufferingFinished =
+      index >= this._totalChunksCount || index >= this._lastAllowedChunkIndex;
+    if (this._chunksBufferingFinished) {
+      return;
+    }
+    const diff = index - this._chunkIndex;
+    this._chunkIndex = index;
+    if (diff !== 1) {
+      this._fire('chunkIndexManuallyChanged', this._chunkIndex);
+    }
+  }
+
+  set lastAllowedChunkIndex(position) {
+    const newLastAllowedChunkIndex = this.getLastChunkIndexByPosition(position);
+    if (
+      this._chunksBufferingFinished &&
+      newLastAllowedChunkIndex > this._lastAllowedChunkIndex &&
+      newLastAllowedChunkIndex < this._totalChunksCount
+    ) {
+      this._chunksBufferingFinished = false;
+    }
+    this._lastAllowedChunkIndex = newLastAllowedChunkIndex;
   }
 }
 
@@ -1604,159 +1756,357 @@ class Clip extends EventEmitter {
   }
 }
 
-let _cachedURL = null;
+const canUseMediaSource = () =>
+  typeof window.MediaSource !== 'undefined' &&
+  typeof window.MediaSource.isTypeSupported === 'function' &&
+  window.MediaSource.isTypeSupported('audio/mpeg');
 
-const getSilenceURL = () => {
-  if (!_cachedURL) {
-    _cachedURL = URL.createObjectURL(
-      new Blob([getRawSilenceBuffer()], { type: 'audio/mpeg' })
+class Player {
+  constructor({
+    browserName,
+    onError,
+    onPlaybackEnded,
+    onPlaybackProgress,
+    onReady,
+    osName,
+    volume,
+  }) {
+    this.browserName = browserName;
+    this.osName = osName;
+    this.volume = volume;
+    this.onError = onError;
+    this.onPlaybackEnded = onPlaybackEnded;
+    this.onPlaybackProgress = onPlaybackProgress;
+    this.onReady = onReady;
+
+    this.ready = false;
+
+    // Database of cached audio data and track metadata.
+    this.clips = {};
+    this.currentlyPlaying = null;
+    this.nextTrack = null;
+
+    const silenceChunkSize = 64 * 64;
+    this.silenceClipState = new ClipState(silenceChunkSize);
+
+    if (canUseMediaSource()) {
+      const audioElement = document.createElement('audio');
+      audioElement.autoplay = false;
+
+      document.body.appendChild(audioElement);
+
+      audioElement.addEventListener('ended', () => {
+        if (this.currentlyPlaying && this.currentlyPlaying.clip) {
+          this.currentlyPlaying.clip.playbackEnded();
+        }
+      });
+
+      audioElement.addEventListener('waiting', () => {
+        if (this.currentlyPlaying) {
+          this.currentlyPlaying.onBufferChange(true);
+        }
+      });
+
+      ['canplay', 'canplaythrough', 'playing'].forEach((eventName) => {
+        audioElement.addEventListener(eventName, () => {
+          if (this.currentlyPlaying) {
+            this.currentlyPlaying.onBufferChange(false);
+          }
+        });
+      });
+    }
+
+    const silenceLoader = new Loader(
+      silenceChunkSize,
+      getSilenceURL(),
+      this.silenceClipState
+    );
+    silenceLoader.on('loaderror', (err) => {
+      this.ready = false;
+      this.onError(err);
+    });
+    silenceLoader.on('load', () => {
+      this.ready = true;
+      this.onReady();
+    });
+    silenceLoader.buffer();
+  }
+
+  reset() {
+    this.currentlyPlaying = null;
+    this.nextTrack = null;
+
+    Object.keys(this.clips).forEach((k) => this._dispose(k));
+  }
+
+  playNext(track) {
+    this.nextTrack = track;
+    this.preLoad(
+      track.url,
+      track.fileSize,
+      track.initialPosition,
+      track.lastAllowedPosition
     );
   }
 
-  return _cachedURL;
-};
+  preLoad(url, fileSize, initialPosition = 0, lastAllowedPosition = 1) {
+    // TODO: allow preloading on iOS by making preloading more efficient (aka: load and process 1 chunk at a time when preloading)
+    if (this.osName === 'ios') {
+      return Promise.resolve();
+    }
 
-const getRawSilenceBuffer = () => {
-  const rawMP3Bytes = hexToBytes(_RAW_SILENCE_MP3);
-  const buffer = new ArrayBuffer(rawMP3Bytes.length);
-  const bufferView = new DataView(buffer);
-
-  for (let i = 0; i < rawMP3Bytes.length; i++) {
-    bufferView.setUint8(i, rawMP3Bytes[i]);
+    try {
+      return this._getClip(
+        url,
+        fileSize,
+        initialPosition,
+        lastAllowedPosition
+      ).preBuffer();
+    } catch (err) {
+      this.onError(err);
+      return Promise.reject(err);
+    }
   }
 
-  return buffer;
-};
-
-const hexToBytes = (s) =>
-  s
-    .split('\n')
-    .join('')
-    .match(/.{1,2}/g)
-    .map((x) => parseInt(x, 16));
-
-/**
- * An extremely short hex-encoded MP3 file containing only silence.
- */
-const _RAW_SILENCE_MP3 = `
-fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
-332e39382e3455555555555555555555555555555555555555555555555555555555555555555555
-4c414d45332e39382e34555555555555555555555555555555555555555555555555555555555555
-55555555555555555555555555555555555555555555555555555555555555555555555555555555
-55555555555555555555555555555555555555555555555555555555555555555555555555555555
-55555555555555555555555555555555555555555555555555555555555555555555555555555555
-55555555555555555555555555555555555555555555555555555555555555555555555555555555
-555555555555555555555555555555555555555555555555555555555555555555fffb72047u48ff
-00000690000000800000d20000001000001a40000002000003480000004555555555555555555555
-55555555555555555555555555555555555555555555555555555555555555555554c414d45332e3
-9382e345555555555555555555555555555555555555555555555555555555555555555555555555
-55555555555555555555555555555555555555555555555555555555555555555555555555555555
-55555555555555555555555555555555555555555555555555555555555555555555555555555555
-55555555555555555555555555555555555555555555555555555555555555555555555555555555
-55555555555555555555555555555555555555555555555555555555555555555555555555555555
-555555555555555555555555555555555555555555555555555555555555
-`;
-
-// Compatibility: Safari iOS
-// There are many restrictions around how you are able to use the Web Audio
-// API on a mobile device, especially on iOS. One of those restrictions is that
-// initial playback must be initiated within a user gesture handler (`click` or
-// `touchstart`). Since many applications today use things like synthetic
-// event systems, it can be difficult and/or messy to guarantee that the
-// Web Audio API is properly initialized. Worse, when it is not properly
-// initialized, it does not fail loudly: the entire API works, the audio simply
-// does not play.
-//
-// This "hack" hooks into a raw DOM event for the `touchstart` gesture and
-// initializes the Web Audio API by playing a silent audio file. It is
-// guaranteed to trigger when the user interacts with the page, even if the
-// Player itself has not been initialized yet. After the API has been used
-// ONCE within a user gesture handler, it can then be freely utilized in any
-// context across the app.
-//
-
-let iOSAudioIsInitialized = false;
-
-function initializeiOSAudioEngine() {
-  if (iOSAudioIsInitialized) return;
-
-  debug('Initializing iOS Web Audio API');
-
-  const audioElement = new Audio(getSilenceURL());
-  audioElement.play();
-
-  iOSAudioIsInitialized = true;
-  window.removeEventListener('touchstart', initializeiOSAudioEngine, false);
-
-  debug('iOS Web Audio API successfully initialized');
-}
-
-function initializeiOSAudioEngine$1 () {
-  window.addEventListener('touchstart', initializeiOSAudioEngine, false);
-}
-
-class Queue {
-  constructor(xs = []) {
-    this.xs = xs;
-  }
-
-  append(a) {
-    return new Queue(this.xs.concat(a));
-  }
-
-  prepend(a) {
-    return new Queue((Array.isArray(a) ? a : [a]).concat(this.xs));
-  }
-
-  pop() {
-    return [this.xs[0], new Queue(this.xs.slice(1))];
-  }
-
-  peek() {
-    return this.xs[0];
-  }
-
-  clear() {
-    return new Queue();
-  }
-
-  unwrap() {
-    // This should really be a `structuredClone` or a custom object clone
-    // implementation.
-    return this.xs.map((x) => (is_object(x) ? Object.assign({}, x) : x));
-  }
-
-  _contents() {
-    return this.xs;
-  }
-}
-
-function is_object(a) {
-  return a != null && typeof a === 'object';
-}
-
-class Track {
-  constructor({
-    // A URL that points to a valid audio resource.
+  playTrack({
     url,
-    // The filesize of the audio resource in bytes.
     fileSize,
-    // What percentage of the way through the track should playback begin?
+    onBufferChange = noop,
+    onBufferProgress = noop,
     initialPosition = 0,
-    // What percentage of the way through the track should playback end?
     lastAllowedPosition = 1,
-    // A scratchpad object for any track-level metadata required by the user.
-    meta = {},
+    audioMetadata = {},
+    fromSetPlaybackPosition = false,
   }) {
-    this.url = url;
-    this.fileSize = fileSize;
-    this.initialPosition = initialPosition;
-    this.lastAllowedPosition = lastAllowedPosition;
-    this.meta = meta;
+    if (!this.ready) {
+      const message = 'Player not ready';
+      warn(message);
+      return Promise.reject(message);
+    }
+
+    if (
+      this.currentlyPlaying &&
+      this.currentlyPlaying.clip &&
+      this.currentlyPlaying.url === url &&
+      fromSetPlaybackPosition === false
+    ) {
+      debug('ProtonPlayer#play -> resume');
+      return this.currentlyPlaying.clip.resume() || Promise.resolve();
+    }
+
+    onBufferProgress(0, 0);
+    this.onPlaybackProgress(initialPosition);
+
+    this.stopAll();
+
+    try {
+      const clip = this._getClip(
+        url,
+        fileSize,
+        initialPosition,
+        lastAllowedPosition,
+        audioMetadata
+      );
+
+      this.currentlyPlaying = {
+        clip,
+        url,
+        fileSize,
+        onBufferChange,
+        onBufferProgress,
+        lastAllowedPosition,
+        lastReportedProgress: initialPosition,
+      };
+
+      clip.on('loadprogress', ({ initialPosition, progress }) =>
+        onBufferProgress(initialPosition, progress)
+      );
+
+      clip.once('ended', () => {
+        if (this.nextTrack) {
+          this.playTrack(this.nextTrack);
+        } else {
+          this.stopAll();
+          this.onPlaybackEnded();
+        }
+        this.onPlaybackProgress(1);
+      });
+
+      clip.on('bufferchange', (isBuffering) => onBufferChange(isBuffering));
+
+      this._playbackPositionInterval = setInterval(() => {
+        const { duration, currentTime } = clip;
+        if (duration === 0 || duration < currentTime) return;
+        let progress = currentTime / duration;
+
+        if (progress < 0) {
+          progress = 0;
+        } else if (progress > 1) {
+          progress = 1; // Prevent playback progress from exceeding 1 (100%)
+        }
+
+        if (
+          !this.currentlyPlaying ||
+          progress < this.currentlyPlaying.lastReportedProgress // Prevent playback progress from going backwards
+        ) {
+          return;
+        }
+
+        this.currentlyPlaying.lastReportedProgress = progress;
+        this.onPlaybackProgress(progress);
+      }, 250);
+
+      return clip.play() || Promise.resolve();
+    } catch (err) {
+      this.onError(err);
+      return Promise.reject(err.toString());
+    }
+  }
+
+  _getClip(
+    url,
+    fileSize,
+    initialPosition = 0,
+    lastAllowedPosition = 1,
+    audioMetadata = {}
+  ) {
+    if (typeof url !== 'string') {
+      throw new ProtonPlayerError('Invalid URL');
+    }
+
+    if (typeof fileSize !== 'number') {
+      throw new ProtonPlayerError('Invalid file size');
+    }
+
+    if (this.clips[url]) {
+      return this.clips[url];
+    }
+
+    const clip = new Clip({
+      url,
+      fileSize,
+      initialPosition,
+      lastAllowedPosition,
+      audioMetadata,
+      silenceChunks: this.silenceClipState.chunks,
+      volume: this.volume,
+      osName: this.osName,
+      browserName: this.browserName,
+      useMediaSource: canUseMediaSource(),
+    });
+
+    clip.on('loaderror', (err) => {
+      error$1('Clip failed to load', err);
+    });
+
+    clip.on('playbackerror', (err) => {
+      error$1('Something went wrong during playback', err);
+    });
+
+    this.clips[url] = clip;
+    return clip;
+  }
+
+  stopAll() {
+    this.currentlyPlaying = null;
+    this._clearIntervals();
+    Object.keys(this.clips).forEach((k) => {
+      this.clips[k].offAll('loadprogress');
+      this.clips[k].stop();
+    });
+  }
+
+  pause() {
+    if (this.currentlyPlaying && this.currentlyPlaying.clip) {
+      this.currentlyPlaying.clip.pause();
+    }
+  }
+
+  setVolume(volume = 1) {
+    this.volume = volume;
+    Object.keys(this.clips).forEach((k) => {
+      this.clips[k].volume = this.volume;
+    });
+  }
+
+  setPlaybackPosition(percent, newLastAllowedPosition = null) {
+    if (!this.currentlyPlaying || percent > 1) {
+      return Promise.resolve();
+    }
+
+    this.currentlyPlaying.lastReportedProgress = percent;
+
+    const {
+      url,
+      fileSize,
+      onBufferChange,
+      onBufferProgress,
+      onPlaybackProgress,
+      onPlaybackEnded,
+      lastAllowedPosition,
+    } = this.currentlyPlaying;
+
+    newLastAllowedPosition = newLastAllowedPosition || lastAllowedPosition;
+
+    const clip = this.clips[url];
+
+    if (clip) {
+      return (
+        clip.setCurrentPosition(percent, newLastAllowedPosition) || Promise.resolve()
+      );
+    }
+
+    const audioMetadata = clip && clip.audioMetadata;
+
+    this.dispose(url);
+
+    return this.playTrack({
+      url,
+      fileSize,
+      onBufferChange,
+      onBufferProgress,
+      onPlaybackProgress,
+      onPlaybackEnded,
+      audioMetadata,
+      initialPosition: percent,
+      lastAllowedPosition: newLastAllowedPosition,
+      fromSetPlaybackPosition: true,
+    });
+  }
+
+  _dispose(url) {
+    if (this.currentlyPlaying && this.currentlyPlaying.url === url) {
+      this.currentlyPlaying = null;
+      this._clearIntervals();
+    }
+
+    if (!this.clips[url]) return;
+
+    this.clips[url].offAll('loadprogress');
+    this.clips[url].dispose();
+    delete this.clips[url];
+  }
+
+  dispose(urls = []) {
+    Object.keys(this.clips)
+      .filter((k) => urls.indexOf(k) < 0)
+      .forEach((k) => this._dispose(k));
+  }
+
+  _clearIntervals() {
+    clearInterval(this._playbackPositionInterval);
   }
 }
 
 initializeiOSAudioEngine$1();
+
+// Separate out the "player" side effects into something else.
+// - Will need a "currentTrack" and "nextTrack", at least for gapless.
+// - This class will then:
+//   - manage the queue
+//   - wire up callback comms
+//   - deal with compatibility / os / browser shit
+//   - expose the user API
 
 class ProtonPlayer {
   constructor({
@@ -1786,216 +2136,56 @@ class ProtonPlayer {
       );
     }
 
-    // Constructor params.
-    this._onReady = onReady;
-    this._onError = onError;
-    this._onPlaybackProgress = onPlaybackProgress;
-    this._onPlaybackEnded = onPlaybackEnded;
-    this._volume = volume;
-
-    // Is the player ready to begin playing audio?
-    this._ready = false;
-
-    // Database of cached audio data and track metadata.
-    this._clips = {};
+    this.player = new Player({
+      onPlaybackEnded: () => this._syncQueueToPlayer(),
+      onPlaybackProgress,
+      onReady,
+      onError,
+      volume,
+      osName: this.osName,
+      browserName: this.browserName,
+    });
 
     // A queue of tracks scheduled to be played in the future.
     this._queue = new Queue();
-
-    // Properties related to the currently playing track.
-    this._currentlyPlaying = null;
-
-    // A `setInterval` identifier for near-realtime status updates such as the
-    // current position of the playhead.
-    this._playbackPositionInterval = null;
-
-    if (canUseMediaSourceAPI()) {
-      const audioElement = document.createElement('audio');
-      audioElement.autoplay = false;
-
-      document.body.appendChild(audioElement);
-
-      audioElement.addEventListener('ended', () => {
-        if (this._currentlyPlaying && this._currentlyPlaying.clip) {
-          this._currentlyPlaying.clip.playbackEnded();
-        }
-      });
-
-      audioElement.addEventListener('waiting', () => {
-        if (this._currentlyPlaying) {
-          this._currentlyPlaying.onBufferChange(true);
-        }
-      });
-
-      ['canplay', 'canplaythrough', 'playing'].forEach((eventName) => {
-        audioElement.addEventListener(eventName, () => {
-          if (this._currentlyPlaying) {
-            this._currentlyPlaying.onBufferChange(false);
-          }
-        });
-      });
-    }
-
-    const silenceChunkSize = 64 * 64;
-    this._silenceChunksClipState = new ClipState(silenceChunkSize);
-
-    const silenceLoader = new Loader(
-      silenceChunkSize,
-      getSilenceURL(),
-      this._silenceChunksClipState
-    );
-    silenceLoader.on('loaderror', (err) => {
-      this._ready = false;
-      this._onError(err);
-    });
-    silenceLoader.on('load', () => {
-      this._ready = true;
-      this._onReady();
-    });
-    silenceLoader.buffer();
   }
 
-  preLoad(url, fileSize, initialPosition = 0, lastAllowedPosition = 1) {
-    // TODO: allow preloading on iOS by making preloading more efficient (aka: load and process 1 chunk at a time when preloading)
-    if (this.osName === 'ios') {
-      return Promise.resolve();
-    }
+  _syncQueueToPlayer() {
+    if (this._queue.peek()) {
+      let [_, nextQueue] = this._queue.pop();
+      this._queue = nextQueue;
 
-    debug('ProtonPlayer#preLoad', url);
-
-    try {
-      return this._getClip(
-        url,
-        fileSize,
-        initialPosition,
-        lastAllowedPosition
-      ).preBuffer();
-    } catch (err) {
-      this._onError(err);
-      return Promise.reject(err);
+      let followingTrack = this._queue.peek();
+      if (followingTrack) {
+        this.player.playNext(followingTrack);
+      }
     }
   }
 
-  playTrack({
-    url,
-    fileSize,
-    onBufferChange = noop,
-    onBufferProgress = noop,
-    initialPosition = 0,
-    lastAllowedPosition = 1,
-    audioMetadata = {},
-    fromSetPlaybackPosition = false,
-  }) {
-    debug('ProtonPlayer#playTrack', url);
+  playTrack(track) {
+    debug('ProtonPlayer#playTrack');
 
-    if (!this._ready) {
-      const message = 'Player not ready';
-      warn(message);
-      return Promise.reject(message);
-    }
+    this.clearQueue();
+    this.player.reset();
+    return this.player.playTrack(track);
+  }
 
-    if (
-      this._currentlyPlaying &&
-      this._currentlyPlaying.clip &&
-      this._currentlyPlaying.url === url &&
-      fromSetPlaybackPosition === false
-    ) {
-      debug('ProtonPlayer#play -> resume');
-      return this._currentlyPlaying.clip.resume() || Promise.resolve();
-    }
+  setPlaybackPosition(percent, newLastAllowedPosition = null) {
+    debug('ProtonPlayer#setPlaybackPosition');
 
-    onBufferProgress(0, 0);
-    this._onPlaybackProgress(initialPosition);
-
-    this.stopAll();
-
-    try {
-      const clip = this._getClip(
-        url,
-        fileSize,
-        initialPosition,
-        lastAllowedPosition,
-        audioMetadata
-      );
-
-      this._currentlyPlaying = {
-        clip,
-        url,
-        fileSize,
-        onBufferChange,
-        onBufferProgress,
-        lastAllowedPosition,
-        lastReportedProgress: initialPosition,
-      };
-
-      clip.on('loadprogress', ({ initialPosition, progress }) =>
-        onBufferProgress(initialPosition, progress)
-      );
-
-      clip.once('ended', () => {
-        this.stopAll();
-        this._onPlaybackProgress(1);
-        this._onPlaybackEnded();
-
-        if (this._queue.peek()) {
-          let [nextTrack, nextQueue] = this._queue.pop();
-          this._queue = nextQueue;
-
-          this.playTrack(nextTrack);
-
-          let followingTrack = this._queue.peek();
-          if (followingTrack) {
-            this.preLoad(
-              followingTrack.url,
-              followingTrack.fileSize,
-              followingTrack.initialPosition,
-              followingTrack.lastAllowedPosition
-            );
-          }
-        }
-      });
-
-      clip.on('bufferchange', (isBuffering) => onBufferChange(isBuffering));
-
-      this._playbackPositionInterval = setInterval(() => {
-        const { duration, currentTime } = clip;
-        if (duration === 0 || duration < currentTime) return;
-        let progress = currentTime / duration;
-
-        if (progress < 0) {
-          progress = 0;
-        } else if (progress > 1) {
-          progress = 1; // Prevent playback progress from exceeding 1 (100%)
-        }
-
-        if (
-          !this._currentlyPlaying ||
-          progress < this._currentlyPlaying.lastReportedProgress // Prevent playback progress from going backwards
-        ) {
-          return;
-        }
-
-        this._currentlyPlaying.lastReportedProgress = progress;
-        this._onPlaybackProgress(progress);
-      }, 250);
-
-      return clip.play() || Promise.resolve();
-    } catch (err) {
-      this._onError(err);
-      return Promise.reject(err.toString());
-    }
+    this.player.setPlaybackPosition(percent, newLastAllowedPosition);
   }
 
   play() {
     debug('ProtonPlayer#play');
 
-    if (!this._currentlyPlaying && this._queue.peek()) {
+    if (!this.player.currentlyPlaying && this._queue.peek()) {
       let [nextTrack, nextQueue] = this._queue.pop();
       this._queue = nextQueue;
 
-      return this.playTrack(nextTrack);
-    } else if (this._currentlyPlaying) {
-      return this.playTrack(this._currentlyPlaying);
+      return this.player.playTrack(nextTrack);
+    } else if (this.player.currentlyPlaying) {
+      return this.player.playTrack(this.player.currentlyPlaying);
     }
   }
 
@@ -2007,12 +2197,7 @@ class ProtonPlayer {
     }
 
     this._queue = this._queue.prepend(tracks.map((t) => new Track(t)));
-    this.preLoad(
-      tracks[0].url,
-      tracks[0].fileSize,
-      tracks[0].initialPosition,
-      tracks[0].lastAllowedPosition
-    );
+    this.player.playNext(tracks[0]);
   }
 
   playLater(tracks) {
@@ -2032,9 +2217,9 @@ class ProtonPlayer {
       let [nextTrack, nextQueue] = this._queue.pop();
       this._queue = nextQueue;
 
-      this.playTrack(nextTrack);
+      this.player.playTrack(nextTrack);
     } else {
-      this.stopAll();
+      this.player.stopAll();
     }
   }
 
@@ -2042,7 +2227,7 @@ class ProtonPlayer {
     debug('ProtonPlayer#clearQueue');
 
     this._queue = this._queue.clear();
-    this.dispose();
+    this.player.dispose();
   }
 
   queue() {
@@ -2050,155 +2235,6 @@ class ProtonPlayer {
 
     return this._queue.unwrap();
   }
-
-  pause() {
-    debug('ProtonPlayer#pause');
-
-    if (this._currentlyPlaying && this._currentlyPlaying.clip) {
-      this._currentlyPlaying.clip.pause();
-    }
-  }
-
-  stopAll() {
-    debug('ProtonPlayer#stopAll');
-
-    this._currentlyPlaying = null;
-    this._clearIntervals();
-    Object.keys(this._clips).forEach((k) => {
-      this._clips[k].offAll('loadprogress');
-      this._clips[k].stop();
-    });
-  }
-
-  dispose(urls = []) {
-    debug('ProtonPlayer#dispose', urls);
-
-    Object.keys(this._clips)
-      .filter((k) => urls.indexOf(k) < 0)
-      .forEach((k) => this._dispose(k));
-  }
-
-  _dispose(url) {
-    if (this._currentlyPlaying && this._currentlyPlaying.url === url) {
-      this._currentlyPlaying = null;
-      this._clearIntervals();
-    }
-
-    if (!this._clips[url]) return;
-
-    this._clips[url].offAll('loadprogress');
-    this._clips[url].dispose();
-    delete this._clips[url];
-  }
-
-  setPlaybackPosition(percent, newLastAllowedPosition = null) {
-    debug('ProtonPlayer#setPlaybackPosition', percent);
-
-    if (!this._currentlyPlaying || percent > 1) {
-      return Promise.resolve();
-    }
-
-    this._currentlyPlaying.lastReportedProgress = percent;
-
-    const {
-      url,
-      fileSize,
-      onBufferChange,
-      onBufferProgress,
-      onPlaybackProgress,
-      onPlaybackEnded,
-      lastAllowedPosition,
-    } = this._currentlyPlaying;
-
-    newLastAllowedPosition = newLastAllowedPosition || lastAllowedPosition;
-
-    const clip = this._clips[url];
-
-    if (clip) {
-      return (
-        clip.setCurrentPosition(percent, newLastAllowedPosition) || Promise.resolve()
-      );
-    }
-
-    const audioMetadata = clip && clip.audioMetadata;
-
-    this.dispose(url);
-
-    return this.playTrack({
-      url,
-      fileSize,
-      onBufferChange,
-      onBufferProgress,
-      onPlaybackProgress,
-      onPlaybackEnded,
-      audioMetadata,
-      initialPosition: percent,
-      lastAllowedPosition: newLastAllowedPosition,
-      fromSetPlaybackPosition: true,
-    });
-  }
-
-  setVolume(volume = 1) {
-    debug('ProtonPlayer#setVolume', volume);
-
-    this._volume = volume;
-    Object.keys(this._clips).forEach((k) => {
-      this._clips[k].volume = this._volume;
-    });
-  }
-
-  _getClip(
-    url,
-    fileSize,
-    initialPosition = 0,
-    lastAllowedPosition = 1,
-    audioMetadata = {}
-  ) {
-    if (typeof url !== 'string') {
-      throw new ProtonPlayerError('Invalid URL');
-    }
-
-    if (typeof fileSize !== 'number') {
-      throw new ProtonPlayerError('Invalid file size');
-    }
-
-    if (this._clips[url]) {
-      return this._clips[url];
-    }
-
-    const clip = new Clip({
-      url,
-      fileSize,
-      initialPosition,
-      lastAllowedPosition,
-      audioMetadata,
-      silenceChunks: this._silenceChunksClipState.chunks,
-      volume: this._volume,
-      osName: this.osName,
-      browserName: this.browserName,
-      useMediaSource: canUseMediaSourceAPI(),
-    });
-
-    clip.on('loaderror', (err) => {
-      error$1('Clip failed to load', err);
-    });
-
-    clip.on('playbackerror', (err) => {
-      error$1('Something went wrong during playback', err);
-    });
-
-    this._clips[url] = clip;
-    return clip;
-  }
-
-  _clearIntervals() {
-    clearInterval(this._playbackPositionInterval);
-  }
 }
-
-const canUseMediaSourceAPI = () =>
-  typeof window.MediaSource !== 'undefined' &&
-  typeof window.MediaSource.isTypeSupported === 'function' &&
-  window.MediaSource.isTypeSupported('audio/mpeg');
 
 module.exports = ProtonPlayer;
