@@ -5,19 +5,10 @@ import { debug, warn, error } from './utils/logger';
 import getContext from './getContext';
 import noop from './utils/noop';
 import initializeiOSAudioEngine from './utils/initializeiOSAudioEngine';
-import Queue from './Queue';
-import Track from './Track';
 import Player from './Player';
+import TrackSource from './TrackSource';
 
 initializeiOSAudioEngine();
-
-// Separate out the "player" side effects into something else.
-// - Will need a "currentTrack" and "nextTrack", at least for gapless.
-// - This class will then:
-//   - manage the queue
-//   - wire up callback comms
-//   - deal with compatibility / os / browser shit
-//   - expose the user API
 
 export default class ProtonPlayer {
   constructor({
@@ -25,6 +16,7 @@ export default class ProtonPlayer {
     onError = noop,
     onPlaybackProgress = noop,
     onPlaybackEnded = noop,
+    onTrackChanged = noop,
     volume = 1,
   }) {
     debug('ProtonPlayer#constructor');
@@ -48,8 +40,12 @@ export default class ProtonPlayer {
     }
 
     this.player = new Player({
-      onPlaybackEnded: () => this._syncQueueToPlayer(),
+      onPlaybackEnded,
       onPlaybackProgress,
+      onNextTrack: (currentTrack, nextTrack) => {
+        this._syncToPlayerState();
+        onTrackChanged(currentTrack, nextTrack);
+      },
       onReady,
       onError,
       volume,
@@ -58,25 +54,23 @@ export default class ProtonPlayer {
     });
 
     // A queue of tracks scheduled to be played in the future.
-    this._queue = new Queue();
+    this.source = new TrackSource([]);
   }
 
-  _syncQueueToPlayer() {
-    if (this._queue.peek()) {
-      let [_, nextQueue] = this._queue.pop();
-      this._queue = nextQueue;
+  _syncToPlayerState() {
+    const [_, nextSource] = this.source.nextTrack();
+    this.source = nextSource;
 
-      let followingTrack = this._queue.peek();
-      if (followingTrack) {
-        this.player.playNext(followingTrack);
-      }
+    const [nextTrack] = this.source.nextTrack();
+    if (nextTrack) {
+      this.player.playNext(nextTrack);
     }
   }
 
   playTrack(track) {
     debug('ProtonPlayer#playTrack');
 
-    this.clearQueue();
+    this.reset();
     this.player.reset();
     return this.player.playTrack(track);
   }
@@ -87,63 +81,42 @@ export default class ProtonPlayer {
     this.player.setPlaybackPosition(percent, newLastAllowedPosition);
   }
 
-  play() {
+  play(source, index = 0) {
     debug('ProtonPlayer#play');
 
-    if (!this.player.currentlyPlaying && this._queue.peek()) {
-      let [nextTrack, nextQueue] = this._queue.pop();
-      this._queue = nextQueue;
-
-      return this.player.playTrack(nextTrack);
-    } else if (this.player.currentlyPlaying) {
-      return this.player.playTrack(this.player.currentlyPlaying);
-    }
-  }
-
-  playNext(tracks) {
-    debug('ProtonPlayer#playNext');
-
-    if (!Array.isArray(tracks)) {
-      tracks = [tracks];
+    // Just attempt to resume playback if no arguments are provided.
+    if (source == null) {
+      return this.player.resume();
     }
 
-    this._queue = this._queue.prepend(tracks.map((t) => new Track(t)));
-    this.player.playNext(tracks[0]);
-  }
-
-  playLater(tracks) {
-    debug('ProtonPlayer#playLater');
-
-    if (!Array.isArray(tracks)) {
-      tracks = [tracks];
+    if (!Array.isArray(source)) {
+      source = [source];
     }
 
-    this._queue = this._queue.append(tracks.map((t) => new Track(t)));
+    this.source = new TrackSource(source, index);
+
+    const [nextTrack] = this.source.nextTrack();
+    this.player.playNext(nextTrack);
+
+    return this.player.playTrack(this.source.currentTrack());
   }
 
   skip() {
     debug('ProtonPlayer#skip');
 
-    if (this._queue.peek()) {
-      let [nextTrack, nextQueue] = this._queue.pop();
-      this._queue = nextQueue;
-
-      this.player.playTrack(nextTrack);
-    } else {
-      this.player.stopAll();
-    }
+    this.player.skip();
   }
 
-  clearQueue() {
-    debug('ProtonPlayer#clearQueue');
+  reset() {
+    debug('ProtonPlayer#reset');
 
-    this._queue = this._queue.clear();
+    this.source = new TrackSource([]);
     this.player.dispose();
   }
 
-  queue() {
-    debug('ProtonPlayer#queue');
+  setVolume(volume) {
+    debug('ProtonPlayer#setVolume');
 
-    return this._queue.unwrap();
+    this.player.setVolume(volume);
   }
 }

@@ -145,67 +145,6 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  window.addEventListener('touchstart', initializeiOSAudioEngine, false);
 	}
 
-	class Queue {
-	  constructor(xs = []) {
-	    this.xs = xs;
-	  }
-
-	  append(a) {
-	    return new Queue(this.xs.concat(a));
-	  }
-
-	  prepend(a) {
-	    return new Queue((Array.isArray(a) ? a : [a]).concat(this.xs));
-	  }
-
-	  pop() {
-	    return [this.xs[0], new Queue(this.xs.slice(1))];
-	  }
-
-	  peek() {
-	    return this.xs[0];
-	  }
-
-	  clear() {
-	    return new Queue();
-	  }
-
-	  unwrap() {
-	    // This should really be a `structuredClone` or a custom object clone
-	    // implementation.
-	    return this.xs.map((x) => (is_object(x) ? Object.assign({}, x) : x));
-	  }
-
-	  _contents() {
-	    return this.xs;
-	  }
-	}
-
-	function is_object(a) {
-	  return a != null && typeof a === 'object';
-	}
-
-	class Track {
-	  constructor({
-	    // A URL that points to a valid audio resource.
-	    url,
-	    // The filesize of the audio resource in bytes.
-	    fileSize,
-	    // What percentage of the way through the track should playback begin?
-	    initialPosition = 0,
-	    // What percentage of the way through the track should playback end?
-	    lastAllowedPosition = 1,
-	    // A scratchpad object for any track-level metadata required by the user.
-	    meta = {},
-	  }) {
-	    this.url = url;
-	    this.fileSize = fileSize;
-	    this.initialPosition = initialPosition;
-	    this.lastAllowedPosition = lastAllowedPosition;
-	    this.meta = meta;
-	  }
-	}
-
 	const SLEEP_CANCELLED = 'SLEEP_CANCELLED';
 
 	class CancellableSleep {
@@ -4721,6 +4660,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  constructor({
 	    browserName,
 	    onError,
+	    onNextTrack,
 	    onPlaybackEnded,
 	    onPlaybackProgress,
 	    onReady,
@@ -4731,6 +4671,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    this.osName = osName;
 	    this.volume = volume;
 	    this.onError = onError;
+	    this.onNextTrack = onNextTrack;
 	    this.onPlaybackEnded = onPlaybackEnded;
 	    this.onPlaybackProgress = onPlaybackProgress;
 	    this.onReady = onReady;
@@ -4824,16 +4765,23 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    }
 	  }
 
-	  playTrack({
-	    url,
-	    fileSize,
-	    onBufferChange = noop$1,
-	    onBufferProgress = noop$1,
-	    initialPosition = 0,
-	    lastAllowedPosition = 1,
-	    audioMetadata = {},
-	    fromSetPlaybackPosition = false,
-	  }) {
+	  playTrack(track) {
+	    this.__DEPRECATED__playTrack(track, track);
+	  }
+
+	  __DEPRECATED__playTrack(
+	    {
+	      url,
+	      fileSize,
+	      onBufferChange = noop$1,
+	      onBufferProgress = noop$1,
+	      initialPosition = 0,
+	      lastAllowedPosition = 1,
+	      audioMetadata = {},
+	      fromSetPlaybackPosition = false,
+	    },
+	    track = null
+	  ) {
 	    if (!this.ready) {
 	      const message = 'Player not ready';
 	      warn(message);
@@ -4865,6 +4813,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	      );
 
 	      this.currentlyPlaying = {
+	        track,
 	        clip,
 	        url,
 	        fileSize,
@@ -4880,7 +4829,11 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 
 	      clip.once('ended', () => {
 	        if (this.nextTrack) {
-	          this.playTrack(this.nextTrack);
+	          let nextTrack = this.nextTrack;
+	          let currentTrack = this.currentlyPlaying?.track;
+	          this.nextTrack = null;
+	          this.playTrack(nextTrack);
+	          this.onNextTrack(currentTrack, nextTrack);
 	        } else {
 	          this.stopAll();
 	          this.onPlaybackEnded();
@@ -4972,6 +4925,26 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    });
 	  }
 
+	  skip() {
+	    if (this.nextTrack) {
+	      const currentTrack = this.currentlyPlaying?.track;
+	      const track = this.nextTrack;
+	      this.nextTrack = null;
+
+	      this.playTrack(track);
+	      this.onNextTrack(currentTrack, track);
+	    } else {
+	      this.stopAll();
+	      this.onPlaybackEnded();
+	    }
+	  }
+
+	  resume() {
+	    if (this.currentlyPlaying && this.currentlyPlaying.clip) {
+	      this.currentlyPlaying.clip.resume();
+	    }
+	  }
+
 	  pause() {
 	    if (this.currentlyPlaying && this.currentlyPlaying.clip) {
 	      this.currentlyPlaying.clip.pause();
@@ -5054,15 +5027,34 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 	}
 
-	initializeiOSAudioEngine$1();
+	class TrackSource {
+	  constructor(tracks, index = 0) {
+	    this.tracks = tracks;
+	    this.index = index;
+	  }
 
-	// Separate out the "player" side effects into something else.
-	// - Will need a "currentTrack" and "nextTrack", at least for gapless.
-	// - This class will then:
-	//   - manage the queue
-	//   - wire up callback comms
-	//   - deal with compatibility / os / browser shit
-	//   - expose the user API
+	  nextTrack() {
+	    const nextIndex = this.index + 1;
+	    if (nextIndex >= this.tracks.length) return [null, this];
+	    return [this.tracks[nextIndex], new TrackSource(this.tracks, nextIndex)];
+	  }
+
+	  previousTrack() {
+	    const previousIndex = this.index - 1;
+	    if (previousIndex < 0) return [null, this];
+	    return [this.tracks[previousIndex], new TrackSource(this.tracks, previousIndex)];
+	  }
+
+	  currentTrack() {
+	    return this.tracks[this.index];
+	  }
+
+	  history() {}
+
+	  queue() {}
+	}
+
+	initializeiOSAudioEngine$1();
 
 	class ProtonPlayer {
 	  constructor({
@@ -5070,6 +5062,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    onError = noop$1,
 	    onPlaybackProgress = noop$1,
 	    onPlaybackEnded = noop$1,
+	    onTrackChanged = noop$1,
 	    volume = 1,
 	  }) {
 	    debug('ProtonPlayer#constructor');
@@ -5093,8 +5086,12 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    }
 
 	    this.player = new Player({
-	      onPlaybackEnded: () => this._syncQueueToPlayer(),
+	      onPlaybackEnded,
 	      onPlaybackProgress,
+	      onNextTrack: (currentTrack, nextTrack) => {
+	        this._syncToPlayerState();
+	        onTrackChanged(currentTrack, nextTrack);
+	      },
 	      onReady,
 	      onError,
 	      volume,
@@ -5103,25 +5100,23 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    });
 
 	    // A queue of tracks scheduled to be played in the future.
-	    this._queue = new Queue();
+	    this.source = new TrackSource([]);
 	  }
 
-	  _syncQueueToPlayer() {
-	    if (this._queue.peek()) {
-	      let [_, nextQueue] = this._queue.pop();
-	      this._queue = nextQueue;
+	  _syncToPlayerState() {
+	    const [_, nextSource] = this.source.nextTrack();
+	    this.source = nextSource;
 
-	      let followingTrack = this._queue.peek();
-	      if (followingTrack) {
-	        this.player.playNext(followingTrack);
-	      }
+	    const [nextTrack] = this.source.nextTrack();
+	    if (nextTrack) {
+	      this.player.playNext(nextTrack);
 	    }
 	  }
 
 	  playTrack(track) {
 	    debug('ProtonPlayer#playTrack');
 
-	    this.clearQueue();
+	    this.reset();
 	    this.player.reset();
 	    return this.player.playTrack(track);
 	  }
@@ -5132,64 +5127,43 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    this.player.setPlaybackPosition(percent, newLastAllowedPosition);
 	  }
 
-	  play() {
+	  play(source, index = 0) {
 	    debug('ProtonPlayer#play');
 
-	    if (!this.player.currentlyPlaying && this._queue.peek()) {
-	      let [nextTrack, nextQueue] = this._queue.pop();
-	      this._queue = nextQueue;
-
-	      return this.player.playTrack(nextTrack);
-	    } else if (this.player.currentlyPlaying) {
-	      return this.player.playTrack(this.player.currentlyPlaying);
-	    }
-	  }
-
-	  playNext(tracks) {
-	    debug('ProtonPlayer#playNext');
-
-	    if (!Array.isArray(tracks)) {
-	      tracks = [tracks];
+	    // Just attempt to resume playback if no arguments are provided.
+	    if (source == null) {
+	      return this.player.resume();
 	    }
 
-	    this._queue = this._queue.prepend(tracks.map((t) => new Track(t)));
-	    this.player.playNext(tracks[0]);
-	  }
-
-	  playLater(tracks) {
-	    debug('ProtonPlayer#playLater');
-
-	    if (!Array.isArray(tracks)) {
-	      tracks = [tracks];
+	    if (!Array.isArray(source)) {
+	      source = [source];
 	    }
 
-	    this._queue = this._queue.append(tracks.map((t) => new Track(t)));
+	    this.source = new TrackSource(source, index);
+
+	    const [nextTrack] = this.source.nextTrack();
+	    this.player.playNext(nextTrack);
+
+	    return this.player.playTrack(this.source.currentTrack());
 	  }
 
 	  skip() {
 	    debug('ProtonPlayer#skip');
 
-	    if (this._queue.peek()) {
-	      let [nextTrack, nextQueue] = this._queue.pop();
-	      this._queue = nextQueue;
-
-	      this.player.playTrack(nextTrack);
-	    } else {
-	      this.player.stopAll();
-	    }
+	    this.player.skip();
 	  }
 
-	  clearQueue() {
-	    debug('ProtonPlayer#clearQueue');
+	  reset() {
+	    debug('ProtonPlayer#reset');
 
-	    this._queue = this._queue.clear();
+	    this.source = new TrackSource([]);
 	    this.player.dispose();
 	  }
 
-	  queue() {
-	    debug('ProtonPlayer#queue');
+	  setVolume(volume) {
+	    debug('ProtonPlayer#setVolume');
 
-	    return this._queue.unwrap();
+	    this.player.setVolume(volume);
 	  }
 	}
 

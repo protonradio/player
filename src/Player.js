@@ -11,6 +11,7 @@ export default class Player {
   constructor({
     browserName,
     onError,
+    onNextTrack,
     onPlaybackEnded,
     onPlaybackProgress,
     onReady,
@@ -21,6 +22,7 @@ export default class Player {
     this.osName = osName;
     this.volume = volume;
     this.onError = onError;
+    this.onNextTrack = onNextTrack;
     this.onPlaybackEnded = onPlaybackEnded;
     this.onPlaybackProgress = onPlaybackProgress;
     this.onReady = onReady;
@@ -114,16 +116,23 @@ export default class Player {
     }
   }
 
-  playTrack({
-    url,
-    fileSize,
-    onBufferChange = noop,
-    onBufferProgress = noop,
-    initialPosition = 0,
-    lastAllowedPosition = 1,
-    audioMetadata = {},
-    fromSetPlaybackPosition = false,
-  }) {
+  playTrack(track) {
+    this.__DEPRECATED__playTrack(track, track);
+  }
+
+  __DEPRECATED__playTrack(
+    {
+      url,
+      fileSize,
+      onBufferChange = noop,
+      onBufferProgress = noop,
+      initialPosition = 0,
+      lastAllowedPosition = 1,
+      audioMetadata = {},
+      fromSetPlaybackPosition = false,
+    },
+    track = null
+  ) {
     if (!this.ready) {
       const message = 'Player not ready';
       warn(message);
@@ -155,6 +164,7 @@ export default class Player {
       );
 
       this.currentlyPlaying = {
+        track,
         clip,
         url,
         fileSize,
@@ -170,7 +180,11 @@ export default class Player {
 
       clip.once('ended', () => {
         if (this.nextTrack) {
-          this.playTrack(this.nextTrack);
+          let nextTrack = this.nextTrack;
+          let currentTrack = this.currentlyPlaying?.track;
+          this.nextTrack = null;
+          this.playTrack(nextTrack);
+          this.onNextTrack(currentTrack, nextTrack);
         } else {
           this.stopAll();
           this.onPlaybackEnded();
@@ -260,6 +274,26 @@ export default class Player {
       this.clips[k].offAll('loadprogress');
       this.clips[k].stop();
     });
+  }
+
+  skip() {
+    if (this.nextTrack) {
+      const currentTrack = this.currentlyPlaying?.track;
+      const track = this.nextTrack;
+      this.nextTrack = null;
+
+      this.playTrack(track);
+      this.onNextTrack(currentTrack, track);
+    } else {
+      this.stopAll();
+      this.onPlaybackEnded();
+    }
+  }
+
+  resume() {
+    if (this.currentlyPlaying && this.currentlyPlaying.clip) {
+      this.currentlyPlaying.clip.resume();
+    }
   }
 
   pause() {
