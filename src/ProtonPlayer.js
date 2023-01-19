@@ -6,7 +6,7 @@ import getContext from './getContext';
 import noop from './utils/noop';
 import initializeiOSAudioEngine from './utils/initializeiOSAudioEngine';
 import Player from './Player';
-import TrackSource from './TrackSource';
+import Source from './Source';
 
 initializeiOSAudioEngine();
 
@@ -54,14 +54,14 @@ export default class ProtonPlayer {
     });
 
     // A queue of tracks scheduled to be played in the future.
-    this.source = new TrackSource([]);
+    this.source = new Source([]);
   }
 
   _syncToPlayerState() {
-    const [_, nextSource] = this.source.nextTrack();
+    const [_, nextSource] = this.source.forward();
     this.source = nextSource;
 
-    const [nextTrack] = this.source.nextTrack();
+    const [nextTrack] = this.source.forward();
     if (nextTrack) {
       this.player.playNext(nextTrack);
     }
@@ -73,12 +73,6 @@ export default class ProtonPlayer {
     this.reset();
     this.player.reset();
     return this.player.playTrack(track);
-  }
-
-  setPlaybackPosition(percent, newLastAllowedPosition = null) {
-    debug('ProtonPlayer#setPlaybackPosition');
-
-    this.player.setPlaybackPosition(percent, newLastAllowedPosition);
   }
 
   play(source, index = 0) {
@@ -93,12 +87,12 @@ export default class ProtonPlayer {
       source = [source];
     }
 
-    this.source = new TrackSource(source, index);
+    this.source = new Source(source, index);
 
-    const [nextTrack] = this.source.nextTrack();
+    const [nextTrack] = this.source.forward();
     this.player.playNext(nextTrack);
 
-    return this.player.playTrack(this.source.currentTrack());
+    return this.player.playTrack(this.source.current());
   }
 
   skip() {
@@ -107,16 +101,52 @@ export default class ProtonPlayer {
     this.player.skip();
   }
 
-  reset() {
-    debug('ProtonPlayer#reset');
+  back() {
+    debug('ProtonPlayer#back');
 
-    this.source = new TrackSource([]);
-    this.player.dispose();
+    const currentTrack = this.source.current();
+    const [previousTrack, source] = this.source.back();
+
+    this.source = source;
+    this.player.playTrack(previousTrack);
+    this.player.playNext(currentTrack);
+    this.player.onNextTrack(currentTrack, previousTrack);
+  }
+
+  currentTrack() {
+    debug('ProtonPlayer#currentTrack');
+
+    return this.source.current();
+  }
+
+  previousTracks() {
+    debug('ProtonPlayer#previousTracks');
+
+    return this.source.head();
+  }
+
+  nextTracks() {
+    debug('ProtonPlayer#nextTracks');
+
+    return this.source.tail();
+  }
+
+  setPlaybackPosition(percent, newLastAllowedPosition = null) {
+    debug('ProtonPlayer#setPlaybackPosition');
+
+    this.player.setPlaybackPosition(percent, newLastAllowedPosition);
   }
 
   setVolume(volume) {
     debug('ProtonPlayer#setVolume');
 
     this.player.setVolume(volume);
+  }
+
+  reset() {
+    debug('ProtonPlayer#reset');
+
+    this.source = new Source([]);
+    this.player.disposeAll();
   }
 }

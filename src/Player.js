@@ -84,10 +84,12 @@ export default class Player {
     this.currentlyPlaying = null;
     this.nextTrack = null;
 
-    Object.keys(this.clips).forEach((k) => this._dispose(k));
+    this.disposeAll();
   }
 
   playNext(track) {
+    this._dispose(track.url);
+
     this.nextTrack = track;
     this.preLoad(
       track.url,
@@ -284,6 +286,10 @@ export default class Player {
 
       this.playTrack(track);
       this.onNextTrack(currentTrack, track);
+
+      if (currentTrack) {
+        this._dispose(currentTrack.url);
+      }
     } else {
       this.stopAll();
       this.onPlaybackEnded();
@@ -367,10 +373,8 @@ export default class Player {
     delete this.clips[url];
   }
 
-  dispose(urls = []) {
-    Object.keys(this.clips)
-      .filter((k) => urls.indexOf(k) < 0)
-      .forEach((k) => this._dispose(k));
+  disposeAll(urls = []) {
+    Object.keys(this.clips).forEach((k) => this._dispose(k));
   }
 
   _clearIntervals() {

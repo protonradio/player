@@ -4733,10 +4733,12 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    this.currentlyPlaying = null;
 	    this.nextTrack = null;
 
-	    Object.keys(this.clips).forEach((k) => this._dispose(k));
+	    this.disposeAll();
 	  }
 
 	  playNext(track) {
+	    this._dispose(track.url);
+
 	    this.nextTrack = track;
 	    this.preLoad(
 	      track.url,
@@ -4933,6 +4935,10 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 
 	      this.playTrack(track);
 	      this.onNextTrack(currentTrack, track);
+
+	      if (currentTrack) {
+	        this._dispose(currentTrack.url);
+	      }
 	    } else {
 	      this.stopAll();
 	      this.onPlaybackEnded();
@@ -5016,10 +5022,8 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    delete this.clips[url];
 	  }
 
-	  dispose(urls = []) {
-	    Object.keys(this.clips)
-	      .filter((k) => urls.indexOf(k) < 0)
-	      .forEach((k) => this._dispose(k));
+	  disposeAll(urls = []) {
+	    Object.keys(this.clips).forEach((k) => this._dispose(k));
 	  }
 
 	  _clearIntervals() {
@@ -5027,31 +5031,44 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 	}
 
-	class TrackSource {
-	  constructor(tracks, index = 0) {
-	    this.tracks = tracks;
+	// A Source is a very specific type of ordered list that maintains a "focus"
+	// or currently active index. This can be used for situations where the entire
+	// contents of a list need to be available, but only one element is active at
+	// any given time.
+
+	class Source {
+	  constructor(xs, index = 0) {
+	    this.xs = xs;
 	    this.index = index;
 	  }
 
-	  nextTrack() {
+	  forward() {
 	    const nextIndex = this.index + 1;
-	    if (nextIndex >= this.tracks.length) return [null, this];
-	    return [this.tracks[nextIndex], new TrackSource(this.tracks, nextIndex)];
+	    if (nextIndex >= this.xs.length) return [null, this];
+	    return [this.xs[nextIndex], new Source(this.xs, nextIndex)];
 	  }
 
-	  previousTrack() {
+	  back() {
 	    const previousIndex = this.index - 1;
 	    if (previousIndex < 0) return [null, this];
-	    return [this.tracks[previousIndex], new TrackSource(this.tracks, previousIndex)];
+	    return [this.xs[previousIndex], new Source(this.xs, previousIndex)];
 	  }
 
-	  currentTrack() {
-	    return this.tracks[this.index];
+	  current() {
+	    return this.xs[this.index];
 	  }
 
-	  history() {}
+	  tail() {
+	    return this.xs.slice(this.index + 1, this.xs.length);
+	  }
 
-	  queue() {}
+	  head() {
+	    return this.xs.slice(0, this.index);
+	  }
+
+	  unwrap() {
+	    return this.xs;
+	  }
 	}
 
 	initializeiOSAudioEngine$1();
@@ -5100,14 +5117,14 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    });
 
 	    // A queue of tracks scheduled to be played in the future.
-	    this.source = new TrackSource([]);
+	    this.source = new Source([]);
 	  }
 
 	  _syncToPlayerState() {
-	    const [_, nextSource] = this.source.nextTrack();
+	    const [_, nextSource] = this.source.forward();
 	    this.source = nextSource;
 
-	    const [nextTrack] = this.source.nextTrack();
+	    const [nextTrack] = this.source.forward();
 	    if (nextTrack) {
 	      this.player.playNext(nextTrack);
 	    }
@@ -5119,12 +5136,6 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    this.reset();
 	    this.player.reset();
 	    return this.player.playTrack(track);
-	  }
-
-	  setPlaybackPosition(percent, newLastAllowedPosition = null) {
-	    debug('ProtonPlayer#setPlaybackPosition');
-
-	    this.player.setPlaybackPosition(percent, newLastAllowedPosition);
 	  }
 
 	  play(source, index = 0) {
@@ -5139,12 +5150,12 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	      source = [source];
 	    }
 
-	    this.source = new TrackSource(source, index);
+	    this.source = new Source(source, index);
 
-	    const [nextTrack] = this.source.nextTrack();
+	    const [nextTrack] = this.source.forward();
 	    this.player.playNext(nextTrack);
 
-	    return this.player.playTrack(this.source.currentTrack());
+	    return this.player.playTrack(this.source.current());
 	  }
 
 	  skip() {
@@ -5153,17 +5164,53 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    this.player.skip();
 	  }
 
-	  reset() {
-	    debug('ProtonPlayer#reset');
+	  back() {
+	    debug('ProtonPlayer#back');
 
-	    this.source = new TrackSource([]);
-	    this.player.dispose();
+	    const currentTrack = this.source.current();
+	    const [previousTrack, source] = this.source.back();
+
+	    this.source = source;
+	    this.player.playTrack(previousTrack);
+	    this.player.playNext(currentTrack);
+	    this.player.onNextTrack(currentTrack, previousTrack);
+	  }
+
+	  currentTrack() {
+	    debug('ProtonPlayer#currentTrack');
+
+	    return this.source.current();
+	  }
+
+	  previousTracks() {
+	    debug('ProtonPlayer#previousTracks');
+
+	    return this.source.head();
+	  }
+
+	  nextTracks() {
+	    debug('ProtonPlayer#nextTracks');
+
+	    return this.source.tail();
+	  }
+
+	  setPlaybackPosition(percent, newLastAllowedPosition = null) {
+	    debug('ProtonPlayer#setPlaybackPosition');
+
+	    this.player.setPlaybackPosition(percent, newLastAllowedPosition);
 	  }
 
 	  setVolume(volume) {
 	    debug('ProtonPlayer#setVolume');
 
 	    this.player.setVolume(volume);
+	  }
+
+	  reset() {
+	    debug('ProtonPlayer#reset');
+
+	    this.source = new Source([]);
+	    this.player.disposeAll();
 	  }
 	}
 
