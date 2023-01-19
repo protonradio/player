@@ -10,27 +10,43 @@ import Loader from './Loader';
 export default class Player {
   constructor({
     browserName,
+
+    // Triggered whenever an error occurs.
     onError,
+
+    // Triggered when the Player automatically transitions to the queued track.
     onNextTrack,
+
+    // Triggered when there is no more queued audio to play.
     onPlaybackEnded,
+
+    // Triggered every ~250ms while audio is playing.
     onPlaybackProgress,
+
+    // Triggered whenever a new track begins playing.
+    onTrackChanged,
+
+    // Triggered once when the Player is ready to begin playing audio.
     onReady,
+
     osName,
     volume,
   }) {
     this.browserName = browserName;
     this.osName = osName;
     this.volume = volume;
+
     this.onError = onError;
     this.onNextTrack = onNextTrack;
     this.onPlaybackEnded = onPlaybackEnded;
     this.onPlaybackProgress = onPlaybackProgress;
+    this.onTrackChanged = onTrackChanged;
     this.onReady = onReady;
-
     this.ready = false;
 
     // Database of cached audio data and track metadata.
     this.clips = {};
+
     this.currentlyPlaying = null;
     this.nextTrack = null;
 
@@ -119,7 +135,18 @@ export default class Player {
   }
 
   playTrack(track) {
-    this.__DEPRECATED__playTrack(track, track);
+    if (!track) return;
+
+    const currentTrack = this.currentlyPlaying?.track || {};
+
+    if (track.url !== currentTrack.url) {
+      this.__DEPRECATED__playTrack(track, track);
+      this.onTrackChanged(currentTrack, track);
+
+      if (currentTrack.url) {
+        this._dispose(currentTrack.url);
+      }
+    }
   }
 
   __DEPRECATED__playTrack(
@@ -185,6 +212,7 @@ export default class Player {
           let nextTrack = this.nextTrack;
           let currentTrack = this.currentlyPlaying?.track;
           this.nextTrack = null;
+
           this.playTrack(nextTrack);
           this.onNextTrack(currentTrack, nextTrack);
         } else {
@@ -276,24 +304,6 @@ export default class Player {
       this.clips[k].offAll('loadprogress');
       this.clips[k].stop();
     });
-  }
-
-  skip() {
-    if (this.nextTrack) {
-      const currentTrack = this.currentlyPlaying?.track;
-      const track = this.nextTrack;
-      this.nextTrack = null;
-
-      this.playTrack(track);
-      this.onNextTrack(currentTrack, track);
-
-      if (currentTrack) {
-        this._dispose(currentTrack.url);
-      }
-    } else {
-      this.stopAll();
-      this.onPlaybackEnded();
-    }
   }
 
   resume() {

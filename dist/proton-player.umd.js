@@ -870,7 +870,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	 *
 	 * @returns {Error} The created error.
 	 */
-	function AxiosError(message, code, config, request, response) {
+	function AxiosError$1(message, code, config, request, response) {
 	  Error.call(this);
 
 	  if (Error.captureStackTrace) {
@@ -887,7 +887,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  response && (this.response = response);
 	}
 
-	utils.inherits(AxiosError, Error, {
+	utils.inherits(AxiosError$1, Error, {
 	  toJSON: function toJSON() {
 	    return {
 	      // Standard
@@ -909,7 +909,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 	});
 
-	const prototype$1 = AxiosError.prototype;
+	const prototype$1 = AxiosError$1.prototype;
 	const descriptors = {};
 
 	[
@@ -930,11 +930,11 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  descriptors[code] = {value: code};
 	});
 
-	Object.defineProperties(AxiosError, descriptors);
+	Object.defineProperties(AxiosError$1, descriptors);
 	Object.defineProperty(prototype$1, 'isAxiosError', {value: true});
 
 	// eslint-disable-next-line func-names
-	AxiosError.from = (error, code, config, request, response, customProps) => {
+	AxiosError$1.from = (error, code, config, request, response, customProps) => {
 	  const axiosError = Object.create(prototype$1);
 
 	  utils.toFlatObject(error, axiosError, function filter(obj) {
@@ -943,7 +943,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    return prop !== 'isAxiosError';
 	  });
 
-	  AxiosError.call(axiosError, error.message, code, config, request, response);
+	  AxiosError$1.call(axiosError, error.message, code, config, request, response);
 
 	  axiosError.cause = error;
 
@@ -1046,7 +1046,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	 *
 	 * @returns
 	 */
-	function toFormData(obj, formData, options) {
+	function toFormData$1(obj, formData, options) {
 	  if (!utils.isObject(obj)) {
 	    throw new TypeError('target must be an object');
 	  }
@@ -1084,7 +1084,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    }
 
 	    if (!useBlob && utils.isBlob(value)) {
-	      throw new AxiosError('Blob is not supported. Use a Buffer instead.');
+	      throw new AxiosError$1('Blob is not supported. Use a Buffer instead.');
 	    }
 
 	    if (utils.isArrayBuffer(value) || utils.isTypedArray(value)) {
@@ -1213,7 +1213,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	function AxiosURLSearchParams(params, options) {
 	  this._pairs = [];
 
-	  params && toFormData(params, this, options);
+	  params && toFormData$1(params, this, options);
 	}
 
 	const prototype = AxiosURLSearchParams.prototype;
@@ -1409,7 +1409,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	};
 
 	function toURLEncodedForm(data, options) {
-	  return toFormData(data, new platform.classes.URLSearchParams(), Object.assign({
+	  return toFormData$1(data, new platform.classes.URLSearchParams(), Object.assign({
 	    visitor: function(value, key, path, helpers) {
 
 	      return helpers.defaultVisitor.apply(this, arguments);
@@ -1518,9 +1518,9 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  if (!response.status || !validateStatus || validateStatus(response.status)) {
 	    resolve(response);
 	  } else {
-	    reject(new AxiosError(
+	    reject(new AxiosError$1(
 	      'Request failed with status code ' + response.status,
-	      [AxiosError.ERR_BAD_REQUEST, AxiosError.ERR_BAD_RESPONSE][Math.floor(response.status / 100) - 4],
+	      [AxiosError$1.ERR_BAD_REQUEST, AxiosError$1.ERR_BAD_RESPONSE][Math.floor(response.status / 100) - 4],
 	      response.config,
 	      response.request,
 	      response
@@ -1693,13 +1693,13 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	 *
 	 * @returns {CanceledError} The created error.
 	 */
-	function CanceledError(message, config, request) {
+	function CanceledError$1(message, config, request) {
 	  // eslint-disable-next-line no-eq-null,eqeqeq
-	  AxiosError.call(this, message == null ? 'canceled' : message, AxiosError.ERR_CANCELED, config, request);
+	  AxiosError$1.call(this, message == null ? 'canceled' : message, AxiosError$1.ERR_CANCELED, config, request);
 	  this.name = 'CanceledError';
 	}
 
-	utils.inherits(CanceledError, AxiosError, {
+	utils.inherits(CanceledError$1, AxiosError$1, {
 	  __CANCEL__: true
 	});
 
@@ -2198,7 +2198,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	        return;
 	      }
 
-	      reject(new AxiosError('Request aborted', AxiosError.ECONNABORTED, config, request));
+	      reject(new AxiosError$1('Request aborted', AxiosError$1.ECONNABORTED, config, request));
 
 	      // Clean up request
 	      request = null;
@@ -2208,7 +2208,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    request.onerror = function handleError() {
 	      // Real errors are hidden from us by the browser
 	      // onerror should only fire if it's a network error
-	      reject(new AxiosError('Network Error', AxiosError.ERR_NETWORK, config, request));
+	      reject(new AxiosError$1('Network Error', AxiosError$1.ERR_NETWORK, config, request));
 
 	      // Clean up request
 	      request = null;
@@ -2221,9 +2221,9 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	      if (config.timeoutErrorMessage) {
 	        timeoutErrorMessage = config.timeoutErrorMessage;
 	      }
-	      reject(new AxiosError(
+	      reject(new AxiosError$1(
 	        timeoutErrorMessage,
-	        transitional.clarifyTimeoutError ? AxiosError.ETIMEDOUT : AxiosError.ECONNABORTED,
+	        transitional.clarifyTimeoutError ? AxiosError$1.ETIMEDOUT : AxiosError$1.ECONNABORTED,
 	        config,
 	        request));
 
@@ -2281,7 +2281,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	        if (!request) {
 	          return;
 	        }
-	        reject(!cancel || cancel.type ? new CanceledError(null, config, request) : cancel);
+	        reject(!cancel || cancel.type ? new CanceledError$1(null, config, request) : cancel);
 	        request.abort();
 	        request = null;
 	      };
@@ -2295,7 +2295,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    const protocol = parseProtocol(fullPath);
 
 	    if (protocol && platform.protocols.indexOf(protocol) === -1) {
-	      reject(new AxiosError('Unsupported protocol ' + protocol + ':', AxiosError.ERR_BAD_REQUEST, config));
+	      reject(new AxiosError$1('Unsupported protocol ' + protocol + ':', AxiosError$1.ERR_BAD_REQUEST, config));
 	      return;
 	    }
 
@@ -2432,7 +2432,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	      if ((isFileList = utils.isFileList(data)) || contentType.indexOf('multipart/form-data') > -1) {
 	        const _FormData = this.env && this.env.FormData;
 
-	        return toFormData(
+	        return toFormData$1(
 	          isFileList ? {'files[]': data} : data,
 	          _FormData && new _FormData(),
 	          this.formSerializer
@@ -2462,7 +2462,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	      } catch (e) {
 	        if (strictJSONParsing) {
 	          if (e.name === 'SyntaxError') {
-	            throw AxiosError.from(e, AxiosError.ERR_BAD_RESPONSE, this, null, this.response);
+	            throw AxiosError$1.from(e, AxiosError$1.ERR_BAD_RESPONSE, this, null, this.response);
 	          }
 	          throw e;
 	        }
@@ -2531,7 +2531,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  return data;
 	}
 
-	function isCancel(value) {
+	function isCancel$1(value) {
 	  return !!(value && value.__CANCEL__);
 	}
 
@@ -2548,7 +2548,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 
 	  if (config.signal && config.signal.aborted) {
-	    throw new CanceledError();
+	    throw new CanceledError$1();
 	  }
 	}
 
@@ -2586,7 +2586,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 
 	    return response;
 	  }, function onAdapterRejection(reason) {
-	    if (!isCancel(reason)) {
+	    if (!isCancel$1(reason)) {
 	      throwIfCancellationRequested(config);
 
 	      // Transform response data
@@ -2702,7 +2702,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  return config;
 	}
 
-	const VERSION = "1.1.3";
+	const VERSION$1 = "1.1.3";
 
 	const validators$1 = {};
 
@@ -2726,15 +2726,15 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	 */
 	validators$1.transitional = function transitional(validator, version, message) {
 	  function formatMessage(opt, desc) {
-	    return '[Axios v' + VERSION + '] Transitional option \'' + opt + '\'' + desc + (message ? '. ' + message : '');
+	    return '[Axios v' + VERSION$1 + '] Transitional option \'' + opt + '\'' + desc + (message ? '. ' + message : '');
 	  }
 
 	  // eslint-disable-next-line func-names
 	  return (value, opt, opts) => {
 	    if (validator === false) {
-	      throw new AxiosError(
+	      throw new AxiosError$1(
 	        formatMessage(opt, ' has been removed' + (version ? ' in ' + version : '')),
-	        AxiosError.ERR_DEPRECATED
+	        AxiosError$1.ERR_DEPRECATED
 	      );
 	    }
 
@@ -2765,7 +2765,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 
 	function assertOptions(options, schema, allowUnknown) {
 	  if (typeof options !== 'object') {
-	    throw new AxiosError('options must be an object', AxiosError.ERR_BAD_OPTION_VALUE);
+	    throw new AxiosError$1('options must be an object', AxiosError$1.ERR_BAD_OPTION_VALUE);
 	  }
 	  const keys = Object.keys(options);
 	  let i = keys.length;
@@ -2776,12 +2776,12 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	      const value = options[opt];
 	      const result = value === undefined || validator(value, opt, options);
 	      if (result !== true) {
-	        throw new AxiosError('option ' + opt + ' must be ' + result, AxiosError.ERR_BAD_OPTION_VALUE);
+	        throw new AxiosError$1('option ' + opt + ' must be ' + result, AxiosError$1.ERR_BAD_OPTION_VALUE);
 	      }
 	      continue;
 	    }
 	    if (allowUnknown !== true) {
-	      throw new AxiosError('Unknown option ' + opt, AxiosError.ERR_BAD_OPTION);
+	      throw new AxiosError$1('Unknown option ' + opt, AxiosError$1.ERR_BAD_OPTION);
 	    }
 	  }
 	}
@@ -2800,7 +2800,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	 *
 	 * @return {Axios} A new instance of Axios
 	 */
-	class Axios {
+	class Axios$1 {
 	  constructor(instanceConfig) {
 	    this.defaults = instanceConfig;
 	    this.interceptors = {
@@ -2944,7 +2944,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	// Provide aliases for supported request methods
 	utils.forEach(['delete', 'get', 'head', 'options'], function forEachMethodNoData(method) {
 	  /*eslint func-names:0*/
-	  Axios.prototype[method] = function(url, config) {
+	  Axios$1.prototype[method] = function(url, config) {
 	    return this.request(mergeConfig(config || {}, {
 	      method,
 	      url,
@@ -2969,9 +2969,9 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    };
 	  }
 
-	  Axios.prototype[method] = generateHTTPMethod();
+	  Axios$1.prototype[method] = generateHTTPMethod();
 
-	  Axios.prototype[method + 'Form'] = generateHTTPMethod(true);
+	  Axios$1.prototype[method + 'Form'] = generateHTTPMethod(true);
 	});
 
 	/**
@@ -2981,7 +2981,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	 *
 	 * @returns {CancelToken}
 	 */
-	class CancelToken {
+	class CancelToken$1 {
 	  constructor(executor) {
 	    if (typeof executor !== 'function') {
 	      throw new TypeError('executor must be a function.');
@@ -3029,7 +3029,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	        return;
 	      }
 
-	      token.reason = new CanceledError(message, config, request);
+	      token.reason = new CanceledError$1(message, config, request);
 	      resolvePromise(token.reason);
 	    });
 	  }
@@ -3080,7 +3080,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	   */
 	  static source() {
 	    let cancel;
-	    const token = new CancelToken(function executor(c) {
+	    const token = new CancelToken$1(function executor(c) {
 	      cancel = c;
 	    });
 	    return {
@@ -3111,7 +3111,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	 *
 	 * @returns {Function}
 	 */
-	function spread(callback) {
+	function spread$1(callback) {
 	  return function wrap(arr) {
 	    return callback.apply(null, arr);
 	  };
@@ -3124,7 +3124,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	 *
 	 * @returns {boolean} True if the payload is an error thrown by Axios, otherwise false
 	 */
-	function isAxiosError(payload) {
+	function isAxiosError$1(payload) {
 	  return utils.isObject(payload) && (payload.isAxiosError === true);
 	}
 
@@ -3136,11 +3136,11 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	 * @returns {Axios} A new instance of Axios
 	 */
 	function createInstance(defaultConfig) {
-	  const context = new Axios(defaultConfig);
-	  const instance = bind(Axios.prototype.request, context);
+	  const context = new Axios$1(defaultConfig);
+	  const instance = bind(Axios$1.prototype.request, context);
 
 	  // Copy axios.prototype to instance
-	  utils.extend(instance, Axios.prototype, context, {allOwnKeys: true});
+	  utils.extend(instance, Axios$1.prototype, context, {allOwnKeys: true});
 
 	  // Copy context to instance
 	  utils.extend(instance, context, null, {allOwnKeys: true});
@@ -3157,17 +3157,17 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	const axios = createInstance(defaults);
 
 	// Expose Axios class to allow class inheritance
-	axios.Axios = Axios;
+	axios.Axios = Axios$1;
 
 	// Expose Cancel & CancelToken
-	axios.CanceledError = CanceledError;
-	axios.CancelToken = CancelToken;
-	axios.isCancel = isCancel;
-	axios.VERSION = VERSION;
-	axios.toFormData = toFormData;
+	axios.CanceledError = CanceledError$1;
+	axios.CancelToken = CancelToken$1;
+	axios.isCancel = isCancel$1;
+	axios.VERSION = VERSION$1;
+	axios.toFormData = toFormData$1;
 
 	// Expose AxiosError class
-	axios.AxiosError = AxiosError;
+	axios.AxiosError = AxiosError$1;
 
 	// alias for CanceledError for backward compatibility
 	axios.Cancel = axios.CanceledError;
@@ -3177,14 +3177,30 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  return Promise.all(promises);
 	};
 
-	axios.spread = spread;
+	axios.spread = spread$1;
 
 	// Expose isAxiosError
-	axios.isAxiosError = isAxiosError;
+	axios.isAxiosError = isAxiosError$1;
 
 	axios.formToJSON = thing => {
 	  return formDataToJSON(utils.isHTMLForm(thing) ? new FormData(thing) : thing);
 	};
+
+	// Keep top-level export same with static properties
+	// so that it can keep same with es module or cjs
+	const {
+	  Axios,
+	  AxiosError,
+	  CanceledError,
+	  isCancel,
+	  CancelToken,
+	  VERSION,
+	  all,
+	  Cancel,
+	  isAxiosError,
+	  spread,
+	  toFormData
+	} = axios;
 
 	class DecodingError extends Error {
 	  constructor(message) {
@@ -3205,14 +3221,12 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    this._start = start;
 	    this._end = end;
 	    this._cancelled = false;
-	    // TODO(rocco): Reimplement request cancellation using current API. The
-	    // CancelToken API was deprecated.
-	    // this._cancelTokenSource = CancelToken.source();
+	    this._controller = new AbortController();
 	  }
 
 	  cancel() {
 	    this._cancelled = true;
-	    // this._cancelTokenSource.cancel();
+	    this._controller.abort();
 	    this._sleep && this._sleep.cancel();
 	  }
 
@@ -3237,6 +3251,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	      headers,
 	      timeout: seconds(5),
 	      responseType: 'arraybuffer',
+	      signal: this._controller.signal,
 	    };
 
 	    return axios
@@ -3250,8 +3265,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	        return this._createChunk(uint8Array, this._chunkIndex);
 	      })
 	      .catch((error) => {
-	        if (error instanceof Cancel) return;
-
+	        if (error instanceof CanceledError) return;
 	        const timedOut = error.code === 'ECONNABORTED';
 	        const networkError = error.message === 'Network Error';
 	        const decodingError = error instanceof DecodingError;
@@ -4659,27 +4673,43 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	class Player {
 	  constructor({
 	    browserName,
+
+	    // Triggered whenever an error occurs.
 	    onError,
+
+	    // Triggered when the Player automatically transitions to the queued track.
 	    onNextTrack,
+
+	    // Triggered when there is no more queued audio to play.
 	    onPlaybackEnded,
+
+	    // Triggered every ~250ms while audio is playing.
 	    onPlaybackProgress,
+
+	    // Triggered whenever a new track begins playing.
+	    onTrackChanged,
+
+	    // Triggered once when the Player is ready to begin playing audio.
 	    onReady,
+
 	    osName,
 	    volume,
 	  }) {
 	    this.browserName = browserName;
 	    this.osName = osName;
 	    this.volume = volume;
+
 	    this.onError = onError;
 	    this.onNextTrack = onNextTrack;
 	    this.onPlaybackEnded = onPlaybackEnded;
 	    this.onPlaybackProgress = onPlaybackProgress;
+	    this.onTrackChanged = onTrackChanged;
 	    this.onReady = onReady;
-
 	    this.ready = false;
 
 	    // Database of cached audio data and track metadata.
 	    this.clips = {};
+
 	    this.currentlyPlaying = null;
 	    this.nextTrack = null;
 
@@ -4768,7 +4798,18 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 
 	  playTrack(track) {
-	    this.__DEPRECATED__playTrack(track, track);
+	    if (!track) return;
+
+	    const currentTrack = this.currentlyPlaying?.track || {};
+
+	    if (track.url !== currentTrack.url) {
+	      this.__DEPRECATED__playTrack(track, track);
+	      this.onTrackChanged(currentTrack, track);
+
+	      if (currentTrack.url) {
+	        this._dispose(currentTrack.url);
+	      }
+	    }
 	  }
 
 	  __DEPRECATED__playTrack(
@@ -4834,6 +4875,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	          let nextTrack = this.nextTrack;
 	          let currentTrack = this.currentlyPlaying?.track;
 	          this.nextTrack = null;
+
 	          this.playTrack(nextTrack);
 	          this.onNextTrack(currentTrack, nextTrack);
 	        } else {
@@ -4927,24 +4969,6 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    });
 	  }
 
-	  skip() {
-	    if (this.nextTrack) {
-	      const currentTrack = this.currentlyPlaying?.track;
-	      const track = this.nextTrack;
-	      this.nextTrack = null;
-
-	      this.playTrack(track);
-	      this.onNextTrack(currentTrack, track);
-
-	      if (currentTrack) {
-	        this._dispose(currentTrack.url);
-	      }
-	    } else {
-	      this.stopAll();
-	      this.onPlaybackEnded();
-	    }
-	  }
-
 	  resume() {
 	    if (this.currentlyPlaying && this.currentlyPlaying.clip) {
 	      this.currentlyPlaying.clip.resume();
@@ -5031,7 +5055,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 	}
 
-	// A Source is a very specific type of ordered list that maintains a "focus"
+	// A Source is a very specific type of ordered list that maintains a cursor
 	// or currently active index. This can be used for situations where the entire
 	// contents of a list need to be available, but only one element is active at
 	// any given time.
@@ -5105,10 +5129,8 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    this.player = new Player({
 	      onPlaybackEnded,
 	      onPlaybackProgress,
-	      onNextTrack: (currentTrack, nextTrack) => {
-	        this._syncToPlayerState();
-	        onTrackChanged(currentTrack, nextTrack);
-	      },
+	      onTrackChanged,
+	      onNextTrack: () => this._moveToNextTrack(),
 	      onReady,
 	      onError,
 	      volume,
@@ -5120,9 +5142,9 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    this.source = new Source([]);
 	  }
 
-	  _syncToPlayerState() {
-	    const [_, nextSource] = this.source.forward();
-	    this.source = nextSource;
+	  _moveToNextTrack() {
+	    const [_, source] = this.source.forward();
+	    this.source = source;
 
 	    const [nextTrack] = this.source.forward();
 	    if (nextTrack) {
@@ -5141,11 +5163,6 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  play(source, index = 0) {
 	    debug('ProtonPlayer#play');
 
-	    // Just attempt to resume playback if no arguments are provided.
-	    if (source == null) {
-	      return this.player.resume();
-	    }
-
 	    if (!Array.isArray(source)) {
 	      source = [source];
 	    }
@@ -5158,10 +5175,34 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    return this.player.playTrack(this.source.current());
 	  }
 
+	  pause() {
+	    debug('ProtonPlayer#pause');
+
+	    this.player.pause();
+	  }
+
+	  resume() {
+	    debug('ProtonPlayer#resume');
+
+	    this.player.resume();
+	  }
+
 	  skip() {
 	    debug('ProtonPlayer#skip');
 
-	    this.player.skip();
+	    const [nextTrack, source] = this.source.forward();
+	    this.source = source;
+
+	    if (nextTrack) {
+	      this.player.playTrack(nextTrack);
+	    } else {
+	      this.player.stopAll();
+	    }
+
+	    const [followingTrack] = this.source.forward();
+	    if (followingTrack) {
+	      this.player.playNext(followingTrack);
+	    }
 	  }
 
 	  back() {
@@ -5173,7 +5214,6 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    this.source = source;
 	    this.player.playTrack(previousTrack);
 	    this.player.playNext(currentTrack);
-	    this.player.onNextTrack(currentTrack, previousTrack);
 	  }
 
 	  currentTrack() {

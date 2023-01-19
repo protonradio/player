@@ -1,4 +1,4 @@
-// A Source is a very specific type of ordered list that maintains a "focus"
+// A Source is a very specific type of ordered list that maintains a cursor
 // or currently active index. This can be used for situations where the entire
 // contents of a list need to be available, but only one element is active at
 // any given time.

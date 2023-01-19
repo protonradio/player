@@ -1,7 +1,7 @@
 import Bowser from 'bowser';
 
 import ProtonPlayerError from './ProtonPlayerError';
-import { debug, warn, error } from './utils/logger';
+import { debug } from './utils/logger';
 import getContext from './getContext';
 import noop from './utils/noop';
 import initializeiOSAudioEngine from './utils/initializeiOSAudioEngine';
@@ -42,10 +42,8 @@ export default class ProtonPlayer {
     this.player = new Player({
       onPlaybackEnded,
       onPlaybackProgress,
-      onNextTrack: (currentTrack, nextTrack) => {
-        this._syncToPlayerState();
-        onTrackChanged(currentTrack, nextTrack);
-      },
+      onTrackChanged,
+      onNextTrack: () => this._moveToNextTrack(),
       onReady,
       onError,
       volume,
@@ -57,9 +55,9 @@ export default class ProtonPlayer {
     this.source = new Source([]);
   }
 
-  _syncToPlayerState() {
-    const [_, nextSource] = this.source.forward();
-    this.source = nextSource;
+  _moveToNextTrack() {
+    const [_, source] = this.source.forward();
+    this.source = source;
 
     const [nextTrack] = this.source.forward();
     if (nextTrack) {
@@ -78,11 +76,6 @@ export default class ProtonPlayer {
   play(source, index = 0) {
     debug('ProtonPlayer#play');
 
-    // Just attempt to resume playback if no arguments are provided.
-    if (source == null) {
-      return this.player.resume();
-    }
-
     if (!Array.isArray(source)) {
       source = [source];
     }
@@ -95,10 +88,34 @@ export default class ProtonPlayer {
     return this.player.playTrack(this.source.current());
   }
 
+  pause() {
+    debug('ProtonPlayer#pause');
+
+    this.player.pause();
+  }
+
+  resume() {
+    debug('ProtonPlayer#resume');
+
+    this.player.resume();
+  }
+
   skip() {
     debug('ProtonPlayer#skip');
 
-    this.player.skip();
+    const [nextTrack, source] = this.source.forward();
+    this.source = source;
+
+    if (nextTrack) {
+      this.player.playTrack(nextTrack);
+    } else {
+      this.player.stopAll();
+    }
+
+    const [followingTrack] = this.source.forward();
+    if (followingTrack) {
+      this.player.playNext(followingTrack);
+    }
   }
 
   back() {
@@ -110,7 +127,6 @@ export default class ProtonPlayer {
     this.source = source;
     this.player.playTrack(previousTrack);
     this.player.playNext(currentTrack);
-    this.player.onNextTrack(currentTrack, previousTrack);
   }
 
   currentTrack() {

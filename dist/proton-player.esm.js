@@ -1,5 +1,5 @@
 import Bowser from 'bowser';
-import axios from 'axios';
+import axios, { CanceledError } from 'axios';
 
 class ProtonPlayerError extends Error {
   constructor(message) {
@@ -242,14 +242,12 @@ class FetchJob {
     this._start = start;
     this._end = end;
     this._cancelled = false;
-    // TODO(rocco): Reimplement request cancellation using current API. The
-    // CancelToken API was deprecated.
-    // this._cancelTokenSource = CancelToken.source();
+    this._controller = new AbortController();
   }
 
   cancel() {
     this._cancelled = true;
-    // this._cancelTokenSource.cancel();
+    this._controller.abort();
     this._sleep && this._sleep.cancel();
   }
 
@@ -274,6 +272,7 @@ class FetchJob {
       headers,
       timeout: seconds(5),
       responseType: 'arraybuffer',
+      signal: this._controller.signal,
     };
 
     return axios
@@ -287,8 +286,7 @@ class FetchJob {
         return this._createChunk(uint8Array, this._chunkIndex);
       })
       .catch((error) => {
-        if (error instanceof Cancel) return;
-
+        if (error instanceof CanceledError) return;
         const timedOut = error.code === 'ECONNABORTED';
         const networkError = error.message === 'Network Error';
         const decodingError = error instanceof DecodingError;
@@ -1696,27 +1694,43 @@ const canUseMediaSource = () =>
 class Player {
   constructor({
     browserName,
+
+    // Triggered whenever an error occurs.
     onError,
+
+    // Triggered when the Player automatically transitions to the queued track.
     onNextTrack,
+
+    // Triggered when there is no more queued audio to play.
     onPlaybackEnded,
+
+    // Triggered every ~250ms while audio is playing.
     onPlaybackProgress,
+
+    // Triggered whenever a new track begins playing.
+    onTrackChanged,
+
+    // Triggered once when the Player is ready to begin playing audio.
     onReady,
+
     osName,
     volume,
   }) {
     this.browserName = browserName;
     this.osName = osName;
     this.volume = volume;
+
     this.onError = onError;
     this.onNextTrack = onNextTrack;
     this.onPlaybackEnded = onPlaybackEnded;
     this.onPlaybackProgress = onPlaybackProgress;
+    this.onTrackChanged = onTrackChanged;
     this.onReady = onReady;
-
     this.ready = false;
 
     // Database of cached audio data and track metadata.
     this.clips = {};
+
     this.currentlyPlaying = null;
     this.nextTrack = null;
 
@@ -1805,7 +1819,18 @@ class Player {
   }
 
   playTrack(track) {
-    this.__DEPRECATED__playTrack(track, track);
+    if (!track) return;
+
+    const currentTrack = this.currentlyPlaying?.track || {};
+
+    if (track.url !== currentTrack.url) {
+      this.__DEPRECATED__playTrack(track, track);
+      this.onTrackChanged(currentTrack, track);
+
+      if (currentTrack.url) {
+        this._dispose(currentTrack.url);
+      }
+    }
   }
 
   __DEPRECATED__playTrack(
@@ -1871,6 +1896,7 @@ class Player {
           let nextTrack = this.nextTrack;
           let currentTrack = this.currentlyPlaying?.track;
           this.nextTrack = null;
+
           this.playTrack(nextTrack);
           this.onNextTrack(currentTrack, nextTrack);
         } else {
@@ -1964,24 +1990,6 @@ class Player {
     });
   }
 
-  skip() {
-    if (this.nextTrack) {
-      const currentTrack = this.currentlyPlaying?.track;
-      const track = this.nextTrack;
-      this.nextTrack = null;
-
-      this.playTrack(track);
-      this.onNextTrack(currentTrack, track);
-
-      if (currentTrack) {
-        this._dispose(currentTrack.url);
-      }
-    } else {
-      this.stopAll();
-      this.onPlaybackEnded();
-    }
-  }
-
   resume() {
     if (this.currentlyPlaying && this.currentlyPlaying.clip) {
       this.currentlyPlaying.clip.resume();
@@ -2068,7 +2076,7 @@ class Player {
   }
 }
 
-// A Source is a very specific type of ordered list that maintains a "focus"
+// A Source is a very specific type of ordered list that maintains a cursor
 // or currently active index. This can be used for situations where the entire
 // contents of a list need to be available, but only one element is active at
 // any given time.
@@ -2142,10 +2150,8 @@ class ProtonPlayer {
     this.player = new Player({
       onPlaybackEnded,
       onPlaybackProgress,
-      onNextTrack: (currentTrack, nextTrack) => {
-        this._syncToPlayerState();
-        onTrackChanged(currentTrack, nextTrack);
-      },
+      onTrackChanged,
+      onNextTrack: () => this._moveToNextTrack(),
       onReady,
       onError,
       volume,
@@ -2157,9 +2163,9 @@ class ProtonPlayer {
     this.source = new Source([]);
   }
 
-  _syncToPlayerState() {
-    const [_, nextSource] = this.source.forward();
-    this.source = nextSource;
+  _moveToNextTrack() {
+    const [_, source] = this.source.forward();
+    this.source = source;
 
     const [nextTrack] = this.source.forward();
     if (nextTrack) {
@@ -2178,11 +2184,6 @@ class ProtonPlayer {
   play(source, index = 0) {
     debug('ProtonPlayer#play');
 
-    // Just attempt to resume playback if no arguments are provided.
-    if (source == null) {
-      return this.player.resume();
-    }
-
     if (!Array.isArray(source)) {
       source = [source];
     }
@@ -2195,10 +2196,34 @@ class ProtonPlayer {
     return this.player.playTrack(this.source.current());
   }
 
+  pause() {
+    debug('ProtonPlayer#pause');
+
+    this.player.pause();
+  }
+
+  resume() {
+    debug('ProtonPlayer#resume');
+
+    this.player.resume();
+  }
+
   skip() {
     debug('ProtonPlayer#skip');
 
-    this.player.skip();
+    const [nextTrack, source] = this.source.forward();
+    this.source = source;
+
+    if (nextTrack) {
+      this.player.playTrack(nextTrack);
+    } else {
+      this.player.stopAll();
+    }
+
+    const [followingTrack] = this.source.forward();
+    if (followingTrack) {
+      this.player.playNext(followingTrack);
+    }
   }
 
   back() {
@@ -2210,7 +2235,6 @@ class ProtonPlayer {
     this.source = source;
     this.player.playTrack(previousTrack);
     this.player.playNext(currentTrack);
-    this.player.onNextTrack(currentTrack, previousTrack);
   }
 
   currentTrack() {
