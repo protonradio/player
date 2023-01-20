@@ -5194,13 +5194,13 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 
 	    if (nextTrack) {
 	      this.player.playTrack(nextTrack);
+
+	      const [followingTrack] = this.playlist.forward();
+	      if (followingTrack) {
+	        this.player.playNext(followingTrack);
+	      }
 	    } else {
 	      this.player.stopAll();
-	    }
-
-	    const [followingTrack] = this.playlist.forward();
-	    if (followingTrack) {
-	      this.player.playNext(followingTrack);
 	    }
 	  }
 
