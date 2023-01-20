@@ -1,9 +1,9 @@
-// A Source is a very specific type of ordered list that maintains a cursor
+// A Cursor is a very specific type of ordered list that maintains a cursor
 // or currently active index. This can be used for situations where the entire
 // contents of a list need to be available, but only one element is active at
 // any given time.
 
-class Source {
+export default class Cursor {
   constructor(xs, index = 0) {
     this.xs = xs;
     this.index = index;
@@ -12,13 +12,13 @@ class Source {
   forward() {
     const nextIndex = this.index + 1;
     if (nextIndex >= this.xs.length) return [null, this];
-    return [this.xs[nextIndex], new Source(this.xs, nextIndex)];
+    return [this.xs[nextIndex], new Cursor(this.xs, nextIndex)];
   }
 
   back() {
     const previousIndex = this.index - 1;
     if (previousIndex < 0) return [null, this];
-    return [this.xs[previousIndex], new Source(this.xs, previousIndex)];
+    return [this.xs[previousIndex], new Cursor(this.xs, previousIndex)];
   }
 
   current() {
@@ -37,5 +37,3 @@ class Source {
     return this.xs;
   }
 }
-
-export default Source;

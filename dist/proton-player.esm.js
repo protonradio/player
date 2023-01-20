@@ -2076,12 +2076,12 @@ class Player {
   }
 }
 
-// A Source is a very specific type of ordered list that maintains a cursor
+// A Cursor is a very specific type of ordered list that maintains a cursor
 // or currently active index. This can be used for situations where the entire
 // contents of a list need to be available, but only one element is active at
 // any given time.
 
-class Source {
+class Cursor {
   constructor(xs, index = 0) {
     this.xs = xs;
     this.index = index;
@@ -2090,13 +2090,13 @@ class Source {
   forward() {
     const nextIndex = this.index + 1;
     if (nextIndex >= this.xs.length) return [null, this];
-    return [this.xs[nextIndex], new Source(this.xs, nextIndex)];
+    return [this.xs[nextIndex], new Cursor(this.xs, nextIndex)];
   }
 
   back() {
     const previousIndex = this.index - 1;
     if (previousIndex < 0) return [null, this];
-    return [this.xs[previousIndex], new Source(this.xs, previousIndex)];
+    return [this.xs[previousIndex], new Cursor(this.xs, previousIndex)];
   }
 
   current() {
@@ -2130,12 +2130,12 @@ class ProtonPlayer {
     debug('ProtonPlayer#constructor');
 
     const browser = Bowser.getParser(window.navigator.userAgent);
-    this.browserName = browser.getBrowserName().toLowerCase();
-    this.osName = browser.getOSName().toLowerCase();
+    const browserName = browser.getBrowserName().toLowerCase();
+    const osName = browser.getOSName().toLowerCase();
 
     // Firefox is not supported because it cannot decode MP3 files.
-    if (this.browserName === 'firefox') {
-      throw new ProtonPlayerError(`${this.browserName} is not supported.`);
+    if (browserName === 'firefox') {
+      throw new ProtonPlayerError(`${browserName} is not supported.`);
     }
 
     // Check if the AudioContext API can be instantiated.
@@ -2143,7 +2143,7 @@ class ProtonPlayer {
       getContext();
     } catch (e) {
       throw new ProtonPlayerError(
-        `${this.browserName} does not support the AudioContext API.`
+        `${browserName} does not support the AudioContext API.`
       );
     }
 
@@ -2155,19 +2155,18 @@ class ProtonPlayer {
       onReady,
       onError,
       volume,
-      osName: this.osName,
-      browserName: this.browserName,
+      osName,
+      browserName,
     });
 
-    // A queue of tracks scheduled to be played in the future.
-    this.source = new Source([]);
+    this.playlist = new Cursor([]);
   }
 
   _moveToNextTrack() {
-    const [_, source] = this.source.forward();
-    this.source = source;
+    const [_, playlist] = this.playlist.forward();
+    this.playlist = playlist;
 
-    const [nextTrack] = this.source.forward();
+    const [nextTrack] = this.playlist.forward();
     if (nextTrack) {
       this.player.playNext(nextTrack);
     }
@@ -2181,19 +2180,19 @@ class ProtonPlayer {
     return this.player.playTrack(track);
   }
 
-  play(source, index = 0) {
+  play(playlist, index = 0) {
     debug('ProtonPlayer#play');
 
-    if (!Array.isArray(source)) {
-      source = [source];
+    if (!Array.isArray(playlist)) {
+      playlist = [playlist];
     }
 
-    this.source = new Source(source, index);
+    this.playlist = new Cursor(playlist, index);
 
-    const [nextTrack] = this.source.forward();
+    const [nextTrack] = this.playlist.forward();
     this.player.playNext(nextTrack);
 
-    return this.player.playTrack(this.source.current());
+    return this.player.playTrack(this.playlist.current());
   }
 
   pause() {
@@ -2211,8 +2210,8 @@ class ProtonPlayer {
   skip() {
     debug('ProtonPlayer#skip');
 
-    const [nextTrack, source] = this.source.forward();
-    this.source = source;
+    const [nextTrack, playlist] = this.playlist.forward();
+    this.playlist = playlist;
 
     if (nextTrack) {
       this.player.playTrack(nextTrack);
@@ -2220,7 +2219,7 @@ class ProtonPlayer {
       this.player.stopAll();
     }
 
-    const [followingTrack] = this.source.forward();
+    const [followingTrack] = this.playlist.forward();
     if (followingTrack) {
       this.player.playNext(followingTrack);
     }
@@ -2229,10 +2228,10 @@ class ProtonPlayer {
   back() {
     debug('ProtonPlayer#back');
 
-    const currentTrack = this.source.current();
-    const [previousTrack, source] = this.source.back();
+    const currentTrack = this.playlist.current();
+    const [previousTrack, playlist] = this.playlist.back();
 
-    this.source = source;
+    this.playlist = playlist;
     this.player.playTrack(previousTrack);
     this.player.playNext(currentTrack);
   }
@@ -2240,19 +2239,19 @@ class ProtonPlayer {
   currentTrack() {
     debug('ProtonPlayer#currentTrack');
 
-    return this.source.current();
+    return this.playlist.current();
   }
 
   previousTracks() {
     debug('ProtonPlayer#previousTracks');
 
-    return this.source.head();
+    return this.playlist.head();
   }
 
   nextTracks() {
     debug('ProtonPlayer#nextTracks');
 
-    return this.source.tail();
+    return this.playlist.tail();
   }
 
   setPlaybackPosition(percent, newLastAllowedPosition = null) {
@@ -2270,7 +2269,7 @@ class ProtonPlayer {
   reset() {
     debug('ProtonPlayer#reset');
 
-    this.source = new Source([]);
+    this.playlist = new Cursor([]);
     this.player.disposeAll();
   }
 }
