@@ -1700,8 +1700,6 @@ const canUseMediaSource = () =>
 
 class Player {
   constructor({
-    browserName,
-
     // Triggered whenever an error occurs.
     onError,
 
@@ -1720,6 +1718,7 @@ class Player {
     // Triggered once when the Player is ready to begin playing audio.
     onReady,
 
+    browserName,
     osName,
     volume,
   }) {
@@ -1751,22 +1750,16 @@ class Player {
       document.body.appendChild(audioElement);
 
       audioElement.addEventListener('ended', () => {
-        if (this.currentlyPlaying && this.currentlyPlaying.clip) {
-          this.currentlyPlaying.clip.playbackEnded();
-        }
+        this.currentlyPlaying?.clip?.playbackEnded();
       });
 
       audioElement.addEventListener('waiting', () => {
-        if (this.currentlyPlaying) {
-          this.currentlyPlaying.onBufferChange(true);
-        }
+        this.currentlyPlaying?.onBufferChange(true);
       });
 
       ['canplay', 'canplaythrough', 'playing'].forEach((eventName) => {
         audioElement.addEventListener(eventName, () => {
-          if (this.currentlyPlaying) {
-            this.currentlyPlaying.onBufferChange(false);
-          }
+          this.currentlyPlaying?.onBufferChange(false);
         });
       });
     }
@@ -1795,6 +1788,8 @@ class Player {
   }
 
   playNext(track) {
+    if (!track) return;
+
     this._dispose(track.url);
 
     this.nextTrack = track;
@@ -1998,15 +1993,11 @@ class Player {
   }
 
   resume() {
-    if (this.currentlyPlaying && this.currentlyPlaying.clip) {
-      this.currentlyPlaying.clip.resume();
-    }
+    this.currentlyPlaying?.clip?.resume();
   }
 
   pause() {
-    if (this.currentlyPlaying && this.currentlyPlaying.clip) {
-      this.currentlyPlaying.clip.pause();
-    }
+    this.currentlyPlaying?.clip?.pause();
   }
 
   setVolume(volume = 1) {
@@ -2043,9 +2034,9 @@ class Player {
       );
     }
 
-    const audioMetadata = clip && clip.audioMetadata;
+    const audioMetadata = clip?.audioMetadata;
 
-    this.dispose(url);
+    this._dispose(url);
 
     return this.playTrack({
       url,
@@ -2062,7 +2053,7 @@ class Player {
   }
 
   _dispose(url) {
-    if (this.currentlyPlaying && this.currentlyPlaying.url === url) {
+    if (url && this.currentlyPlaying?.url === url) {
       this.currentlyPlaying = null;
       this._clearIntervals();
     }

@@ -4672,8 +4672,6 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 
 	class Player {
 	  constructor({
-	    browserName,
-
 	    // Triggered whenever an error occurs.
 	    onError,
 
@@ -4692,6 +4690,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    // Triggered once when the Player is ready to begin playing audio.
 	    onReady,
 
+	    browserName,
 	    osName,
 	    volume,
 	  }) {
@@ -4723,22 +4722,16 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	      document.body.appendChild(audioElement);
 
 	      audioElement.addEventListener('ended', () => {
-	        if (this.currentlyPlaying && this.currentlyPlaying.clip) {
-	          this.currentlyPlaying.clip.playbackEnded();
-	        }
+	        this.currentlyPlaying?.clip?.playbackEnded();
 	      });
 
 	      audioElement.addEventListener('waiting', () => {
-	        if (this.currentlyPlaying) {
-	          this.currentlyPlaying.onBufferChange(true);
-	        }
+	        this.currentlyPlaying?.onBufferChange(true);
 	      });
 
 	      ['canplay', 'canplaythrough', 'playing'].forEach((eventName) => {
 	        audioElement.addEventListener(eventName, () => {
-	          if (this.currentlyPlaying) {
-	            this.currentlyPlaying.onBufferChange(false);
-	          }
+	          this.currentlyPlaying?.onBufferChange(false);
 	        });
 	      });
 	    }
@@ -4767,6 +4760,8 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 
 	  playNext(track) {
+	    if (!track) return;
+
 	    this._dispose(track.url);
 
 	    this.nextTrack = track;
@@ -4970,15 +4965,11 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 
 	  resume() {
-	    if (this.currentlyPlaying && this.currentlyPlaying.clip) {
-	      this.currentlyPlaying.clip.resume();
-	    }
+	    this.currentlyPlaying?.clip?.resume();
 	  }
 
 	  pause() {
-	    if (this.currentlyPlaying && this.currentlyPlaying.clip) {
-	      this.currentlyPlaying.clip.pause();
-	    }
+	    this.currentlyPlaying?.clip?.pause();
 	  }
 
 	  setVolume(volume = 1) {
@@ -5015,9 +5006,9 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	      );
 	    }
 
-	    const audioMetadata = clip && clip.audioMetadata;
+	    const audioMetadata = clip?.audioMetadata;
 
-	    this.dispose(url);
+	    this._dispose(url);
 
 	    return this.playTrack({
 	      url,
@@ -5034,7 +5025,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 
 	  _dispose(url) {
-	    if (this.currentlyPlaying && this.currentlyPlaying.url === url) {
+	    if (url && this.currentlyPlaying?.url === url) {
 	      this.currentlyPlaying = null;
 	      this._clearIntervals();
 	    }
