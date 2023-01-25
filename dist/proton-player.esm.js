@@ -2213,6 +2213,7 @@ class ProtonPlayer {
       }
     } else {
       this.player.stopAll();
+      this.player.onPlaybackEnded();
     }
   }
 

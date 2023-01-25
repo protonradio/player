@@ -4672,8 +4672,6 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 
 	class Player {
 	  constructor({
-	    browserName,
-
 	    // Triggered whenever an error occurs.
 	    onError,
 
@@ -4692,6 +4690,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    // Triggered once when the Player is ready to begin playing audio.
 	    onReady,
 
+	    browserName,
 	    osName,
 	    volume,
 	  }) {
@@ -4723,22 +4722,16 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	      document.body.appendChild(audioElement);
 
 	      audioElement.addEventListener('ended', () => {
-	        if (this.currentlyPlaying && this.currentlyPlaying.clip) {
-	          this.currentlyPlaying.clip.playbackEnded();
-	        }
+	        this.currentlyPlaying?.clip?.playbackEnded();
 	      });
 
 	      audioElement.addEventListener('waiting', () => {
-	        if (this.currentlyPlaying) {
-	          this.currentlyPlaying.onBufferChange(true);
-	        }
+	        this.currentlyPlaying?.onBufferChange(true);
 	      });
 
 	      ['canplay', 'canplaythrough', 'playing'].forEach((eventName) => {
 	        audioElement.addEventListener(eventName, () => {
-	          if (this.currentlyPlaying) {
-	            this.currentlyPlaying.onBufferChange(false);
-	          }
+	          this.currentlyPlaying?.onBufferChange(false);
 	        });
 	      });
 	    }
@@ -4767,6 +4760,8 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 
 	  playNext(track) {
+	    if (!track) return;
+
 	    this._dispose(track.url);
 
 	    this.nextTrack = track;
@@ -4970,15 +4965,11 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 
 	  resume() {
-	    if (this.currentlyPlaying && this.currentlyPlaying.clip) {
-	      this.currentlyPlaying.clip.resume();
-	    }
+	    this.currentlyPlaying?.clip?.resume();
 	  }
 
 	  pause() {
-	    if (this.currentlyPlaying && this.currentlyPlaying.clip) {
-	      this.currentlyPlaying.clip.pause();
-	    }
+	    this.currentlyPlaying?.clip?.pause();
 	  }
 
 	  setVolume(volume = 1) {
@@ -5015,9 +5006,9 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	      );
 	    }
 
-	    const audioMetadata = clip && clip.audioMetadata;
+	    const audioMetadata = clip?.audioMetadata;
 
-	    this.dispose(url);
+	    this._dispose(url);
 
 	    return this.playTrack({
 	      url,
@@ -5034,7 +5025,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 
 	  _dispose(url) {
-	    if (this.currentlyPlaying && this.currentlyPlaying.url === url) {
+	    if (url && this.currentlyPlaying?.url === url) {
 	      this.currentlyPlaying = null;
 	      this._clearIntervals();
 	    }
@@ -5055,12 +5046,12 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 	}
 
-	// A Source is a very specific type of ordered list that maintains a cursor
+	// A Cursor is a very specific type of ordered list that maintains a cursor
 	// or currently active index. This can be used for situations where the entire
 	// contents of a list need to be available, but only one element is active at
 	// any given time.
 
-	class Source {
+	class Cursor {
 	  constructor(xs, index = 0) {
 	    this.xs = xs;
 	    this.index = index;
@@ -5069,13 +5060,13 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  forward() {
 	    const nextIndex = this.index + 1;
 	    if (nextIndex >= this.xs.length) return [null, this];
-	    return [this.xs[nextIndex], new Source(this.xs, nextIndex)];
+	    return [this.xs[nextIndex], new Cursor(this.xs, nextIndex)];
 	  }
 
 	  back() {
 	    const previousIndex = this.index - 1;
 	    if (previousIndex < 0) return [null, this];
-	    return [this.xs[previousIndex], new Source(this.xs, previousIndex)];
+	    return [this.xs[previousIndex], new Cursor(this.xs, previousIndex)];
 	  }
 
 	  current() {
@@ -5109,12 +5100,12 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    debug('ProtonPlayer#constructor');
 
 	    const browser = Bowser.getParser(window.navigator.userAgent);
-	    this.browserName = browser.getBrowserName().toLowerCase();
-	    this.osName = browser.getOSName().toLowerCase();
+	    const browserName = browser.getBrowserName().toLowerCase();
+	    const osName = browser.getOSName().toLowerCase();
 
 	    // Firefox is not supported because it cannot decode MP3 files.
-	    if (this.browserName === 'firefox') {
-	      throw new ProtonPlayerError(`${this.browserName} is not supported.`);
+	    if (browserName === 'firefox') {
+	      throw new ProtonPlayerError(`${browserName} is not supported.`);
 	    }
 
 	    // Check if the AudioContext API can be instantiated.
@@ -5122,7 +5113,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	      getContext();
 	    } catch (e) {
 	      throw new ProtonPlayerError(
-	        `${this.browserName} does not support the AudioContext API.`
+	        `${browserName} does not support the AudioContext API.`
 	      );
 	    }
 
@@ -5134,19 +5125,18 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	      onReady,
 	      onError,
 	      volume,
-	      osName: this.osName,
-	      browserName: this.browserName,
+	      osName,
+	      browserName,
 	    });
 
-	    // A queue of tracks scheduled to be played in the future.
-	    this.source = new Source([]);
+	    this.playlist = new Cursor([]);
 	  }
 
 	  _moveToNextTrack() {
-	    const [_, source] = this.source.forward();
-	    this.source = source;
+	    const [_, playlist] = this.playlist.forward();
+	    this.playlist = playlist;
 
-	    const [nextTrack] = this.source.forward();
+	    const [nextTrack] = this.playlist.forward();
 	    if (nextTrack) {
 	      this.player.playNext(nextTrack);
 	    }
@@ -5160,19 +5150,19 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    return this.player.playTrack(track);
 	  }
 
-	  play(source, index = 0) {
+	  play(playlist, index = 0) {
 	    debug('ProtonPlayer#play');
 
-	    if (!Array.isArray(source)) {
-	      source = [source];
+	    if (!Array.isArray(playlist)) {
+	      playlist = [playlist];
 	    }
 
-	    this.source = new Source(source, index);
+	    this.playlist = new Cursor(playlist, index);
 
-	    const [nextTrack] = this.source.forward();
+	    const [nextTrack] = this.playlist.forward();
 	    this.player.playNext(nextTrack);
 
-	    return this.player.playTrack(this.source.current());
+	    return this.player.playTrack(this.playlist.current());
 	  }
 
 	  pause() {
@@ -5190,28 +5180,29 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  skip() {
 	    debug('ProtonPlayer#skip');
 
-	    const [nextTrack, source] = this.source.forward();
-	    this.source = source;
+	    const [nextTrack, playlist] = this.playlist.forward();
+	    this.playlist = playlist;
 
 	    if (nextTrack) {
 	      this.player.playTrack(nextTrack);
+
+	      const [followingTrack] = this.playlist.forward();
+	      if (followingTrack) {
+	        this.player.playNext(followingTrack);
+	      }
 	    } else {
 	      this.player.stopAll();
-	    }
-
-	    const [followingTrack] = this.source.forward();
-	    if (followingTrack) {
-	      this.player.playNext(followingTrack);
+	      this.player.onPlaybackEnded();
 	    }
 	  }
 
 	  back() {
 	    debug('ProtonPlayer#back');
 
-	    const currentTrack = this.source.current();
-	    const [previousTrack, source] = this.source.back();
+	    const currentTrack = this.playlist.current();
+	    const [previousTrack, playlist] = this.playlist.back();
 
-	    this.source = source;
+	    this.playlist = playlist;
 	    this.player.playTrack(previousTrack);
 	    this.player.playNext(currentTrack);
 	  }
@@ -5219,19 +5210,19 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  currentTrack() {
 	    debug('ProtonPlayer#currentTrack');
 
-	    return this.source.current();
+	    return this.playlist.current();
 	  }
 
 	  previousTracks() {
 	    debug('ProtonPlayer#previousTracks');
 
-	    return this.source.head();
+	    return this.playlist.head();
 	  }
 
 	  nextTracks() {
 	    debug('ProtonPlayer#nextTracks');
 
-	    return this.source.tail();
+	    return this.playlist.tail();
 	  }
 
 	  setPlaybackPosition(percent, newLastAllowedPosition = null) {
@@ -5249,7 +5240,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  reset() {
 	    debug('ProtonPlayer#reset');
 
-	    this.source = new Source([]);
+	    this.playlist = new Cursor([]);
 	    this.player.disposeAll();
 	  }
 	}
