@@ -1,6 +1,6 @@
 {
   "name": "@protonradio/player",
-  "version": "21.10.4",
+  "version": "23.1.0",
   "main": "dist/proton-player.cjs.js",
   "module": "dist/proton-player.esm.js",
   "browser": "dist/proton-player.umd.js",

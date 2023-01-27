@@ -29,9 +29,6 @@
 	}
 
 	function debug(...args) {
-	  {
-	    console.log(`%c[ProtonPlayer]`, 'color: #e26014; font-weight: bold;', ...args);
-	  }
 	}
 
 	function warn(...args) {
@@ -130,15 +127,11 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	function initializeiOSAudioEngine() {
 	  if (iOSAudioIsInitialized) return;
 
-	  debug('Initializing iOS Web Audio API');
-
 	  const audioElement = new Audio(getSilenceURL());
 	  audioElement.play();
 
 	  iOSAudioIsInitialized = true;
 	  window.removeEventListener('touchstart', initializeiOSAudioEngine, false);
-
-	  debug('iOS Web Audio API successfully initialized');
 	}
 
 	function initializeiOSAudioEngine$1 () {
@@ -3274,12 +3267,6 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	          if (!networkError && retryCount >= 10) {
 	            throw new Error(`Chunk fetch/decode failed after ${retryCount} retries`);
 	          }
-	          const message = timedOut
-	            ? `Timed out fetching chunk`
-	            : decodingError
-	            ? `Decoding error when creating chunk`
-	            : `Too many requests when fetching chunk`;
-	          debug(`${message}. Retrying...`);
 	          const timeout = tooManyRequests ? seconds(10) : seconds(retryCount); // TODO: use `X-RateLimit-Reset` header if error was "tooManyRequests"
 	          this._sleep = new CancellableSleep(timeout);
 	          return this._sleep
@@ -3289,8 +3276,6 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	              if (err !== SLEEP_CANCELLED) throw err;
 	            });
 	        }
-
-	        debug(`Unexpected error when fetching chunk`);
 	        throw error;
 	      });
 	  }
@@ -3611,7 +3596,6 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	      if (++loadedChunksCount >= preloadBatchSize) {
 	        this._canPlayThrough = true;
 	        this._fire('canPlayThrough');
-	        debug('Can play through 1');
 	        break;
 	      }
 	    }
@@ -3651,7 +3635,6 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 
 	  _createChunk(uint8Array, index) {
 	    if (!uint8Array || !Number.isInteger(index)) {
-	      debug('Loader#_createChunk: Invalid arguments. Resolving with null.');
 	      return Promise.resolve(null);
 	    }
 	    this._calculateMetadata(uint8Array);
@@ -3697,7 +3680,6 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	      if (!this._canPlayThrough) {
 	        this._canPlayThrough = true;
 	        this._fire('canPlayThrough');
-	        debug('Can play through 2');
 	      }
 	      this.loaded = true;
 	      this._fire('load');
@@ -4202,7 +4184,6 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 
 	  playbackEnded() {
-	    debug('Clip#playbackEnded');
 	    if (this._playbackState === PLAYBACK_STATE.PLAYING) {
 	      this._playbackState = PLAYBACK_STATE.STOPPED;
 	      this.ended = true;
@@ -4328,7 +4309,6 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 
 	  _playUsingAudioContext() {
-	    debug('#_playUsingAudioContext');
 	    this._playbackProgress = 0;
 	    this._scheduledEndTime = null;
 
@@ -4527,7 +4507,6 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    if (this._playbackState === PLAYBACK_STATE.STOPPED) return;
 
 	    if (this._clipState.chunksBufferingFinished) {
-	      debug('this._mediaSource.endOfStream()');
 	      this._mediaSource.endOfStream();
 	      return;
 	    }
@@ -4554,12 +4533,9 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	          this._wasPlayingSilence = true;
 	        }
 	      } catch (e) {
-	        // SourceBuffer might be full, remove segments that have already been played.
-	        debug('Exception when running SourceBuffer#appendBuffer', e);
 	        try {
 	          this._sourceBuffer.remove(0, this._audioElement.currentTime);
 	        } catch (e) {
-	          debug('Exception when running SourceBuffer#remove', e);
 	        }
 	      }
 	    }
@@ -4621,7 +4597,6 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 
 	  _createSourceFromChunk(chunk, timeOffset, callback) {
-	    debug('_createSourceFromChunk');
 	    const context = getContext();
 
 	    if (!chunk) {
@@ -4832,7 +4807,6 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	      this.currentlyPlaying.url === url &&
 	      fromSetPlaybackPosition === false
 	    ) {
-	      debug('ProtonPlayer#play -> resume');
 	      return this.currentlyPlaying.clip.resume() || Promise.resolve();
 	    }
 
@@ -5097,7 +5071,6 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    onTrackChanged = noop$1,
 	    volume = 1,
 	  }) {
-	    debug('ProtonPlayer#constructor');
 
 	    const browser = Bowser.getParser(window.navigator.userAgent);
 	    const browserName = browser.getBrowserName().toLowerCase();
@@ -5143,7 +5116,6 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 
 	  playTrack(track) {
-	    debug('ProtonPlayer#playTrack');
 
 	    this.reset();
 	    this.player.reset();
@@ -5151,7 +5123,6 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 
 	  play(playlist, index = 0) {
-	    debug('ProtonPlayer#play');
 
 	    if (!Array.isArray(playlist)) {
 	      playlist = [playlist];
@@ -5166,19 +5137,16 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 
 	  pause() {
-	    debug('ProtonPlayer#pause');
 
 	    this.player.pause();
 	  }
 
 	  resume() {
-	    debug('ProtonPlayer#resume');
 
 	    this.player.resume();
 	  }
 
 	  skip() {
-	    debug('ProtonPlayer#skip');
 
 	    const [nextTrack, playlist] = this.playlist.forward();
 	    this.playlist = playlist;
@@ -5197,7 +5165,6 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 
 	  back() {
-	    debug('ProtonPlayer#back');
 
 	    const currentTrack = this.playlist.current();
 	    const [previousTrack, playlist] = this.playlist.back();
@@ -5208,37 +5175,31 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 
 	  currentTrack() {
-	    debug('ProtonPlayer#currentTrack');
 
 	    return this.playlist.current();
 	  }
 
 	  previousTracks() {
-	    debug('ProtonPlayer#previousTracks');
 
 	    return this.playlist.head();
 	  }
 
 	  nextTracks() {
-	    debug('ProtonPlayer#nextTracks');
 
 	    return this.playlist.tail();
 	  }
 
 	  setPlaybackPosition(percent, newLastAllowedPosition = null) {
-	    debug('ProtonPlayer#setPlaybackPosition');
 
 	    this.player.setPlaybackPosition(percent, newLastAllowedPosition);
 	  }
 
 	  setVolume(volume) {
-	    debug('ProtonPlayer#setVolume');
 
 	    this.player.setVolume(volume);
 	  }
 
 	  reset() {
-	    debug('ProtonPlayer#reset');
 
 	    this.playlist = new Cursor([]);
 	    this.player.disposeAll();
