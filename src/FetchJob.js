@@ -1,5 +1,5 @@
 import CancellableSleep, { SLEEP_CANCELLED } from './utils/CancellableSleep';
-import axios, { Cancel, CancelToken } from 'axios';
+import axios, { CanceledError } from 'axios';
 import { debug, error } from './utils/logger';
 import DecodingError from './DecodingError';
 import seconds from './utils/seconds';
@@ -12,12 +12,12 @@ export default class FetchJob {
     this._start = start;
     this._end = end;
     this._cancelled = false;
-    this._cancelTokenSource = CancelToken.source();
+    this._controller = new AbortController();
   }
 
   cancel() {
     this._cancelled = true;
-    this._cancelTokenSource.cancel();
+    this._controller.abort();
     this._sleep && this._sleep.cancel();
   }
 
@@ -42,8 +42,9 @@ export default class FetchJob {
       headers,
       timeout: seconds(5),
       responseType: 'arraybuffer',
-      cancelToken: this._cancelTokenSource.token,
+      signal: this._controller.signal,
     };
+
     return axios
       .get(this._url, options)
       .then((response) => {
@@ -55,8 +56,7 @@ export default class FetchJob {
         return this._createChunk(uint8Array, this._chunkIndex);
       })
       .catch((error) => {
-        if (error instanceof Cancel) return;
-
+        if (error instanceof CanceledError) return;
         const timedOut = error.code === 'ECONNABORTED';
         const networkError = error.message === 'Network Error';
         const decodingError = error instanceof DecodingError;

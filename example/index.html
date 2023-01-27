@@ -10,7 +10,6 @@
       html,
       body {
         height: 100%;
-        background-color: #181717;
         background-color: #e26014;
         font-family: 'Josefin Sans', sans-serif;
       }
@@ -230,25 +229,31 @@
 
       const TRACKS = [
         {
-          id: 0,
-          name: 'End of an Era (Doyeq Remix)',
           url: `${MEDIA_SERVER_URL}1408293_380907_End_of_an_Era_Doyeq_Remix_128k.mp3`,
           fileSize: 8348315,
-          artist: 'Davide Ferrario',
+          meta: {
+            id: 0,
+            name: 'End of an Era (Doyeq Remix)',
+            artist: 'Davide Ferrario',
+          },
         },
         {
-          id: 1,
-          name: "Sounds of Freedom (Alex O'Rion Remix)",
           url: `${MEDIA_SERVER_URL}1475602_379536_Sounds_of_Freedom_Alex_ORion_Remix_128k.mp3`,
           fileSize: 8321148,
-          artist: 'Juan Deminicis',
+          meta: {
+            id: 1,
+            name: "Sounds of Freedom (Alex O'Rion Remix)",
+            artist: 'Juan Deminicis',
+          },
         },
         {
-          id: 2,
-          name: 'Mara (GMJ and Matter Intro Mix)',
           url: `${MEDIA_SERVER_URL}1597266_423256_Mara_GMJ_and_Matter_Intro_Mix_128k.mp3`,
           fileSize: 7969226,
-          artist: 'Pole Folder',
+          meta: {
+            id: 2,
+            name: 'Mara (GMJ and Matter Intro Mix)',
+            artist: 'Pole Folder',
+          },
         },
       ];
 
@@ -271,24 +276,6 @@
       const isPlaying = isPlayerState('PLAYING');
       const isPaused = isPlayerState('PAUSED');
 
-      // Here we actually initialize the Player. It doesn't require any
-      // arguments, but most people will want to pass in at least a couple of
-      // handlers to interact with its errors and ready state.
-      const player = new ProtonPlayer({
-        onReady: () => {
-          STATE.ready = true;
-        },
-        onError: (e) => console.error(e),
-      });
-
-      // Preloading all three MP3s ensures that a small buffer of each track's
-      // data is available for immediate playback. This is helpful for ensuring
-      // smooth playback between consecutive tracks such as in a queue or
-      // playlist system.
-      TRACKS.forEach((audio) => {
-        player.preLoad(audio.url, audio.fileSize);
-      });
-
       // Whenever the playhead updates, we want to update the length of the
       // progress bar. This callback is not called aggressively, so the
       // resulting progress bar will have a "ticking" behavior versus smooth
@@ -298,14 +285,22 @@
         render();
       };
 
-      // When playback ends, we attempt to play the next track in the queue.
+      // When playback ends, we just refresh the UI.
       const onPlaybackEnded = () => {
-        const nextTrackID = STATE.currentTrackID + 1;
-        if (nextTrackID < TRACKS.length) {
-          playTrack(TRACKS[nextTrackID]);
-        }
         render();
       };
+
+      // Here we actually initialize the Player. It doesn't require any
+      // arguments, but most people will want to pass in at least a couple of
+      // handlers to interact with its errors and ready state.
+      const player = new ProtonPlayer({
+        onReady: () => {
+          STATE.ready = true;
+        },
+        onError: (e) => console.error(e),
+        onPlaybackProgress,
+        onPlaybackEnded,
+      });
 
       // When the user clicks a track in the UI, either pause or play depending
       // on the current state of the player.
@@ -316,7 +311,10 @@
         if (clickedTrackID === STATE.currentTrackID) {
           togglePlayerState();
         } else {
-          playTrack(TRACKS[clickedTrackID]);
+          player.playTrack(TRACKS[clickedTrackID]);
+
+          STATE.currentTrackID = clickedTrackID;
+          STATE.playbackState = 'PLAYING';
         }
 
         render();
@@ -333,26 +331,11 @@
       const togglePlayerState = () => {
         if (isPlaying()) {
           STATE.playbackState = 'PAUSED';
-          player.pauseAll();
+          player.pause();
         } else {
           STATE.playbackState = 'PLAYING';
-          playTrack(TRACKS[STATE.currentTrackID]);
+          player.resume();
         }
-      };
-
-      // Sets the provided track as the currently playing one and begins
-      // playing it. Can be used to either "unpause" or mount an entirely
-      // new track.
-      const playTrack = (track) => {
-        STATE.currentTrackID = track.id;
-        STATE.playbackState = 'PLAYING';
-
-        player.play({
-          fileSize: track.fileSize,
-          url: track.url,
-          onPlaybackProgress,
-          onPlaybackEnded,
-        });
       };
 
       // Manually triggered to refresh the UI after state changes.
@@ -375,15 +358,16 @@
           }
         });
 
-        const currentTrackElement = trackElements[STATE.currentTrackID];
-        const currentProgressBar =
-          currentTrackElement.getElementsByClassName('ProgressBar');
-        const progressBarElement = renderProgressBar();
-        if (!currentProgressBar.length) {
-          currentTrackElement.appendChild(progressBarElement);
+        if (STATE.currentTrackID != null) {
+          const currentTrackElement = trackElements[STATE.currentTrackID];
+          const currentProgressBar =
+            currentTrackElement.getElementsByClassName('ProgressBar');
+          const progressBarElement = renderProgressBar();
+          if (!currentProgressBar.length) {
+            currentTrackElement.appendChild(progressBarElement);
+          }
+          progressBarElement.children[0].style.width = String(STATE.progress) + '%';
         }
-
-        progressBarElement.children[0].style.width = String(STATE.progress) + '%';
       };
 
       const renderProgressBar = () => {
@@ -418,18 +402,18 @@
         wrapper.classList.add('TrackContainer');
 
         const element = document.createElement('div');
-        element.classList.add('Track', `Track--track${track.id}`);
-        element.dataset.id = track.id;
-        element.textContent = track.name;
+        element.classList.add('Track', `Track--track${track.meta.id}`);
+        element.dataset.id = track.meta.id;
+        element.textContent = track.meta.name;
         element.addEventListener('click', (e) => {
           e.stopPropagation();
 
-          onTrackClicked(track.id);
+          onTrackClicked(track.meta.id);
         });
 
         const artistElement = document.createElement('div');
         artistElement.classList.add('Track_Artist');
-        artistElement.textContent = track.artist;
+        artistElement.textContent = track.meta.artist;
 
         wrapper.appendChild(element);
         element.appendChild(artistElement);

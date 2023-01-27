@@ -1,11 +1,11 @@
 {
   "name": "@protonradio/player",
-  "version": "21.10.4",
+  "version": "23.1.0",
   "main": "dist/proton-player.cjs.js",
   "module": "dist/proton-player.esm.js",
   "browser": "dist/proton-player.umd.js",
   "dependencies": {
-    "axios": "^0.24.0",
+    "axios": "^1.1.3",
     "bowser": "^2.11.0"
   },
   "devDependencies": {
@@ -24,6 +24,7 @@
     "build": "rollup -c",
     "dev": "DEV=true rollup -c -w",
     "test": "mocha --require @babel/register",
+    "test:watch": "mocha --require @babel/register --watch --watch-files src/**/*.js,test/*.js",
     "patch": "npm run build && ./scripts/calver.js patch",
     "release": "npm run build && ./scripts/calver.js release"
   },

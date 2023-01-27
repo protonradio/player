@@ -30,7 +30,8 @@ While the Web Audio and Mediasource APIs are both incredibly powerful tools for 
 
 ## Example
 
-[Player Demo](https://protonradio.github.io/player/)
+- [Basic Demo](https://protonradio.github.io/player/)
+- [Playlist Demo](https://protonradio.github.io/player/playlist.html)
 
 ## Acknowledgements
 
