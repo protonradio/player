@@ -49,8 +49,6 @@
 	  return context;
 	}
 
-	function noop$1() {}
-
 	let _cachedURL = null;
 
 	const getSilenceURL = () => {
@@ -137,6 +135,8 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	function initializeiOSAudioEngine$1 () {
 	  window.addEventListener('touchstart', initializeiOSAudioEngine, false);
 	}
+
+	function noop$1() {}
 
 	const SLEEP_CANCELLED = 'SLEEP_CANCELLED';
 
@@ -4770,15 +4770,19 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  playTrack(track) {
 	    if (!track) return;
 
-	    const currentTrack = this.currentlyPlaying?.track || {};
+	    const currentTrack = this.currentlyPlaying?.track || { url: null };
 
-	    if (track.url !== currentTrack.url) {
-	      this.__DEPRECATED__playTrack(track, track);
+	    if (track.url === currentTrack.url) {
+	      return this.resume();
+	    } else {
+	      const playPromise = this.__DEPRECATED__playTrack(track, track);
 	      this.onTrackChanged(currentTrack, track);
 
 	      if (currentTrack.url) {
 	        this._dispose(currentTrack.url);
 	      }
+
+	      return playPromise;
 	    }
 	  }
 
@@ -4939,11 +4943,12 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 
 	  resume() {
-	    this.currentlyPlaying?.clip?.resume();
+	    return this.currentlyPlaying?.clip?.resume() || Promise.reject();
 	  }
 
 	  pause() {
 	    this.currentlyPlaying?.clip?.pause();
+	    return Promise.resolve();
 	  }
 
 	  setVolume(volume = 1) {
@@ -5062,15 +5067,17 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 
 	initializeiOSAudioEngine$1();
 
-	class ProtonPlayer {
-	  constructor({
-	    onReady = noop$1,
-	    onError = noop$1,
-	    onPlaybackProgress = noop$1,
-	    onPlaybackEnded = noop$1,
-	    onTrackChanged = noop$1,
-	    volume = 1,
-	  }) {
+	const PlaybackState = {
+	  UNINITIALIZED: 'UNINITIALIZED',
+	  READY: 'READY',
+	  PLAYING: 'PLAYING',
+	  PAUSED: 'PAUSED',
+	};
+
+	class ProtonPlayer extends EventEmitter {
+	  constructor({ volume = 1 }) {
+
+	    super();
 
 	    const browser = Bowser.getParser(window.navigator.userAgent);
 	    const browserName = browser.getBrowserName().toLowerCase();
@@ -5090,13 +5097,22 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	      );
 	    }
 
+	    this.state = PlaybackState.UNINITIALIZED;
+
 	    this.player = new Player({
-	      onPlaybackEnded,
-	      onPlaybackProgress,
-	      onTrackChanged,
+	      onPlaybackEnded: () => {
+	        this.state = PlaybackState.READY;
+	        this._fire('state_changed', PlaybackState.READY);
+	      },
+	      onPlaybackProgress: (progress) => this._fire('tick', progress),
+	      onTrackChanged: (track, nextTrack) =>
+	        this._fire('track_changed', { track, nextTrack }),
 	      onNextTrack: () => this._moveToNextTrack(),
-	      onReady,
-	      onError,
+	      onReady: () => {
+	        this.state = PlaybackState.READY;
+	        this._fire('state_changed', PlaybackState.READY);
+	      },
+	      onError: (e) => this._fire('error', e),
 	      volume,
 	      osName,
 	      browserName,
@@ -5119,7 +5135,10 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 
 	    this.reset();
 	    this.player.reset();
-	    return this.player.playTrack(track);
+	    return this.player.playTrack(track).then(() => {
+	      this.state = PlaybackState.PLAYING;
+	      this._fire('state_changed', this.state);
+	    });
 	  }
 
 	  play(playlist, index = 0) {
@@ -5133,17 +5152,39 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    const [nextTrack] = this.playlist.forward();
 	    this.player.playNext(nextTrack);
 
-	    return this.player.playTrack(this.playlist.current());
+	    return this.player.playTrack(this.playlist.current()).then(() => {
+	      this.state = PlaybackState.PLAYING;
+	      this._fire('state_changed', this.state);
+	    });
+	  }
+
+	  toggle() {
+
+	    console.log(this.state);
+
+	    if (this.state === PlaybackState.PLAYING) {
+	      return this.pause();
+	    } else if (this.state === PlaybackState.PAUSED) {
+	      return this.resume();
+	    } else {
+	      return Promise.reject();
+	    }
 	  }
 
 	  pause() {
 
-	    this.player.pause();
+	    return this.player.pause().then(() => {
+	      this.state = PlaybackState.PAUSED;
+	      this._fire('state_changed', this.state);
+	    });
 	  }
 
 	  resume() {
 
-	    this.player.resume();
+	    return this.player.resume().then(() => {
+	      this.state = PlaybackState.PLAYING;
+	      this._fire('state_changed', this.state);
+	    });
 	  }
 
 	  skip() {

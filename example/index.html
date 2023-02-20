@@ -258,23 +258,12 @@
       ];
 
       const STATE = {
-        // Is the Player ready to begin playing audio?
-        ready: false,
-
         // What is the ID of the currently active track?
         currentTrackID: null,
 
         // What % of the way through the current track are we?
         progress: 0.0,
-
-        // Is the current track playing or paused?
-        playbackState: null,
       };
-
-      const isPlayerState = (state) => () => STATE.playbackState === state;
-
-      const isPlaying = isPlayerState('PLAYING');
-      const isPaused = isPlayerState('PAUSED');
 
       // Whenever the playhead updates, we want to update the length of the
       // progress bar. This callback is not called aggressively, so the
@@ -294,18 +283,24 @@
       // arguments, but most people will want to pass in at least a couple of
       // handlers to interact with its errors and ready state.
       const player = new ProtonPlayer({
-        onReady: () => {
-          STATE.ready = true;
-        },
         onError: (e) => console.error(e),
         onPlaybackProgress,
         onPlaybackEnded,
       });
 
+      const isPlayerState = (state) => () => player.state === state;
+
+      const isPlaying = isPlayerState('PLAYING');
+      const isPaused = isPlayerState('PAUSED');
+
+      player.on('state_changed', (state) => {
+        render();
+      });
+
       // When the user clicks a track in the UI, either pause or play depending
       // on the current state of the player.
       const onTrackClicked = (clickedID) => {
-        if (!STATE.ready) return;
+        if (player.state === 'UNINITIALIZED') return;
 
         const clickedTrackID = Number(clickedID);
         if (clickedTrackID === STATE.currentTrackID) {
@@ -314,7 +309,6 @@
           player.playTrack(TRACKS[clickedTrackID]);
 
           STATE.currentTrackID = clickedTrackID;
-          STATE.playbackState = 'PLAYING';
         }
 
         render();
@@ -329,13 +323,7 @@
 
       // Flips the current playing/paused state.
       const togglePlayerState = () => {
-        if (isPlaying()) {
-          STATE.playbackState = 'PAUSED';
-          player.pause();
-        } else {
-          STATE.playbackState = 'PLAYING';
-          player.resume();
-        }
+        player.toggle();
       };
 
       // Manually triggered to refresh the UI after state changes.
