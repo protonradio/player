@@ -8,6 +8,7 @@
     - [.playTrack](#playTrack)
     - [.pause](#pause)
     - [.resume](#resume)
+    - [.toggle](#toggle)
     - [.setPlaybackPosition](#setplaybackposition)
     - [.setVolume](#setvolume)
   - [Working with the queue](#working-with-the-queue)
@@ -123,6 +124,15 @@ Resumes playback from the current playback position.
 
 ```typescript
 player.resume();
+```
+
+### `.toggle`
+
+Either pauses or resumes playback, depending on the current state of the player. If the player is
+not already either paused or playing music, this method does nothing.
+
+```typescript
+player.toggle();
 ```
 
 ### `.setPlaybackPosition`
