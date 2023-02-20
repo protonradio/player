@@ -2268,4 +2268,4 @@ class ProtonPlayer extends EventEmitter {
   }
 }
 
-export { ProtonPlayer as default };
+export { PlaybackState, ProtonPlayer as default };
