@@ -2096,6 +2096,8 @@ const PlaybackState = {
 };
 
 class ProtonPlayer extends EventEmitter {
+  static PlaybackState = PlaybackState;
+
   constructor({ volume = 1 }) {
 
     super();
@@ -2180,8 +2182,6 @@ class ProtonPlayer extends EventEmitter {
   }
 
   toggle() {
-
-    console.log(this.state);
 
     if (this.state === PlaybackState.PLAYING) {
       return this.pause();
@@ -2268,4 +2268,4 @@ class ProtonPlayer extends EventEmitter {
   }
 }
 
-export { PlaybackState, ProtonPlayer as default };
+export { ProtonPlayer as default };

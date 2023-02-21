@@ -320,11 +320,3 @@ error: Error;
 ## Hosting MP3 files
 
 Proton Player uses the `Range` HTTP header to request specific chunks of an audio file. This header is not supported out-of-the-box by most common web servers and will need to be enabled for Proton Player to stream files from that server. Please reference the documentation for your particular web server to learn how to enable support for additional headers.
-
-```
-
-```
-
-```
-
-```

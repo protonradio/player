@@ -5075,6 +5075,8 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	};
 
 	class ProtonPlayer extends EventEmitter {
+	  static PlaybackState = PlaybackState;
+
 	  constructor({ volume = 1 }) {
 
 	    super();
@@ -5159,8 +5161,6 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 
 	  toggle() {
-
-	    console.log(this.state);
 
 	    if (this.state === PlaybackState.PLAYING) {
 	      return this.pause();

@@ -10,7 +10,7 @@ import EventEmitter from './EventEmitter';
 
 initializeiOSAudioEngine();
 
-export const PlaybackState = {
+const PlaybackState = {
   UNINITIALIZED: 'UNINITIALIZED',
   READY: 'READY',
   PLAYING: 'PLAYING',
@@ -18,6 +18,8 @@ export const PlaybackState = {
 };
 
 export default class ProtonPlayer extends EventEmitter {
+  static PlaybackState = PlaybackState;
+
   constructor({ volume = 1 }) {
     debug('ProtonPlayer#constructor');
 
@@ -106,8 +108,6 @@ export default class ProtonPlayer extends EventEmitter {
 
   toggle() {
     debug('ProtonPlayer#toggle');
-
-    console.log(this.state);
 
     if (this.state === PlaybackState.PLAYING) {
       return this.pause();

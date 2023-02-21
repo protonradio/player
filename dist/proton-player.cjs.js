@@ -1,7 +1,5 @@
 'use strict';
 
-Object.defineProperty(exports, '__esModule', { value: true });
-
 var Bowser = require('bowser');
 var axios = require('axios');
 
@@ -2105,6 +2103,8 @@ const PlaybackState = {
 };
 
 class ProtonPlayer extends EventEmitter {
+  static PlaybackState = PlaybackState;
+
   constructor({ volume = 1 }) {
 
     super();
@@ -2189,8 +2189,6 @@ class ProtonPlayer extends EventEmitter {
   }
 
   toggle() {
-
-    console.log(this.state);
 
     if (this.state === PlaybackState.PLAYING) {
       return this.pause();
@@ -2277,5 +2275,4 @@ class ProtonPlayer extends EventEmitter {
   }
 }
 
-exports.PlaybackState = PlaybackState;
-exports['default'] = ProtonPlayer;
+module.exports = ProtonPlayer;

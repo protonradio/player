@@ -265,35 +265,29 @@
         progress: 0.0,
       };
 
-      // Whenever the playhead updates, we want to update the length of the
-      // progress bar. This callback is not called aggressively, so the
-      // resulting progress bar will have a "ticking" behavior versus smooth
-      // updates.
-      const onPlaybackProgress = (progress) => {
-        STATE.progress = progress * 100;
-        render();
-      };
-
-      // When playback ends, we just refresh the UI.
-      const onPlaybackEnded = () => {
-        render();
-      };
-
       // Here we actually initialize the Player. It doesn't require any
       // arguments, but most people will want to pass in at least a couple of
       // handlers to interact with its errors and ready state.
-      const player = new ProtonPlayer({
-        onError: (e) => console.error(e),
-        onPlaybackProgress,
-        onPlaybackEnded,
-      });
+      const player = new ProtonPlayer({});
 
       const isPlayerState = (state) => () => player.state === state;
 
       const isPlaying = isPlayerState('PLAYING');
       const isPaused = isPlayerState('PAUSED');
 
+      // Whenever the state of the player changes, we re-render the UI. The
+      // player state indicates whether it is playing, paused, or just ready
+      // to begin playing audio.
       player.on('state_changed', (state) => {
+        render();
+      });
+
+      // Whenever the playhead updates, we want to update the length of the
+      // progress bar. This callback is not called aggressively, so the
+      // resulting progress bar will have a "ticking" behavior versus smooth
+      // updates.
+      player.on('tick', (progress) => {
+        STATE.progress = progress * 100;
         render();
       });
 

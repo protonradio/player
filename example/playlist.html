@@ -288,29 +288,38 @@
       const trackFlexBasis = (t) => `${(t.fileSize / TOTAL_MIX_BYTES) * 1000}px`;
 
       const STATE = {
-        // Is the Player ready to begin playing audio?
-        ready: false,
-
         // What is the ID of the currently active track?
         currentTrackID: null,
 
         // What % of the way through the current track are we?
         progress: 0.0,
-
-        // Is the current track playing or paused?
-        playbackState: null,
       };
 
-      const isPlayerState = (state) => () => STATE.playbackState === state;
+      // Here we actually initialize the Player. It doesn't require any
+      // arguments, but most people will want to pass in at least a couple of
+      // handlers to interact with its errors and ready state.
+      const player = new ProtonPlayer({});
+
+      const isPlayerState = (state) => () => player.state === state;
 
       const isPlaying = isPlayerState('PLAYING');
       const isPaused = isPlayerState('PAUSED');
+
+      player.on('state_changed', (state) => {
+        if (state === 'READY') {
+          player.reset();
+          STATE.currentTrackID = null;
+          STATE.progress = 0.0;
+        }
+
+        render();
+      });
 
       // Whenever the playhead updates, we want to update the length of the
       // progress bar. This callback is not called aggressively, so the
       // resulting progress bar will have a "ticking" behavior versus smooth
       // updates.
-      const onPlaybackProgress = (progress) => {
+      player.on('tick', (progress) => {
         let currentTrack = TRACKS[STATE.currentTrackID];
         let currentTrackBytes = currentTrack.fileSize * progress;
         let previousTrackBytes = TRACKS.slice(0, STATE.currentTrackID).reduce(
@@ -322,41 +331,17 @@
           ((currentTrackBytes + previousTrackBytes) / TOTAL_MIX_BYTES) * 100;
 
         render();
-      };
-
-      const onPlaybackEnded = () => {
-        player.reset();
-        STATE.currentTrackID = null;
-        STATE.playbackState = null;
-        STATE.progress = 0.0;
-
-        render();
-      };
+      });
 
       // Whenever a new track begins playing, we update the UI state and re-render.
-      const onTrackChanged = (currentTrack, nextTrack) => {
+      player.on('track_changed', ({ track, nextTrack }) => {
         STATE.currentTrackID = nextTrack.meta.id;
         render();
-      };
-
-      // Here we actually initialize the Player. It doesn't require any
-      // arguments, but most people will want to pass in at least a couple of
-      // handlers to interact with its errors and ready state.
-      const player = new ProtonPlayer({
-        onReady: () => {
-          STATE.ready = true;
-          render();
-        },
-        onError: (e) => console.error(e),
-        onPlaybackEnded,
-        onPlaybackProgress,
-        onTrackChanged,
       });
 
       const startPlayback = () => {
         const firstTrack = TRACKS[0];
         STATE.currentTrackID = firstTrack.meta.id;
-        STATE.playbackState = 'PLAYING';
 
         player.play(TRACKS);
         render();
@@ -420,10 +405,8 @@
           }
 
           if (isPlaying()) {
-            STATE.playbackState = 'PAUSED';
             player.pause();
           } else {
-            STATE.playbackState = 'PLAYING';
             player.resume();
           }
 
