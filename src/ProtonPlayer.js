@@ -3,23 +3,27 @@ import Bowser from 'bowser';
 import ProtonPlayerError from './ProtonPlayerError';
 import { debug } from './utils/logger';
 import getContext from './getContext';
-import noop from './utils/noop';
 import initializeiOSAudioEngine from './utils/initializeiOSAudioEngine';
 import Player from './Player';
 import Cursor from './Cursor';
+import EventEmitter from './EventEmitter';
 
 initializeiOSAudioEngine();
 
-export default class ProtonPlayer {
-  constructor({
-    onReady = noop,
-    onError = noop,
-    onPlaybackProgress = noop,
-    onPlaybackEnded = noop,
-    onTrackChanged = noop,
-    volume = 1,
-  }) {
+const PlaybackState = {
+  UNINITIALIZED: 'UNINITIALIZED',
+  READY: 'READY',
+  PLAYING: 'PLAYING',
+  PAUSED: 'PAUSED',
+};
+
+export default class ProtonPlayer extends EventEmitter {
+  static PlaybackState = PlaybackState;
+
+  constructor({ volume = 1 }) {
     debug('ProtonPlayer#constructor');
+
+    super();
 
     const browser = Bowser.getParser(window.navigator.userAgent);
     const browserName = browser.getBrowserName().toLowerCase();
@@ -39,13 +43,22 @@ export default class ProtonPlayer {
       );
     }
 
+    this.state = PlaybackState.UNINITIALIZED;
+
     this.player = new Player({
-      onPlaybackEnded,
-      onPlaybackProgress,
-      onTrackChanged,
+      onPlaybackEnded: () => {
+        this.state = PlaybackState.READY;
+        this._fire('state_changed', PlaybackState.READY);
+      },
+      onPlaybackProgress: (progress) => this._fire('tick', progress),
+      onTrackChanged: (track, nextTrack) =>
+        this._fire('track_changed', { track, nextTrack }),
       onNextTrack: () => this._moveToNextTrack(),
-      onReady,
-      onError,
+      onReady: () => {
+        this.state = PlaybackState.READY;
+        this._fire('state_changed', PlaybackState.READY);
+      },
+      onError: (e) => this._fire('error', e),
       volume,
       osName,
       browserName,
@@ -69,7 +82,10 @@ export default class ProtonPlayer {
 
     this.reset();
     this.player.reset();
-    return this.player.playTrack(track);
+    return this.player.playTrack(track).then(() => {
+      this.state = PlaybackState.PLAYING;
+      this._fire('state_changed', this.state);
+    });
   }
 
   play(playlist, index = 0) {
@@ -84,19 +100,40 @@ export default class ProtonPlayer {
     const [nextTrack] = this.playlist.forward();
     this.player.playNext(nextTrack);
 
-    return this.player.playTrack(this.playlist.current());
+    return this.player.playTrack(this.playlist.current()).then(() => {
+      this.state = PlaybackState.PLAYING;
+      this._fire('state_changed', this.state);
+    });
+  }
+
+  toggle() {
+    debug('ProtonPlayer#toggle');
+
+    if (this.state === PlaybackState.PLAYING) {
+      return this.pause();
+    } else if (this.state === PlaybackState.PAUSED) {
+      return this.resume();
+    } else {
+      return Promise.reject();
+    }
   }
 
   pause() {
     debug('ProtonPlayer#pause');
 
-    this.player.pause();
+    return this.player.pause().then(() => {
+      this.state = PlaybackState.PAUSED;
+      this._fire('state_changed', this.state);
+    });
   }
 
   resume() {
     debug('ProtonPlayer#resume');
 
-    this.player.resume();
+    return this.player.resume().then(() => {
+      this.state = PlaybackState.PLAYING;
+      this._fire('state_changed', this.state);
+    });
   }
 
   skip() {

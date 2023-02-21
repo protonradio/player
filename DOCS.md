@@ -8,6 +8,7 @@
     - [.playTrack](#playTrack)
     - [.pause](#pause)
     - [.resume](#resume)
+    - [.toggle](#toggle)
     - [.setPlaybackPosition](#setplaybackposition)
     - [.setVolume](#setvolume)
   - [Working with the queue](#working-with-the-queue)
@@ -17,6 +18,8 @@
     - [.currentTrack](#currentTrack)
     - [.previousTracks](#previousTracks)
     - [.nextTracks](#nextTracks)
+  - [Subscribing to events](#subscribing-to-events)
+    - [.on](#on)
 - [Hosting MP3 files](#hosting-mp3-files)
 
 ## `ProtonPlayer`
@@ -29,11 +32,6 @@ _Please note: Although it is not a singleton, instantiating multiple instances o
 import ProtonPlayer from 'proton-player';
 
 const player = new ProtonPlayer({
-  onReady: () => any,
-  onError: (e: Error) => {},
-  onPlaybackProgress: (progress: Number) => {},
-  onPlaybackEnded: () => {},
-  onTrackChanged: (currentTrack: Track, nextTrack: Track) => {},
   volume: (Number = 1.0),
 });
 ```
@@ -41,26 +39,6 @@ const player = new ProtonPlayer({
 ##### `volume?: Number`
 
 The initial volume of the player. This should be a decimal number between `0.0` and `1.0` representing the volume as a percentage. Defaults to `1.0` (maximum volume).
-
-##### `onReady?: () => any`
-
-Called when the Player has been fully initialized and is ready to begin streaming audio. Calling `.play` before `onReady` has been called will exhibit undefined behavior.
-
-##### `onError?: (e: Error) => any`
-
-Called when the Player encounters an error at any point. The caught `Error` object will be provided to the callback.
-
-##### `onPlaybackProgress?: (progress: Number) => {}`
-
-Called whenever the playhead advances, no more than once every 250ms.
-
-##### `onPlaybackEnded?: () => {}`
-
-Called whenever there is no more queued audio to play.
-
-##### `onTrackChanged?: (currentTrack: Track, nextTrack: Track) => {}`
-
-Called whenever the currently playing track changes.
 
 ### `.reset`
 
@@ -146,6 +124,15 @@ Resumes playback from the current playback position.
 
 ```typescript
 player.resume();
+```
+
+### `.toggle`
+
+Either pauses or resumes playback, depending on the current state of the player. If the player is
+not already either paused or playing music, this method does nothing.
+
+```typescript
+player.toggle();
 ```
 
 ### `.setPlaybackPosition`
@@ -257,6 +244,77 @@ Returns all of the tracks in the playlist before the currently playing `Track`.
 
 ```typescript
 player.previousTracks();
+```
+
+## Subscribing to events
+
+### `.on`
+
+A typical event emitter subscription function which binds the provided function
+to the occurrence of the specified Player event. The possible events are
+described below.
+
+Returns an object with a single `cancel` function which can be used to dispose
+of the event subscription.
+
+```typescript
+player.on(eventName: string, f: (args: any) => void): { cancel: () => void }
+```
+
+##### `track_changed`
+
+Emitted whenever the player automatically progresses to a new queued track.
+This event will only occur if the queueing functionality of the player is being
+used.
+
+**Properties**
+
+```typescript
+{
+  track: Track,
+  nextTrack: Track,
+}
+```
+
+##### `state_changed`
+
+Emitted whenever the internal state of the player changes with a single `string`
+argument communicating the new state. There are four possible states for the
+player to be in:
+
+- `UNINITIALIZED` The player is not ready to play music.
+- `READY` The player has no content loaded.
+- `PLAYING` The player is currently playing music.
+- `PAUSED` The player has content loaded, but is not currently playing.
+
+**Properties**
+
+```typescript
+state: string;
+```
+
+##### `tick`
+
+Emitted every 250ms with a single `number` property representing the percentage
+of the way through the current track that the player has progressed. This can
+be useful for updating timers and progress bars.
+
+**Properties**
+
+```typescript
+progress: number;
+```
+
+##### `error`
+
+Emitted whenever an error occurs during playback. If the error occurs in
+response to an imperative player action (such as `.play`), this event will not
+occur and the error will be surfaced through the returned Promise.
+
+**Properties**
+
+```typescript
+error: Error;
 ```
 
 ## Hosting MP3 files

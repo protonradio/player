@@ -132,15 +132,19 @@ export default class Player {
   playTrack(track) {
     if (!track) return;
 
-    const currentTrack = this.currentlyPlaying?.track || {};
+    const currentTrack = this.currentlyPlaying?.track || { url: null };
 
-    if (track.url !== currentTrack.url) {
-      this.__DEPRECATED__playTrack(track, track);
+    if (track.url === currentTrack.url) {
+      return this.resume();
+    } else {
+      const playPromise = this.__DEPRECATED__playTrack(track, track);
       this.onTrackChanged(currentTrack, track);
 
       if (currentTrack.url) {
         this._dispose(currentTrack.url);
       }
+
+      return playPromise;
     }
   }
 
@@ -302,11 +306,12 @@ export default class Player {
   }
 
   resume() {
-    this.currentlyPlaying?.clip?.resume();
+    return this.currentlyPlaying?.clip?.resume() || Promise.reject();
   }
 
   pause() {
     this.currentlyPlaying?.clip?.pause();
+    return Promise.resolve();
   }
 
   setVolume(volume = 1) {

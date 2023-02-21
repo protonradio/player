@@ -29,8 +29,6 @@ function getContext() {
   return context;
 }
 
-function noop() {}
-
 let _cachedURL = null;
 
 const getSilenceURL = () => {
@@ -117,6 +115,8 @@ function initializeiOSAudioEngine() {
 function initializeiOSAudioEngine$1 () {
   window.addEventListener('touchstart', initializeiOSAudioEngine, false);
 }
+
+function noop() {}
 
 const SLEEP_CANCELLED = 'SLEEP_CANCELLED';
 
@@ -1791,15 +1791,19 @@ class Player {
   playTrack(track) {
     if (!track) return;
 
-    const currentTrack = this.currentlyPlaying?.track || {};
+    const currentTrack = this.currentlyPlaying?.track || { url: null };
 
-    if (track.url !== currentTrack.url) {
-      this.__DEPRECATED__playTrack(track, track);
+    if (track.url === currentTrack.url) {
+      return this.resume();
+    } else {
+      const playPromise = this.__DEPRECATED__playTrack(track, track);
       this.onTrackChanged(currentTrack, track);
 
       if (currentTrack.url) {
         this._dispose(currentTrack.url);
       }
+
+      return playPromise;
     }
   }
 
@@ -1960,11 +1964,12 @@ class Player {
   }
 
   resume() {
-    this.currentlyPlaying?.clip?.resume();
+    return this.currentlyPlaying?.clip?.resume() || Promise.reject();
   }
 
   pause() {
     this.currentlyPlaying?.clip?.pause();
+    return Promise.resolve();
   }
 
   setVolume(volume = 1) {
@@ -2083,15 +2088,19 @@ class Cursor {
 
 initializeiOSAudioEngine$1();
 
-class ProtonPlayer {
-  constructor({
-    onReady = noop,
-    onError = noop,
-    onPlaybackProgress = noop,
-    onPlaybackEnded = noop,
-    onTrackChanged = noop,
-    volume = 1,
-  }) {
+const PlaybackState = {
+  UNINITIALIZED: 'UNINITIALIZED',
+  READY: 'READY',
+  PLAYING: 'PLAYING',
+  PAUSED: 'PAUSED',
+};
+
+class ProtonPlayer extends EventEmitter {
+  static PlaybackState = PlaybackState;
+
+  constructor({ volume = 1 }) {
+
+    super();
 
     const browser = Bowser.getParser(window.navigator.userAgent);
     const browserName = browser.getBrowserName().toLowerCase();
@@ -2111,13 +2120,22 @@ class ProtonPlayer {
       );
     }
 
+    this.state = PlaybackState.UNINITIALIZED;
+
     this.player = new Player({
-      onPlaybackEnded,
-      onPlaybackProgress,
-      onTrackChanged,
+      onPlaybackEnded: () => {
+        this.state = PlaybackState.READY;
+        this._fire('state_changed', PlaybackState.READY);
+      },
+      onPlaybackProgress: (progress) => this._fire('tick', progress),
+      onTrackChanged: (track, nextTrack) =>
+        this._fire('track_changed', { track, nextTrack }),
       onNextTrack: () => this._moveToNextTrack(),
-      onReady,
-      onError,
+      onReady: () => {
+        this.state = PlaybackState.READY;
+        this._fire('state_changed', PlaybackState.READY);
+      },
+      onError: (e) => this._fire('error', e),
       volume,
       osName,
       browserName,
@@ -2140,7 +2158,10 @@ class ProtonPlayer {
 
     this.reset();
     this.player.reset();
-    return this.player.playTrack(track);
+    return this.player.playTrack(track).then(() => {
+      this.state = PlaybackState.PLAYING;
+      this._fire('state_changed', this.state);
+    });
   }
 
   play(playlist, index = 0) {
@@ -2154,17 +2175,37 @@ class ProtonPlayer {
     const [nextTrack] = this.playlist.forward();
     this.player.playNext(nextTrack);
 
-    return this.player.playTrack(this.playlist.current());
+    return this.player.playTrack(this.playlist.current()).then(() => {
+      this.state = PlaybackState.PLAYING;
+      this._fire('state_changed', this.state);
+    });
+  }
+
+  toggle() {
+
+    if (this.state === PlaybackState.PLAYING) {
+      return this.pause();
+    } else if (this.state === PlaybackState.PAUSED) {
+      return this.resume();
+    } else {
+      return Promise.reject();
+    }
   }
 
   pause() {
 
-    this.player.pause();
+    return this.player.pause().then(() => {
+      this.state = PlaybackState.PAUSED;
+      this._fire('state_changed', this.state);
+    });
   }
 
   resume() {
 
-    this.player.resume();
+    return this.player.resume().then(() => {
+      this.state = PlaybackState.PLAYING;
+      this._fire('state_changed', this.state);
+    });
   }
 
   skip() {

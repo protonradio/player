@@ -258,54 +258,43 @@
       ];
 
       const STATE = {
-        // Is the Player ready to begin playing audio?
-        ready: false,
-
         // What is the ID of the currently active track?
         currentTrackID: null,
 
         // What % of the way through the current track are we?
         progress: 0.0,
-
-        // Is the current track playing or paused?
-        playbackState: null,
-      };
-
-      const isPlayerState = (state) => () => STATE.playbackState === state;
-
-      const isPlaying = isPlayerState('PLAYING');
-      const isPaused = isPlayerState('PAUSED');
-
-      // Whenever the playhead updates, we want to update the length of the
-      // progress bar. This callback is not called aggressively, so the
-      // resulting progress bar will have a "ticking" behavior versus smooth
-      // updates.
-      const onPlaybackProgress = (progress) => {
-        STATE.progress = progress * 100;
-        render();
-      };
-
-      // When playback ends, we just refresh the UI.
-      const onPlaybackEnded = () => {
-        render();
       };
 
       // Here we actually initialize the Player. It doesn't require any
       // arguments, but most people will want to pass in at least a couple of
       // handlers to interact with its errors and ready state.
-      const player = new ProtonPlayer({
-        onReady: () => {
-          STATE.ready = true;
-        },
-        onError: (e) => console.error(e),
-        onPlaybackProgress,
-        onPlaybackEnded,
+      const player = new ProtonPlayer({});
+
+      const isPlayerState = (state) => () => player.state === state;
+
+      const isPlaying = isPlayerState('PLAYING');
+      const isPaused = isPlayerState('PAUSED');
+
+      // Whenever the state of the player changes, we re-render the UI. The
+      // player state indicates whether it is playing, paused, or just ready
+      // to begin playing audio.
+      player.on('state_changed', (state) => {
+        render();
+      });
+
+      // Whenever the playhead updates, we want to update the length of the
+      // progress bar. This callback is not called aggressively, so the
+      // resulting progress bar will have a "ticking" behavior versus smooth
+      // updates.
+      player.on('tick', (progress) => {
+        STATE.progress = progress * 100;
+        render();
       });
 
       // When the user clicks a track in the UI, either pause or play depending
       // on the current state of the player.
       const onTrackClicked = (clickedID) => {
-        if (!STATE.ready) return;
+        if (player.state === 'UNINITIALIZED') return;
 
         const clickedTrackID = Number(clickedID);
         if (clickedTrackID === STATE.currentTrackID) {
@@ -314,7 +303,6 @@
           player.playTrack(TRACKS[clickedTrackID]);
 
           STATE.currentTrackID = clickedTrackID;
-          STATE.playbackState = 'PLAYING';
         }
 
         render();
@@ -329,13 +317,7 @@
 
       // Flips the current playing/paused state.
       const togglePlayerState = () => {
-        if (isPlaying()) {
-          STATE.playbackState = 'PAUSED';
-          player.pause();
-        } else {
-          STATE.playbackState = 'PLAYING';
-          player.resume();
-        }
+        player.toggle();
       };
 
       // Manually triggered to refresh the UI after state changes.
