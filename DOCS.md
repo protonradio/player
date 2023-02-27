@@ -11,9 +11,10 @@
     - [.toggle](#toggle)
     - [.setPlaybackPosition](#setplaybackposition)
     - [.setVolume](#setvolume)
-  - [Working with the queue](#working-with-the-queue)
+  - [Working with the playlist](#working-with-the-playlist)
     - [.skip](#skip)
     - [.back](#back)
+    - [.jump](#jump)
   - [Reading the player state](#reading-the-player-state)
     - [.currentTrack](#currentTrack)
     - [.previousTracks](#previousTracks)
@@ -218,6 +219,16 @@ will immediately begin playing.
 
 ```typescript
 player.back();
+```
+
+### `.jump`
+
+Moves to the track at the specified index. If the player is currently playing that track, nothing
+occurs. If the provided index is larger than the length of the playlist, playback stops and the
+player is reset.
+
+```typescript
+player.jump(index: number)
 ```
 
 ## Reading the player state

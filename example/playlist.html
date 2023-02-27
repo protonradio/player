@@ -414,6 +414,8 @@
         };
       });
 
+      window.player = player;
+
       updateElement('Controls_Skip', (e) => {
         e.onclick = () => player.skip();
       });

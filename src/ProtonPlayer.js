@@ -155,6 +155,25 @@ export default class ProtonPlayer extends EventEmitter {
     }
   }
 
+  jump(index) {
+    debug('ProtonPlayer#jump');
+
+    this.playlist = this.playlist.move(index);
+    const currentTrack = this.playlist.current();
+
+    if (currentTrack) {
+      this.player.playTrack(currentTrack);
+
+      const [followingTrack] = this.playlist.forward();
+      if (followingTrack) {
+        this.player.playNext(followingTrack);
+      }
+    } else {
+      this.player.stopAll();
+      this.player.onPlaybackEnded();
+    }
+  }
+
   back() {
     debug('ProtonPlayer#back');
 
