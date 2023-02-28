@@ -99,6 +99,7 @@
       .Controls_Back,
       .Controls_PlayPause,
       .Controls_Skip {
+        font-family: monospace;
         text-align: center;
         line-height: 42px;
         max-height: 50px;
@@ -193,9 +194,9 @@
       <div class="NowPlaying">
         <div class="NowPlaying_Image"></div>
         <div class="Controls">
-          <div class="Controls_Back">⏮</div>
-          <div class="Controls_PlayPause">▶</div>
-          <div class="Controls_Skip">⏭</div>
+          <div class="Controls_Back">⏮&#xFE0E;</div>
+          <div class="Controls_PlayPause">▶&#xFE0E;</div>
+          <div class="Controls_Skip">⏭&#xFE0E;</div>
         </div>
       </div>
       <div class="Tracks">
@@ -373,7 +374,7 @@
         });
 
         updateElement('Controls_PlayPause', (e) => {
-          e.textContent = isPlaying() ? '⏸' : '⏵';
+          e.innerHTML = isPlaying() ? '⏸&#xFE0E;' : '⏵&#xFE0E;';
         });
 
         TRACKS.forEach((track) => {

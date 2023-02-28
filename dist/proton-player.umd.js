@@ -4665,6 +4665,9 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    // Triggered once when the Player is ready to begin playing audio.
 	    onReady,
 
+	    // Triggered whenever the volume is changed or the player is muted.
+	    onVolumeChanged,
+
 	    browserName,
 	    osName,
 	    volume,
@@ -4672,6 +4675,8 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    this.browserName = browserName;
 	    this.osName = osName;
 	    this.volume = volume;
+	    // Only has a value when the Player is muted.
+	    this.previousVolume = null;
 
 	    this.onError = onError;
 	    this.onNextTrack = onNextTrack;
@@ -4679,6 +4684,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    this.onPlaybackProgress = onPlaybackProgress;
 	    this.onTrackChanged = onTrackChanged;
 	    this.onReady = onReady;
+	    this.onVolumeChanged = onVolumeChanged;
 	    this.ready = false;
 
 	    // Database of cached audio data and track metadata.
@@ -4956,6 +4962,21 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    Object.keys(this.clips).forEach((k) => {
 	      this.clips[k].volume = this.volume;
 	    });
+	    this.onVolumeChanged(this.volume);
+	  }
+
+	  mute() {
+	    this.previousVolume = this.volume;
+	    this.setVolume(0);
+	  }
+
+	  unmute() {
+	    this.setVolume(this.previousVolume);
+	    this.previousVolume = null;
+	  }
+
+	  isMuted() {
+	    return Boolean(this.previousVolume);
 	  }
 
 	  setPlaybackPosition(percent, newLastAllowedPosition = null) {
@@ -5048,6 +5069,10 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    return [this.xs[previousIndex], new Cursor(this.xs, previousIndex)];
 	  }
 
+	  move(index) {
+	    return new Cursor(this.xs, index);
+	  }
+
 	  current() {
 	    return this.xs[this.index];
 	  }
@@ -5114,6 +5139,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	        this.state = PlaybackState.READY;
 	        this._fire('state_changed', PlaybackState.READY);
 	      },
+	      onVolumeChanged: (volume) => this._fire('volume_changed', volume),
 	      onError: (e) => this._fire('error', e),
 	      volume,
 	      osName,
@@ -5205,6 +5231,24 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    }
 	  }
 
+	  jump(index) {
+
+	    this.playlist = this.playlist.move(index);
+	    const currentTrack = this.playlist.current();
+
+	    if (currentTrack) {
+	      this.player.playTrack(currentTrack);
+
+	      const [followingTrack] = this.playlist.forward();
+	      if (followingTrack) {
+	        this.player.playNext(followingTrack);
+	      }
+	    } else {
+	      this.player.stopAll();
+	      this.player.onPlaybackEnded();
+	    }
+	  }
+
 	  back() {
 
 	    const currentTrack = this.playlist.current();
@@ -5238,6 +5282,27 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  setVolume(volume) {
 
 	    this.player.setVolume(volume);
+	  }
+
+	  currentVolume() {
+
+	    return this.player.volume;
+	  }
+
+	  toggleMute() {
+
+	    const isMuted = this.player.isMuted();
+	    if (isMuted) {
+	      this.player.unmute();
+	    } else {
+	      this.player.mute();
+	    }
+	    return !isMuted;
+	  }
+
+	  isMuted() {
+
+	    return this.player.isMuted();
 	  }
 
 	  reset() {

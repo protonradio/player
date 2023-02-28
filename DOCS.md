@@ -10,10 +10,15 @@
     - [.resume](#resume)
     - [.toggle](#toggle)
     - [.setPlaybackPosition](#setplaybackposition)
+  - [Controlling volume](#controlling-volume)
     - [.setVolume](#setvolume)
-  - [Working with the queue](#working-with-the-queue)
+    - [.currentVolume](#currentvolume)
+    - [.toggleMute](#togglemute)
+    - [.isMuted](#ismuted)
+  - [Working with the playlist](#working-with-the-playlist)
     - [.skip](#skip)
     - [.back](#back)
+    - [.jump](#jump)
   - [Reading the player state](#reading-the-player-state)
     - [.currentTrack](#currentTrack)
     - [.previousTracks](#previousTracks)
@@ -154,17 +159,45 @@ The point in the current track to move the playhead to (as a percentage). If you
 
 The point in the current track at which to stop playback (as a percentage). Defaults to `null`.
 
+## Controlling volume
+
 ### `.setVolume`
 
 Updates the global volume level for the player.
 
 ```typescript
-player.setVolume(volume: Number)
+player.setVolume(volume: number)
 ```
 
 ##### `volume: Number`
 
 The new desired volume represented as a percentage between `0` and `1`.
+
+### `.currentVolume`
+
+Returns the current volume level of the player as a percentage between `0` and
+`1`.
+
+```typescript
+player.currentVolume(): number
+```
+
+### `toggleMute`
+
+Toggles mute on and off. The return value is the muted status of the player
+after the toggle completes.
+
+```typescript
+player.toggleMute(): boolean
+```
+
+### `isMuted`
+
+Returns the current muted status of the player.
+
+```typescript
+player.isMuted(): boolean
+```
 
 ## Working with the playlist
 
@@ -218,6 +251,16 @@ will immediately begin playing.
 
 ```typescript
 player.back();
+```
+
+### `.jump`
+
+Moves to the track at the specified index. If the player is currently playing that track, nothing
+occurs. If the provided index is larger than the length of the playlist, playback stops and the
+player is reset.
+
+```typescript
+player.jump(index: number)
 ```
 
 ## Reading the player state
@@ -291,6 +334,19 @@ player to be in:
 
 ```typescript
 state: string;
+```
+
+##### `volume_changed`
+
+Emitted whenever the internal volume of the player changes. This occurs whenever
+`setVolume` is used and whenever the player's mute setting is toggled. The
+event payload is a single decimal number between `0.0` and `1.0` representing
+the new volume as a percentage.
+
+**Properties**
+
+```typescript
+volume: number;
 ```
 
 ##### `tick`

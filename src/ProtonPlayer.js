@@ -58,6 +58,7 @@ export default class ProtonPlayer extends EventEmitter {
         this.state = PlaybackState.READY;
         this._fire('state_changed', PlaybackState.READY);
       },
+      onVolumeChanged: (volume) => this._fire('volume_changed', volume),
       onError: (e) => this._fire('error', e),
       volume,
       osName,
@@ -155,6 +156,25 @@ export default class ProtonPlayer extends EventEmitter {
     }
   }
 
+  jump(index) {
+    debug('ProtonPlayer#jump');
+
+    this.playlist = this.playlist.move(index);
+    const currentTrack = this.playlist.current();
+
+    if (currentTrack) {
+      this.player.playTrack(currentTrack);
+
+      const [followingTrack] = this.playlist.forward();
+      if (followingTrack) {
+        this.player.playNext(followingTrack);
+      }
+    } else {
+      this.player.stopAll();
+      this.player.onPlaybackEnded();
+    }
+  }
+
   back() {
     debug('ProtonPlayer#back');
 
@@ -194,6 +214,30 @@ export default class ProtonPlayer extends EventEmitter {
     debug('ProtonPlayer#setVolume');
 
     this.player.setVolume(volume);
+  }
+
+  currentVolume() {
+    debug('ProtonPlayer#currentVolume');
+
+    return this.player.volume;
+  }
+
+  toggleMute() {
+    debug('ProtonPlayer#toggleMute');
+
+    const isMuted = this.player.isMuted();
+    if (isMuted) {
+      this.player.unmute();
+    } else {
+      this.player.mute();
+    }
+    return !isMuted;
+  }
+
+  isMuted() {
+    debug('ProtonPlayer#isMuted');
+
+    return this.player.isMuted();
   }
 
   reset() {

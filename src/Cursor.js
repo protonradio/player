@@ -21,6 +21,10 @@ export default class Cursor {
     return [this.xs[previousIndex], new Cursor(this.xs, previousIndex)];
   }
 
+  move(index) {
+    return new Cursor(this.xs, index);
+  }
+
   current() {
     return this.xs[this.index];
   }

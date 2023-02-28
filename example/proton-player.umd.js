@@ -4672,6 +4672,8 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    this.browserName = browserName;
 	    this.osName = osName;
 	    this.volume = volume;
+	    // Only has a value when the Player is muted.
+	    this.previousVolume = null;
 
 	    this.onError = onError;
 	    this.onNextTrack = onNextTrack;
@@ -4958,6 +4960,20 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    });
 	  }
 
+	  mute() {
+	    this.previousVolume = this.volume;
+	    this.setVolume(0);
+	  }
+
+	  unmute() {
+	    this.setVolume(this.previousVolume);
+	    this.previousVolume = null;
+	  }
+
+	  isMuted() {
+	    return Boolean(this.previousVolume);
+	  }
+
 	  setPlaybackPosition(percent, newLastAllowedPosition = null) {
 	    if (!this.currentlyPlaying || percent > 1) {
 	      return Promise.resolve();
@@ -5046,6 +5062,10 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    const previousIndex = this.index - 1;
 	    if (previousIndex < 0) return [null, this];
 	    return [this.xs[previousIndex], new Cursor(this.xs, previousIndex)];
+	  }
+
+	  move(index) {
+	    return new Cursor(this.xs, index);
 	  }
 
 	  current() {
@@ -5205,6 +5225,24 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    }
 	  }
 
+	  jump(index) {
+
+	    this.playlist = this.playlist.move(index);
+	    const currentTrack = this.playlist.current();
+
+	    if (currentTrack) {
+	      this.player.playTrack(currentTrack);
+
+	      const [followingTrack] = this.playlist.forward();
+	      if (followingTrack) {
+	        this.player.playNext(followingTrack);
+	      }
+	    } else {
+	      this.player.stopAll();
+	      this.player.onPlaybackEnded();
+	    }
+	  }
+
 	  back() {
 
 	    const currentTrack = this.playlist.current();
@@ -5238,6 +5276,27 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  setVolume(volume) {
 
 	    this.player.setVolume(volume);
+	  }
+
+	  currentVolume() {
+
+	    return this.player.volume;
+	  }
+
+	  toggleMute() {
+
+	    const isMuted = this.player.isMuted();
+	    if (isMuted) {
+	      this.player.unmute();
+	    } else {
+	      this.player.mute();
+	    }
+	    return !isMuted;
+	  }
+
+	  isMuted() {
+
+	    return this.player.isMuted();
 	  }
 
 	  reset() {
