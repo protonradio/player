@@ -58,6 +58,7 @@ export default class ProtonPlayer extends EventEmitter {
         this.state = PlaybackState.READY;
         this._fire('state_changed', PlaybackState.READY);
       },
+      onVolumeChanged: (volume) => this._fire('volume_changed', volume),
       onError: (e) => this._fire('error', e),
       volume,
       osName,

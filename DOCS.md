@@ -336,6 +336,19 @@ player to be in:
 state: string;
 ```
 
+##### `volume_changed`
+
+Emitted whenever the internal volume of the player changes. This occurs whenever
+`setVolume` is used and whenever the player's mute setting is toggled. The
+event payload is a single decimal number between `0.0` and `1.0` representing
+the new volume as a percentage.
+
+**Properties**
+
+```typescript
+volume: number;
+```
+
 ##### `tick`
 
 Emitted every 250ms with a single `number` property representing the percentage

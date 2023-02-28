@@ -1693,6 +1693,9 @@ class Player {
     // Triggered once when the Player is ready to begin playing audio.
     onReady,
 
+    // Triggered whenever the volume is changed or the player is muted.
+    onVolumeChanged,
+
     browserName,
     osName,
     volume,
@@ -1709,6 +1712,7 @@ class Player {
     this.onPlaybackProgress = onPlaybackProgress;
     this.onTrackChanged = onTrackChanged;
     this.onReady = onReady;
+    this.onVolumeChanged = onVolumeChanged;
     this.ready = false;
 
     // Database of cached audio data and track metadata.
@@ -1986,6 +1990,7 @@ class Player {
     Object.keys(this.clips).forEach((k) => {
       this.clips[k].volume = this.volume;
     });
+    this.onVolumeChanged(this.volume);
   }
 
   mute() {
@@ -2162,6 +2167,7 @@ class ProtonPlayer extends EventEmitter {
         this.state = PlaybackState.READY;
         this._fire('state_changed', PlaybackState.READY);
       },
+      onVolumeChanged: (volume) => this._fire('volume_changed', volume),
       onError: (e) => this._fire('error', e),
       volume,
       osName,
