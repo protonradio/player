@@ -12,6 +12,7 @@
     - [.setPlaybackPosition](#setplaybackposition)
   - [Controlling volume](#controlling-volume)
     - [.setVolume](#setvolume)
+    - [.currentVolume](#currentvolume)
     - [.toggleMute](#togglemute)
     - [.isMuted](#ismuted)
   - [Working with the playlist](#working-with-the-playlist)
@@ -171,6 +172,15 @@ player.setVolume(volume: number)
 ##### `volume: Number`
 
 The new desired volume represented as a percentage between `0` and `1`.
+
+### `.currentVolume`
+
+Returns the current volume level of the player as a percentage between `0` and
+`1`.
+
+```typescript
+player.currentVolume(): number
+```
 
 ### `toggleMute`
 

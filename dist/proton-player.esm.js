@@ -2299,6 +2299,11 @@ class ProtonPlayer extends EventEmitter {
     this.player.setVolume(volume);
   }
 
+  currentVolume() {
+
+    return this.player.volume;
+  }
+
   toggleMute() {
 
     const isMuted = this.player.isMuted();

@@ -215,6 +215,12 @@ export default class ProtonPlayer extends EventEmitter {
     this.player.setVolume(volume);
   }
 
+  currentVolume() {
+    debug('ProtonPlayer#currentVolume');
+
+    return this.player.volume;
+  }
+
   toggleMute() {
     debug('ProtonPlayer#toggleMute');
 

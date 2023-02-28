@@ -5278,6 +5278,11 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    this.player.setVolume(volume);
 	  }
 
+	  currentVolume() {
+
+	    return this.player.volume;
+	  }
+
 	  toggleMute() {
 
 	    const isMuted = this.player.isMuted();
