@@ -10,7 +10,10 @@
     - [.resume](#resume)
     - [.toggle](#toggle)
     - [.setPlaybackPosition](#setplaybackposition)
+  - [Controlling volume](#controlling-volume)
     - [.setVolume](#setvolume)
+    - [.toggleMute](#togglemute)
+    - [.isMuted](#ismuted)
   - [Working with the playlist](#working-with-the-playlist)
     - [.skip](#skip)
     - [.back](#back)
@@ -155,17 +158,36 @@ The point in the current track to move the playhead to (as a percentage). If you
 
 The point in the current track at which to stop playback (as a percentage). Defaults to `null`.
 
+## Controlling volume
+
 ### `.setVolume`
 
 Updates the global volume level for the player.
 
 ```typescript
-player.setVolume(volume: Number)
+player.setVolume(volume: number)
 ```
 
 ##### `volume: Number`
 
 The new desired volume represented as a percentage between `0` and `1`.
+
+### `toggleMute`
+
+Toggles mute on and off. The return value is the muted status of the player
+after the toggle completes.
+
+```typescript
+player.toggleMute(): boolean
+```
+
+### `isMuted`
+
+Returns the current muted status of the player.
+
+```typescript
+player.isMuted(): boolean
+```
 
 ## Working with the playlist
 

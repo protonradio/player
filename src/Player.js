@@ -34,6 +34,8 @@ export default class Player {
     this.browserName = browserName;
     this.osName = osName;
     this.volume = volume;
+    // Only has a value when the Player is muted.
+    this.previousVolume = null;
 
     this.onError = onError;
     this.onNextTrack = onNextTrack;
@@ -319,6 +321,20 @@ export default class Player {
     Object.keys(this.clips).forEach((k) => {
       this.clips[k].volume = this.volume;
     });
+  }
+
+  mute() {
+    this.previousVolume = this.volume;
+    this.setVolume(0);
+  }
+
+  unmute() {
+    this.setVolume(this.previousVolume);
+    this.previousVolume = null;
+  }
+
+  isMuted() {
+    return Boolean(this.previousVolume);
   }
 
   setPlaybackPosition(percent, newLastAllowedPosition = null) {
