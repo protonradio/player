@@ -9,6 +9,7 @@
     - [.pause](#pause)
     - [.resume](#resume)
     - [.toggle](#toggle)
+    - [.seek](#seek)
     - [.setPlaybackPosition](#setplaybackposition)
   - [Controlling volume](#controlling-volume)
     - [.setVolume](#setvolume)
@@ -138,6 +139,16 @@ not already either paused or playing music, this method does nothing.
 
 ```typescript
 player.toggle();
+```
+
+### `.seek`
+
+Moves the playhead forwards or backwards by the specified number of seconds. If the result of the
+move would cause the playhead to move beyond the beginning or end of the current track, the previous
+or next track will be played automatically (if it exists).
+
+```typescript
+player.seek(seconds: number)
 ```
 
 ### `.setPlaybackPosition`

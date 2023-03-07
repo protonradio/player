@@ -54,6 +54,7 @@ export default class ProtonPlayer extends EventEmitter {
       onTrackChanged: (track, nextTrack) =>
         this._fire('track_changed', { track, nextTrack }),
       onNextTrack: () => this._moveToNextTrack(),
+      onPreviousTrack: () => this._moveToPreviousTrack(),
       onReady: () => {
         this.state = PlaybackState.READY;
         this._fire('state_changed', PlaybackState.READY);
@@ -71,6 +72,20 @@ export default class ProtonPlayer extends EventEmitter {
   _moveToNextTrack() {
     const [_, playlist] = this.playlist.forward();
     this.playlist = playlist;
+
+    const [nextTrack] = this.playlist.forward();
+    if (nextTrack) {
+      this.player.playNext(nextTrack);
+    }
+  }
+
+  _moveToPreviousTrack() {
+    const [track, playlist] = this.playlist.back();
+    this.playlist = playlist;
+
+    if (track) {
+      this.player.playTrack(track);
+    }
 
     const [nextTrack] = this.playlist.forward();
     if (nextTrack) {
@@ -202,6 +217,12 @@ export default class ProtonPlayer extends EventEmitter {
     debug('ProtonPlayer#nextTracks');
 
     return this.playlist.tail();
+  }
+
+  seek(seconds) {
+    debug('ProtonPlayer#seek');
+
+    return this.player.seek(seconds);
   }
 
   setPlaybackPosition(percent, newLastAllowedPosition = null) {
