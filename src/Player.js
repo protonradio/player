@@ -21,6 +21,9 @@ export default class Player {
     // Triggered every ~250ms while audio is playing.
     onPlaybackProgress,
 
+    // Triggered whenever the Player seeks to the previous track.
+    onPreviousTrack,
+
     // Triggered whenever a new track begins playing.
     onTrackChanged,
 
@@ -44,6 +47,7 @@ export default class Player {
     this.onNextTrack = onNextTrack;
     this.onPlaybackEnded = onPlaybackEnded;
     this.onPlaybackProgress = onPlaybackProgress;
+    this.onPreviousTrack = onPreviousTrack;
     this.onTrackChanged = onTrackChanged;
     this.onReady = onReady;
     this.onVolumeChanged = onVolumeChanged;
@@ -240,10 +244,7 @@ export default class Player {
           progress = 1; // Prevent playback progress from exceeding 1 (100%)
         }
 
-        if (
-          !this.currentlyPlaying ||
-          progress < this.currentlyPlaying.lastReportedProgress // Prevent playback progress from going backwards
-        ) {
+        if (!this.currentlyPlaying) {
           return;
         }
 
@@ -340,6 +341,27 @@ export default class Player {
 
   isMuted() {
     return Boolean(this.previousVolume);
+  }
+
+  seek(seconds) {
+    if (!this.currentlyPlaying) return Promise.reject();
+
+    const clip = this.currentlyPlaying.clip;
+    const currentTrack = this.currentlyPlaying.track;
+    const newPosition = (clip.currentTime + seconds) / clip.duration;
+
+    if (newPosition < 0) {
+      this.stopAll();
+      this.onPreviousTrack();
+    } else if (newPosition >= 1 && this.nextTrack) {
+      const nextTrack = this.nextTrack;
+      this.nextTrack = null;
+
+      this.playTrack(nextTrack);
+      this.onNextTrack(currentTrack, nextTrack);
+    }
+
+    return clip.setCurrentPosition(newPosition);
   }
 
   setPlaybackPosition(percent, newLastAllowedPosition = null) {

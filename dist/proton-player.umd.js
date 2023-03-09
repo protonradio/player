@@ -4659,6 +4659,9 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    // Triggered every ~250ms while audio is playing.
 	    onPlaybackProgress,
 
+	    // Triggered whenever the Player seeks to the previous track.
+	    onPreviousTrack,
+
 	    // Triggered whenever a new track begins playing.
 	    onTrackChanged,
 
@@ -4682,6 +4685,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    this.onNextTrack = onNextTrack;
 	    this.onPlaybackEnded = onPlaybackEnded;
 	    this.onPlaybackProgress = onPlaybackProgress;
+	    this.onPreviousTrack = onPreviousTrack;
 	    this.onTrackChanged = onTrackChanged;
 	    this.onReady = onReady;
 	    this.onVolumeChanged = onVolumeChanged;
@@ -4877,10 +4881,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	          progress = 1; // Prevent playback progress from exceeding 1 (100%)
 	        }
 
-	        if (
-	          !this.currentlyPlaying ||
-	          progress < this.currentlyPlaying.lastReportedProgress // Prevent playback progress from going backwards
-	        ) {
+	        if (!this.currentlyPlaying) {
 	          return;
 	        }
 
@@ -4977,6 +4978,27 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 
 	  isMuted() {
 	    return Boolean(this.previousVolume);
+	  }
+
+	  seek(seconds) {
+	    if (!this.currentlyPlaying) return Promise.reject();
+
+	    const clip = this.currentlyPlaying.clip;
+	    const currentTrack = this.currentlyPlaying.track;
+	    const newPosition = (clip.currentTime + seconds) / clip.duration;
+
+	    if (newPosition < 0) {
+	      this.stopAll();
+	      this.onPreviousTrack();
+	    } else if (newPosition >= 1 && this.nextTrack) {
+	      const nextTrack = this.nextTrack;
+	      this.nextTrack = null;
+
+	      this.playTrack(nextTrack);
+	      this.onNextTrack(currentTrack, nextTrack);
+	    }
+
+	    return clip.setCurrentPosition(newPosition);
 	  }
 
 	  setPlaybackPosition(percent, newLastAllowedPosition = null) {
@@ -5135,6 +5157,7 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	      onTrackChanged: (track, nextTrack) =>
 	        this._fire('track_changed', { track, nextTrack }),
 	      onNextTrack: () => this._moveToNextTrack(),
+	      onPreviousTrack: () => this._moveToPreviousTrack(),
 	      onReady: () => {
 	        this.state = PlaybackState.READY;
 	        this._fire('state_changed', PlaybackState.READY);
@@ -5152,6 +5175,20 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  _moveToNextTrack() {
 	    const [_, playlist] = this.playlist.forward();
 	    this.playlist = playlist;
+
+	    const [nextTrack] = this.playlist.forward();
+	    if (nextTrack) {
+	      this.player.playNext(nextTrack);
+	    }
+	  }
+
+	  _moveToPreviousTrack() {
+	    const [track, playlist] = this.playlist.back();
+	    this.playlist = playlist;
+
+	    if (track) {
+	      this.player.playTrack(track);
+	    }
 
 	    const [nextTrack] = this.playlist.forward();
 	    if (nextTrack) {
@@ -5272,6 +5309,11 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  nextTracks() {
 
 	    return this.playlist.tail();
+	  }
+
+	  seek(seconds) {
+
+	    return this.player.seek(seconds);
 	  }
 
 	  setPlaybackPosition(percent, newLastAllowedPosition = null) {
