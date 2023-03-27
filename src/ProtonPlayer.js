@@ -1,12 +1,12 @@
 import Bowser from 'bowser';
 
-import ProtonPlayerError from './ProtonPlayerError';
-import { debug } from './utils/logger';
-import getContext from './getContext';
-import initializeiOSAudioEngine from './utils/initializeiOSAudioEngine';
-import Player from './Player';
 import Cursor from './Cursor';
 import EventEmitter from './EventEmitter';
+import getContext from './getContext';
+import Player from './Player';
+import ProtonPlayerError from './ProtonPlayerError';
+import initializeiOSAudioEngine from './utils/initializeiOSAudioEngine';
+import { debug } from './utils/logger';
 
 initializeiOSAudioEngine();
 
@@ -266,5 +266,11 @@ export default class ProtonPlayer extends EventEmitter {
 
     this.playlist = new Cursor([]);
     this.player.disposeAll();
+  }
+
+  currentTime() {
+    debug('ProtonPlayer#currentTime');
+
+    return this.player.currentTime();
   }
 }

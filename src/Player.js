@@ -1,11 +1,11 @@
 import Clip from './Clip';
 import ClipState from './ClipState';
-import ProtonPlayerError from './ProtonPlayerError';
-import { debug, warn, error } from './utils/logger';
-import { getSilenceURL } from './utils/silence';
-import canUseMediaSource from './utils/canUseMediaSource';
-import noop from './utils/noop';
 import Loader from './Loader';
+import ProtonPlayerError from './ProtonPlayerError';
+import canUseMediaSource from './utils/canUseMediaSource';
+import { debug, error, warn } from './utils/logger';
+import noop from './utils/noop';
+import { getSilenceURL } from './utils/silence';
 
 export default class Player {
   constructor({
@@ -341,6 +341,12 @@ export default class Player {
 
   isMuted() {
     return Boolean(this.previousVolume);
+  }
+
+  currentTime() {
+    if (!this.currentlyPlaying) return null;
+
+    return this.currentlyPlaying.clip.currentTime;
   }
 
   seek(seconds) {
