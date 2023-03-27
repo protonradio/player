@@ -24,6 +24,7 @@
     - [.currentTrack](#currentTrack)
     - [.previousTracks](#previousTracks)
     - [.nextTracks](#nextTracks)
+    - [.currentTime](#currentTime)
   - [Subscribing to events](#subscribing-to-events)
     - [.on](#on)
 - [Hosting MP3 files](#hosting-mp3-files)
@@ -298,6 +299,15 @@ Returns all of the tracks in the playlist before the currently playing `Track`.
 
 ```typescript
 player.previousTracks();
+```
+
+### `.currentTime`
+
+Returns the location of the playhead as the number of seconds since the start of
+the currently playing song.
+
+```typescript
+player.currentTime();
 ```
 
 ## Subscribing to events
