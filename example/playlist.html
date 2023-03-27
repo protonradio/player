@@ -88,25 +88,32 @@
         display: flex;
         flex-flow: row nowrap;
         justify-content: space-around;
-        width: 200px;
-        height: 50px;
+        width: 220px;
+        height: 70px;
         margin: 0 auto;
         position: absolute;
-        bottom: -65px;
+        bottom: -75px;
         left: 0;
         right: 0;
+        opacity: 0.8;
+      }
+      .Controls_Back {
+        background-image: url(./play-skip-back-circle-outline.svg);
+      }
+      .Controls_Skip {
+        background-image: url(./play-skip-forward-circle-outline.svg);
       }
       .Controls_Back,
       .Controls_PlayPause,
       .Controls_Skip {
+        background-repeat: no-repeat;
+        background-size: contain;
         font-family: monospace;
         text-align: center;
-        line-height: 42px;
-        max-height: 50px;
-        width: 50px;
+        height: 70px;
+        width: 70px;
         margin: 4px;
         padding: 4px;
-        font-size: 48px;
         color: white;
         text-shadow: 0 3px 10px rgb(0 0 0 / 0.2);
       }
@@ -121,8 +128,6 @@
 
       .Controls_PlayPause {
         font-size: 90px;
-        line-height: 48px;
-        width: 60px;
       }
 
       .Github_Link {
@@ -194,9 +199,9 @@
       <div class="NowPlaying">
         <div class="NowPlaying_Image"></div>
         <div class="Controls">
-          <div class="Controls_Back">⏮&#xFE0E;</div>
-          <div class="Controls_PlayPause">▶&#xFE0E;</div>
-          <div class="Controls_Skip">⏭&#xFE0E;</div>
+          <div class="Controls_Back"></div>
+          <div class="Controls_PlayPause"></div>
+          <div class="Controls_Skip"></div>
         </div>
       </div>
       <div class="Tracks">
@@ -374,7 +379,10 @@
         });
 
         updateElement('Controls_PlayPause', (e) => {
-          e.innerHTML = isPlaying() ? '⏸&#xFE0E;' : '⏵&#xFE0E;';
+          e.style.backgroundImage = isPlaying()
+            ? 'url(./pause-circle-outline.svg)'
+            : 'url(./play-circle-outline.svg)';
+          // e.innerHTML = isPlaying() ? '⏸&#xFE0E;' : '⏵&#xFE0E;';
         });
 
         TRACKS.forEach((track) => {
