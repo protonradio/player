@@ -21,22 +21,89 @@
 
 	var Bowser = /*@__PURE__*/getDefaultExportFromCjs(es5);
 
-	class ProtonPlayerError extends Error {
-	  constructor(message) {
-	    super(message);
-	    this.name = 'ProtonPlayerError';
+	// A Cursor is a very specific type of ordered list that maintains a cursor
+	// or currently active index. This can be used for situations where the entire
+	// contents of a list need to be available, but only one element is active at
+	// any given time.
+
+	class Cursor {
+	  constructor(xs, index = 0) {
+	    this.xs = xs;
+	    this.index = index;
+	  }
+
+	  forward() {
+	    const nextIndex = this.index + 1;
+	    if (nextIndex >= this.xs.length) return [null, this];
+	    return [this.xs[nextIndex], new Cursor(this.xs, nextIndex)];
+	  }
+
+	  back() {
+	    const previousIndex = this.index - 1;
+	    if (previousIndex < 0) return [null, this];
+	    return [this.xs[previousIndex], new Cursor(this.xs, previousIndex)];
+	  }
+
+	  move(index) {
+	    return new Cursor(this.xs, index);
+	  }
+
+	  current() {
+	    return this.xs[this.index];
+	  }
+
+	  tail() {
+	    return this.xs.slice(this.index + 1, this.xs.length);
+	  }
+
+	  head() {
+	    return this.xs.slice(0, this.index);
+	  }
+
+	  unwrap() {
+	    return this.xs;
 	  }
 	}
 
-	function debug(...args) {
-	}
+	class EventEmitter {
+	  constructor() {
+	    this.callbacks = {};
+	  }
 
-	function warn(...args) {
-	  console.warn(`%c[ProtonPlayer]`, 'color: yellow; font-weight: bold;', ...args);
-	}
+	  offAll(eventName) {
+	    if (this.callbacks[eventName]) {
+	      this.callbacks[eventName] = [];
+	    }
+	  }
 
-	function error$1(...args) {
-	  console.error(`%c[ProtonPlayer]`, 'color: red; font-weight: bold;', ...args);
+	  off(eventName, cb) {
+	    const callbacks = this.callbacks[eventName];
+	    if (!callbacks) return;
+	    const index = callbacks.indexOf(cb);
+	    if (~index) callbacks.splice(index, 1);
+	  }
+
+	  on(eventName, cb) {
+	    const callbacks = this.callbacks[eventName] || (this.callbacks[eventName] = []);
+	    callbacks.push(cb);
+	    return {
+	      cancel: () => this.off(eventName, cb),
+	    };
+	  }
+
+	  once(eventName, cb) {
+	    const _cb = (data) => {
+	      cb(data);
+	      this.off(eventName, _cb);
+	    };
+	    return this.on(eventName, _cb);
+	  }
+
+	  _fire(eventName, data) {
+	    const callbacks = this.callbacks[eventName];
+	    if (!callbacks) return;
+	    callbacks.slice().forEach((cb) => cb(data));
+	  }
 	}
 
 	let context;
@@ -47,93 +114,6 @@
 	    ? window.AudioContext
 	    : window.webkitAudioContext)();
 	  return context;
-	}
-
-	let _cachedURL = null;
-
-	const getSilenceURL = () => {
-	  if (!_cachedURL) {
-	    _cachedURL = URL.createObjectURL(
-	      new Blob([getRawSilenceBuffer()], { type: 'audio/mpeg' })
-	    );
-	  }
-
-	  return _cachedURL;
-	};
-
-	const getRawSilenceBuffer = () => {
-	  const rawMP3Bytes = hexToBytes(_RAW_SILENCE_MP3);
-	  const buffer = new ArrayBuffer(rawMP3Bytes.length);
-	  const bufferView = new DataView(buffer);
-
-	  for (let i = 0; i < rawMP3Bytes.length; i++) {
-	    bufferView.setUint8(i, rawMP3Bytes[i]);
-	  }
-
-	  return buffer;
-	};
-
-	const hexToBytes = (s) =>
-	  s
-	    .split('\n')
-	    .join('')
-	    .match(/.{1,2}/g)
-	    .map((x) => parseInt(x, 16));
-
-	/**
-	 * An extremely short hex-encoded MP3 file containing only silence.
-	 */
-	const _RAW_SILENCE_MP3 = `
-fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
-332e39382e3455555555555555555555555555555555555555555555555555555555555555555555
-4c414d45332e39382e34555555555555555555555555555555555555555555555555555555555555
-55555555555555555555555555555555555555555555555555555555555555555555555555555555
-55555555555555555555555555555555555555555555555555555555555555555555555555555555
-55555555555555555555555555555555555555555555555555555555555555555555555555555555
-55555555555555555555555555555555555555555555555555555555555555555555555555555555
-555555555555555555555555555555555555555555555555555555555555555555fffb72047u48ff
-00000690000000800000d20000001000001a40000002000003480000004555555555555555555555
-55555555555555555555555555555555555555555555555555555555555555555554c414d45332e3
-9382e345555555555555555555555555555555555555555555555555555555555555555555555555
-55555555555555555555555555555555555555555555555555555555555555555555555555555555
-55555555555555555555555555555555555555555555555555555555555555555555555555555555
-55555555555555555555555555555555555555555555555555555555555555555555555555555555
-55555555555555555555555555555555555555555555555555555555555555555555555555555555
-555555555555555555555555555555555555555555555555555555555555
-`;
-
-	// Compatibility: Safari iOS
-	// There are many restrictions around how you are able to use the Web Audio
-	// API on a mobile device, especially on iOS. One of those restrictions is that
-	// initial playback must be initiated within a user gesture handler (`click` or
-	// `touchstart`). Since many applications today use things like synthetic
-	// event systems, it can be difficult and/or messy to guarantee that the
-	// Web Audio API is properly initialized. Worse, when it is not properly
-	// initialized, it does not fail loudly: the entire API works, the audio simply
-	// does not play.
-	//
-	// This "hack" hooks into a raw DOM event for the `touchstart` gesture and
-	// initializes the Web Audio API by playing a silent audio file. It is
-	// guaranteed to trigger when the user interacts with the page, even if the
-	// Player itself has not been initialized yet. After the API has been used
-	// ONCE within a user gesture handler, it can then be freely utilized in any
-	// context across the app.
-	//
-
-	let iOSAudioIsInitialized = false;
-
-	function initializeiOSAudioEngine() {
-	  if (iOSAudioIsInitialized) return;
-
-	  const audioElement = new Audio(getSilenceURL());
-	  audioElement.play();
-
-	  iOSAudioIsInitialized = true;
-	  window.removeEventListener('touchstart', initializeiOSAudioEngine, false);
-	}
-
-	function initializeiOSAudioEngine$1 () {
-	  window.addEventListener('touchstart', initializeiOSAudioEngine, false);
 	}
 
 	function noop$1() {}
@@ -195,45 +175,15 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  };
 	}
 
-	class EventEmitter {
-	  constructor() {
-	    this.callbacks = {};
-	  }
+	function debug(...args) {
+	}
 
-	  offAll(eventName) {
-	    if (this.callbacks[eventName]) {
-	      this.callbacks[eventName] = [];
-	    }
-	  }
+	function warn(...args) {
+	  console.warn(`%c[ProtonPlayer]`, 'color: yellow; font-weight: bold;', ...args);
+	}
 
-	  off(eventName, cb) {
-	    const callbacks = this.callbacks[eventName];
-	    if (!callbacks) return;
-	    const index = callbacks.indexOf(cb);
-	    if (~index) callbacks.splice(index, 1);
-	  }
-
-	  on(eventName, cb) {
-	    const callbacks = this.callbacks[eventName] || (this.callbacks[eventName] = []);
-	    callbacks.push(cb);
-	    return {
-	      cancel: () => this.off(eventName, cb),
-	    };
-	  }
-
-	  once(eventName, cb) {
-	    const _cb = (data) => {
-	      cb(data);
-	      this.off(eventName, _cb);
-	    };
-	    return this.on(eventName, _cb);
-	  }
-
-	  _fire(eventName, data) {
-	    const callbacks = this.callbacks[eventName];
-	    if (!callbacks) return;
-	    callbacks.slice().forEach((cb) => cb(data));
-	  }
+	function error$1(...args) {
+	  console.error(`%c[ProtonPlayer]`, 'color: red; font-weight: bold;', ...args);
 	}
 
 	function bind(fn, thisArg) {
@@ -3802,6 +3752,13 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 	};
 
+	class ProtonPlayerError extends Error {
+	  constructor(message) {
+	    super(message);
+	    this.name = 'ProtonPlayerError';
+	  }
+	}
+
 	// This is for the temporary suppression of errors caused by synchronously
 	// interacting with a `MediaSource` while it is asynchronously loading. Doing so
 	// does not cause any incorrect behavior in our case, so it is safe to just
@@ -4645,6 +4602,59 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  typeof window.MediaSource.isTypeSupported === 'function' &&
 	  window.MediaSource.isTypeSupported('audio/mpeg');
 
+	let _cachedURL = null;
+
+	const getSilenceURL = () => {
+	  if (!_cachedURL) {
+	    _cachedURL = URL.createObjectURL(
+	      new Blob([getRawSilenceBuffer()], { type: 'audio/mpeg' })
+	    );
+	  }
+
+	  return _cachedURL;
+	};
+
+	const getRawSilenceBuffer = () => {
+	  const rawMP3Bytes = hexToBytes(_RAW_SILENCE_MP3);
+	  const buffer = new ArrayBuffer(rawMP3Bytes.length);
+	  const bufferView = new DataView(buffer);
+
+	  for (let i = 0; i < rawMP3Bytes.length; i++) {
+	    bufferView.setUint8(i, rawMP3Bytes[i]);
+	  }
+
+	  return buffer;
+	};
+
+	const hexToBytes = (s) =>
+	  s
+	    .split('\n')
+	    .join('')
+	    .match(/.{1,2}/g)
+	    .map((x) => parseInt(x, 16));
+
+	/**
+	 * An extremely short hex-encoded MP3 file containing only silence.
+	 */
+	const _RAW_SILENCE_MP3 = `
+fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
+332e39382e3455555555555555555555555555555555555555555555555555555555555555555555
+4c414d45332e39382e34555555555555555555555555555555555555555555555555555555555555
+55555555555555555555555555555555555555555555555555555555555555555555555555555555
+55555555555555555555555555555555555555555555555555555555555555555555555555555555
+55555555555555555555555555555555555555555555555555555555555555555555555555555555
+55555555555555555555555555555555555555555555555555555555555555555555555555555555
+555555555555555555555555555555555555555555555555555555555555555555fffb72047u48ff
+00000690000000800000d20000001000001a40000002000003480000004555555555555555555555
+55555555555555555555555555555555555555555555555555555555555555555554c414d45332e3
+9382e345555555555555555555555555555555555555555555555555555555555555555555555555
+55555555555555555555555555555555555555555555555555555555555555555555555555555555
+55555555555555555555555555555555555555555555555555555555555555555555555555555555
+55555555555555555555555555555555555555555555555555555555555555555555555555555555
+55555555555555555555555555555555555555555555555555555555555555555555555555555555
+555555555555555555555555555555555555555555555555555555555555
+`;
+
 	class Player {
 	  constructor({
 	    // Triggered whenever an error occurs.
@@ -4980,6 +4990,12 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	    return Boolean(this.previousVolume);
 	  }
 
+	  currentTime() {
+	    if (!this.currentlyPlaying) return null;
+
+	    return this.currentlyPlaying.clip.currentTime;
+	  }
+
 	  seek(seconds) {
 	    if (!this.currentlyPlaying) return Promise.reject();
 
@@ -5068,48 +5084,38 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 	  }
 	}
 
-	// A Cursor is a very specific type of ordered list that maintains a cursor
-	// or currently active index. This can be used for situations where the entire
-	// contents of a list need to be available, but only one element is active at
-	// any given time.
+	// Compatibility: Safari iOS
+	// There are many restrictions around how you are able to use the Web Audio
+	// API on a mobile device, especially on iOS. One of those restrictions is that
+	// initial playback must be initiated within a user gesture handler (`click` or
+	// `touchstart`). Since many applications today use things like synthetic
+	// event systems, it can be difficult and/or messy to guarantee that the
+	// Web Audio API is properly initialized. Worse, when it is not properly
+	// initialized, it does not fail loudly: the entire API works, the audio simply
+	// does not play.
+	//
+	// This "hack" hooks into a raw DOM event for the `touchstart` gesture and
+	// initializes the Web Audio API by playing a silent audio file. It is
+	// guaranteed to trigger when the user interacts with the page, even if the
+	// Player itself has not been initialized yet. After the API has been used
+	// ONCE within a user gesture handler, it can then be freely utilized in any
+	// context across the app.
+	//
 
-	class Cursor {
-	  constructor(xs, index = 0) {
-	    this.xs = xs;
-	    this.index = index;
-	  }
+	let iOSAudioIsInitialized = false;
 
-	  forward() {
-	    const nextIndex = this.index + 1;
-	    if (nextIndex >= this.xs.length) return [null, this];
-	    return [this.xs[nextIndex], new Cursor(this.xs, nextIndex)];
-	  }
+	function initializeiOSAudioEngine() {
+	  if (iOSAudioIsInitialized) return;
 
-	  back() {
-	    const previousIndex = this.index - 1;
-	    if (previousIndex < 0) return [null, this];
-	    return [this.xs[previousIndex], new Cursor(this.xs, previousIndex)];
-	  }
+	  const audioElement = new Audio(getSilenceURL());
+	  audioElement.play();
 
-	  move(index) {
-	    return new Cursor(this.xs, index);
-	  }
+	  iOSAudioIsInitialized = true;
+	  window.removeEventListener('touchstart', initializeiOSAudioEngine, false);
+	}
 
-	  current() {
-	    return this.xs[this.index];
-	  }
-
-	  tail() {
-	    return this.xs.slice(this.index + 1, this.xs.length);
-	  }
-
-	  head() {
-	    return this.xs.slice(0, this.index);
-	  }
-
-	  unwrap() {
-	    return this.xs;
-	  }
+	function initializeiOSAudioEngine$1 () {
+	  window.addEventListener('touchstart', initializeiOSAudioEngine, false);
 	}
 
 	initializeiOSAudioEngine$1();
@@ -5351,6 +5357,11 @@ fffb7004000ff00000690000000800000d20000001000001a400000020000034800000044c414d45
 
 	    this.playlist = new Cursor([]);
 	    this.player.disposeAll();
+	  }
+
+	  currentTime() {
+
+	    return this.player.currentTime();
 	  }
 	}
 
