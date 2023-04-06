@@ -1,12 +1,12 @@
-import Loader from './Loader';
-import EventEmitter from './EventEmitter';
-import ProtonPlayerError from './ProtonPlayerError';
-import getContext from './getContext';
-import { debug, warn } from './utils/logger';
-import suppressAbortError from './utils/suppressAbortError';
-import noop from './utils/noop';
 import ClipState, { CHUNK_SIZE } from './ClipState';
+import EventEmitter from './EventEmitter';
+import getContext from './getContext';
+import Loader from './Loader';
+import ProtonPlayerError from './ProtonPlayerError';
 import { slice } from './utils/buffer';
+import { debug, warn } from './utils/logger';
+import noop from './utils/noop';
+import suppressAbortError from './utils/suppressAbortError';
 
 const OVERLAP = 0.2;
 const TIMEOUT_SAFE_OFFSET = 50;
@@ -112,11 +112,11 @@ export default class Clip extends EventEmitter {
   }
 
   preBuffer(isRetrying = false) {
-    if (isRetrying && this._shouldStopBuffering) {
-      return Promise.reject(new ProtonPlayerError('Clip was paused or disposed'));
-    }
-
-    if (this._preBuffered || this._buffered) {
+    if (
+      this._preBuffered ||
+      this._buffered ||
+      (isRetrying && this._shouldStopBuffering)
+    ) {
       return Promise.resolve();
     }
 
