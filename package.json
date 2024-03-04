@@ -8,6 +8,10 @@
     "axios": "^1.1.3",
     "bowser": "^2.11.0"
   },
+  "repository": {
+    "type": "git",
+    "github": "https://github.com/protonradio/player.git"
+  },
   "devDependencies": {
     "@babel/core": "^7.15.8",
     "@babel/preset-env": "^7.15.8",
