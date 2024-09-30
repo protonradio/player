@@ -22,7 +22,7 @@
     "@rollup/plugin-replace": "^3.0.0",
     "mocha": "^9.1.2",
     "prettier": "^2.3.2",
-    "rollup": "^2.36.0"
+    "rollup": "^2.79.2"
   },
   "scripts": {
     "build": "rollup -c",
