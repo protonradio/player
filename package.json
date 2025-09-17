@@ -5,23 +5,23 @@
   "module": "dist/proton-player.esm.js",
   "browser": "dist/proton-player.umd.js",
   "dependencies": {
-    "axios": "^1.7.7",
-    "bowser": "^2.11.0"
+    "axios": "^1.12.2",
+    "bowser": "^2.12.1"
   },
   "repository": {
     "type": "git",
     "github": "https://github.com/protonradio/player.git"
   },
   "devDependencies": {
-    "@babel/core": "^7.25.2",
-    "@babel/preset-env": "^7.25.4",
-    "@babel/register": "^7.24.6",
-    "@rollup/plugin-commonjs": "^17.0.0",
+    "@babel/core": "^7.28.4",
+    "@babel/preset-env": "^7.28.3",
+    "@babel/register": "^7.28.3",
+    "@rollup/plugin-commonjs": "^17.1.0",
     "@rollup/plugin-json": "^4.1.0",
-    "@rollup/plugin-node-resolve": "^11.0.1",
-    "@rollup/plugin-replace": "^3.0.0",
-    "mocha": "^9.1.2",
-    "prettier": "^2.3.2",
+    "@rollup/plugin-node-resolve": "^11.2.1",
+    "@rollup/plugin-replace": "^3.1.0",
+    "mocha": "^9.2.2",
+    "prettier": "^2.8.8",
     "rollup": "^2.79.2"
   },
   "scripts": {
