@@ -5,7 +5,7 @@
   "module": "dist/proton-player.esm.js",
   "browser": "dist/proton-player.umd.js",
   "dependencies": {
-    "axios": "^1.12.2",
+    "axios": "^1.15.0",
     "bowser": "^2.12.1"
   },
   "repository": {
